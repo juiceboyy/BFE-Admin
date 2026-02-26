@@ -151,45 +151,15 @@
         lucide.createIcons();
     </script>
 </body>
-<script>
-    // Initialize Lucide Icons
+<script type="module">
+    import { initAuth, accessToken } from './js/api/auth.js';
+
+    // Initialiseer Lucide Icons
     lucide.createIcons();
 
-    const CLIENT_ID = '876110380505-g169p7tcffqh73qt3ukghme8g31gvu7g.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly';
-
-    let tokenClient;
-    let accessToken = null;
-
-    // Wacht tot de Google library is geladen
-    window.onload = function () {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-
-            callback: (response) => {
-                if (response.error !== undefined) {
-                    throw (response);
-                }
-                accessToken = response.access_token;
-
-                const authBtn = document.getElementById('auth-btn');
-                authBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-500"></i> Gesynchroniseerd';
-                authBtn.classList.replace('text-gray-700', 'text-green-700');
-                lucide.createIcons();
-
-                // Trigger de fetcher direct na login!
-                fetchFacturenUitGmail();
-            },
-        });
-    };
-
-    document.getElementById('auth-btn').onclick = () => {
-        if (!accessToken) {
-            // Trigger de OAuth popup
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        }
-    };
+    // De authenticatielogica is verplaatst. We initialiseren deze hier
+    // en geven de functie mee die na een succesvolle login moet worden aangeroepen.
+    initAuth(fetchFacturenUitGmail);
 
     // --- Gmail API Fetcher (Debug Versie) ---
     async function fetchFacturenUitGmail() {
