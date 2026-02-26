@@ -124,6 +124,19 @@
                 </div>
             </div>
 
+            <div class="glass-panel p-6 rounded-3xl flex flex-col h-96">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-medium">Smart Inbox</h2>
+                    <span id="inbox-badge"
+                        class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full hidden">0</span>
+                </div>
+                <div id="inbox-list" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    <div class="text-sm text-gray-400 text-center mt-10">
+                        Klik op 'Sync Drive' om recente facturen op te halen.
+                    </div>
+                </div>
+            </div>
+
             <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
                 <h2 class="text-xl font-medium mb-4">Huidig tijdvak</h2>
                 <div class="overflow-x-auto">
@@ -242,8 +255,7 @@
                 };
             }));
 
-            console.log("✅ Resultaat:", facturen);
-
+            renderFactuurSuggesties(facturen);
         } catch (error) {
             console.error("🚨 Fatale fout in de fetcher:", error);
         }
@@ -322,6 +334,47 @@
 
         // Groen als je terugkrijgt, Zwart als je moet betalen
         totaalEl.className = `text-2xl font-semibold tracking-tight ${totaal < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
+    }
+
+    // Render de opgehaalde facturen in de side-panel
+    function renderFactuurSuggesties(facturen) {
+        const container = document.getElementById('inbox-list');
+        const badge = document.getElementById('inbox-badge');
+
+        container.innerHTML = '';
+
+        if (facturen.length > 0) {
+            badge.innerText = facturen.length;
+            badge.classList.remove('hidden');
+        }
+
+        facturen.forEach(f => {
+            const el = document.createElement('div');
+            el.className = 'p-4 bg-white/60 border border-gray-100 rounded-2xl cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group';
+            el.innerHTML = `
+            <div class="flex justify-between items-start mb-1">
+                <div class="text-sm font-semibold text-gray-900 truncate pr-2">${f.afzender.replace(/['"]/g, '')}</div>
+                <div class="text-[10px] font-medium text-gray-400 whitespace-nowrap">${new Date(f.datum).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}</div>
+            </div>
+            <div class="text-xs text-gray-500 truncate group-hover:text-gray-700 transition-colors">${f.onderwerp}</div>
+        `;
+
+            // Auto-fill logic bij een klik
+            el.onclick = () => {
+                document.getElementById('type').value = 'uitgaven';
+                document.getElementById('datum').valueAsDate = new Date(f.datum);
+                document.getElementById('omschrijving').value = f.afzender.replace(/['"]/g, '');
+                document.getElementById('tarief').value = '21'; // Default voor de meeste NL kosten
+
+                // Zet focus op het bedrag zodat je direct kan typen
+                document.getElementById('bedrag').focus();
+
+                // Visuele feedback dat hij is geselecteerd
+                el.classList.add('opacity-50', 'grayscale');
+            };
+
+            container.appendChild(el);
+        });
     }
 
     // Initialiseer datum veld op vandaag
