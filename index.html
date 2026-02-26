@@ -152,87 +152,18 @@
     </script>
 </body>
 <script type="module">
-    import { initAuth, accessToken } from './js/api/auth.js';
+    import { initAuth } from './js/api/auth.js';
+    import { fetchFacturenUitGmail } from './js/api/gmail.js';
 
     // Initialiseer Lucide Icons
     lucide.createIcons();
 
     // De authenticatielogica is verplaatst. We initialiseren deze hier
     // en geven de functie mee die na een succesvolle login moet worden aangeroepen.
-    initAuth(fetchFacturenUitGmail);
-
-    // --- Gmail API Fetcher (Debug Versie) ---
-    async function fetchFacturenUitGmail() {
-        console.log("🔍 Fetcher gestart. Token aanwezig?", !!accessToken);
-
-        if (!accessToken) {
-            console.warn("🚨 Geen toegangstoken gevonden.");
-            return;
-        }
-
-        try {
-            // 1. Bereken de datums voor de vorige maand
-            const nu = new Date();
-            const eersteDagVorigeMaand = new Date(nu.getFullYear(), nu.getMonth() - 1, 1);
-            const eersteDagHuidigeMaand = new Date(nu.getFullYear(), nu.getMonth(), 1);
-
-            const formatDate = (date) => {
-                return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-            };
-
-            const afterDate = formatDate(eersteDagVorigeMaand);
-            const beforeDate = formatDate(eersteDagHuidigeMaand); // 'before' in Gmail is exclusief, dus dit pakt tot en met de laatste dag van de vorige maand
-
-            // 2. Maak de specifieke zoekopdracht
-            const baseQuery = 'subject:(factuur OR invoice OR bon)';
-            const timeQuery = `after:${afterDate} before:${beforeDate}`;
-            const searchQuery = encodeURIComponent(`${baseQuery} ${timeQuery}`);
-
-            console.log(`🔍 Zoeken naar facturen van: ${afterDate} tot ${beforeDate}`);
-            const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${searchQuery}&maxResults=5`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-            });
-
-            // Vang HTTP errors af (bijv. als Gmail API niet aan staat)
-            if (!listResponse.ok) {
-                const errorText = await listResponse.text();
-                console.error("🚨 API Error:", listResponse.status, errorText);
-                return;
-            }
-
-            const listData = await listResponse.json();
-
-            if (!listData.messages || listData.messages.length === 0) {
-                console.log("ℹ️ Fetch gelukt, maar 0 mails gevonden met deze zoektermen.");
-                return;
-            }
-
-            console.log(`📦 ${listData.messages.length} mails gevonden, details ophalen...`);
-
-            const facturen = await Promise.all(listData.messages.map(async (msg) => {
-                const msgResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                });
-                const msgData = await msgResponse.json();
-
-                const headers = msgData.payload.headers;
-                const subject = headers.find(h => h.name === 'Subject')?.value || 'Geen onderwerp';
-                const from = headers.find(h => h.name === 'From')?.value || 'Onbekende afzender';
-                const dateStr = headers.find(h => h.name === 'Date')?.value;
-
-                return {
-                    id: msg.id,
-                    afzender: from.replace(/<.*>/, '').trim(),
-                    onderwerp: subject,
-                    datum: dateStr ? new Date(dateStr) : new Date() // Nu pakt hij de datum weer netjes op!
-                };
-            }));
-
-            renderFactuurSuggesties(facturen);
-        } catch (error) {
-            console.error("🚨 Fatale fout in de fetcher:", error);
-        }
-    }
+    initAuth(async () => {
+        const facturen = await fetchFacturenUitGmail();
+        renderFactuurSuggesties(facturen);
+    });
 
     // --- Btw Module Logica ---
     let transactions = [];
