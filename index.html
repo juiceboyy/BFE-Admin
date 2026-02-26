@@ -166,18 +166,20 @@
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID,
             scope: SCOPES,
+
             callback: (response) => {
                 if (response.error !== undefined) {
                     throw (response);
                 }
                 accessToken = response.access_token;
-                console.log('Access token ontvangen:', accessToken);
 
-                // Update UI om succes te tonen
                 const authBtn = document.getElementById('auth-btn');
                 authBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-500"></i> Gesynchroniseerd';
                 authBtn.classList.replace('text-gray-700', 'text-green-700');
                 lucide.createIcons();
+
+                // Trigger de fetcher direct na login!
+                fetchFacturenUitGmail();
             },
         });
     };
@@ -188,6 +190,63 @@
             tokenClient.requestAccessToken({ prompt: 'consent' });
         }
     };
+
+    // --- Gmail API Fetcher ---
+
+    async function fetchFacturenUitGmail() {
+        if (!accessToken) {
+            console.warn("Geen toegang. Zorg dat je bent ingelogd via Google.");
+            return;
+        }
+
+        // Update UI state (optioneel, bijvoorbeeld een laad-icoon)
+        console.log("Zoeken naar facturen in Gmail...");
+
+        try {
+            // Stap 1: Zoek naar berichten (laatste 30 dagen)
+            const searchQuery = encodeURIComponent('subject:(factuur OR invoice OR bon) newer_than:30d');
+            const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${searchQuery}&maxResults=5`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            const listData = await listResponse.json();
+
+            if (!listData.messages || listData.messages.length === 0) {
+                console.log("Geen recente facturen gevonden.");
+                return;
+            }
+
+            // Stap 2: Haal de details (headers & snippet) op voor elk gevonden bericht
+            const facturen = await Promise.all(listData.messages.map(async (msg) => {
+                const msgResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                const msgData = await msgResponse.json();
+
+                const headers = msgData.payload.headers;
+                const subject = headers.find(h => h.name === 'Subject')?.value || 'Geen onderwerp';
+                const from = headers.find(h => h.name === 'From')?.value || 'Onbekende afzender';
+                const date = new Date(headers.find(h => h.name === 'Date')?.value || Date.now());
+
+                return {
+                    id: msg.id,
+                    afzender: from.replace(/<.*>/, '').trim(), // Haal emailadres weg voor een schonere UI
+                    onderwerp: subject,
+                    datum: date,
+                    snippet: msgData.snippet
+                };
+            }));
+
+            console.log("Gevonden facturen:", facturen);
+
+            // Optioneel: Stuur deze data naar je UI
+            // renderFactuurSuggesties(facturen);
+
+        } catch (error) {
+            console.error("Fout bij het ophalen van Gmail data:", error);
+        }
+    }
+
     // --- Btw Module Logica ---
     let transactions = [];
 
