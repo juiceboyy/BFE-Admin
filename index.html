@@ -125,10 +125,13 @@
             </div>
 
             <div class="glass-panel p-6 rounded-3xl flex flex-col h-96">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-medium">Smart Inbox</h2>
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-xl font-medium">Smart Inbox</h2>
+                        <p id="inbox-period" class="text-xs text-gray-400 mt-1 font-medium">Periode laden...</p>
+                    </div>
                     <span id="inbox-badge"
-                        class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full hidden">0</span>
+                        class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full mt-1 hidden">0</span>
                 </div>
                 <div id="inbox-list" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                     <div class="text-sm text-gray-400 text-center mt-10">
@@ -214,10 +217,24 @@
         }
 
         try {
-            // We halen 'newer_than:30d' even weg om breder te zoeken
-            const searchQuery = encodeURIComponent('subject:(factuur OR invoice OR bon)');
-            console.log("🔍 API call maken naar Gmail...");
+            // 1. Bereken de datums voor de vorige maand
+            const nu = new Date();
+            const eersteDagVorigeMaand = new Date(nu.getFullYear(), nu.getMonth() - 1, 1);
+            const eersteDagHuidigeMaand = new Date(nu.getFullYear(), nu.getMonth(), 1);
 
+            const formatDate = (date) => {
+                return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+            };
+
+            const afterDate = formatDate(eersteDagVorigeMaand);
+            const beforeDate = formatDate(eersteDagHuidigeMaand); // 'before' in Gmail is exclusief, dus dit pakt tot en met de laatste dag van de vorige maand
+
+            // 2. Maak de specifieke zoekopdracht
+            const baseQuery = 'subject:(factuur OR invoice OR bon)';
+            const timeQuery = `after:${afterDate} before:${beforeDate}`;
+            const searchQuery = encodeURIComponent(`${baseQuery} ${timeQuery}`);
+
+            console.log(`🔍 Zoeken naar facturen van: ${afterDate} tot ${beforeDate}`);
             const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${searchQuery}&maxResults=5`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
             });
@@ -378,6 +395,23 @@
             container.appendChild(el);
         });
     }
+
+    // --- Set Smart Inbox Periode Label ---
+    const setInboxPeriode = () => {
+        const nu = new Date();
+        const vorigeMaand = new Date(nu.getFullYear(), nu.getMonth() - 1, 1);
+
+        // Gebruik de ingebouwde JS formatter voor een strakke Nederlandse datum (bijv. "januari 2026")
+        const periodeNaam = new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' }).format(vorigeMaand);
+
+        // Maak de eerste letter een hoofdletter voor die Apple-polish
+        const periodeGekapitaliseerd = periodeNaam.charAt(0).toUpperCase() + periodeNaam.slice(1);
+
+        const periodEl = document.getElementById('inbox-period');
+        if (periodEl) periodEl.innerText = periodeGekapitaliseerd;
+    };
+
+    setInboxPeriode();
 
     // Initialiseer datum veld op vandaag
     document.getElementById('datum').valueAsDate = new Date();
