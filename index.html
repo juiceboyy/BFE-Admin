@@ -247,11 +247,13 @@
                 const headers = msgData.payload.headers;
                 const subject = headers.find(h => h.name === 'Subject')?.value || 'Geen onderwerp';
                 const from = headers.find(h => h.name === 'From')?.value || 'Onbekende afzender';
+                const dateStr = headers.find(h => h.name === 'Date')?.value;
 
                 return {
                     id: msg.id,
                     afzender: from.replace(/<.*>/, '').trim(),
-                    onderwerp: subject
+                    onderwerp: subject,
+                    datum: dateStr ? new Date(dateStr) : new Date() // Nu pakt hij de datum weer netjes op!
                 };
             }));
 
