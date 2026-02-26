@@ -6,6 +6,7 @@
     <title>Big Fish Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
         
@@ -33,7 +34,7 @@
                 <p class="text-gray-500 text-sm mt-1">Big Fish Entertainment</p>
             </div>
             <div class="flex gap-3">
-                <button class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm border border-gray-200 hover:shadow-md transition-all text-gray-700">
+                <button id="auth-btn" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm border border-gray-200 hover:shadow-md transition-all text-gray-700">
                     <i data-lucide="cloud-download" class="w-4 h-4"></i> Sync Drive
                 </button>
                 <button class="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
@@ -80,4 +81,42 @@
         lucide.createIcons();
     </script>
 </body>
+<script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    const CLIENT_ID = '876110380505-g169p7tcffqh73qt3ukghme8g31gvu7g.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly';
+    
+    let tokenClient;
+    let accessToken = null;
+
+    // Wacht tot de Google library is geladen
+    window.onload = function () {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: (response) => {
+                if (response.error !== undefined) {
+                    throw (response);
+                }
+                accessToken = response.access_token;
+                console.log('Access token ontvangen:', accessToken);
+                
+                // Update UI om succes te tonen
+                const authBtn = document.getElementById('auth-btn');
+                authBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-500"></i> Gesynchroniseerd';
+                authBtn.classList.replace('text-gray-700', 'text-green-700');
+                lucide.createIcons();
+            },
+        });
+    };
+
+    document.getElementById('auth-btn').onclick = () => {
+        if (!accessToken) {
+            // Trigger de OAuth popup
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+    };
+</script>
 </html>
