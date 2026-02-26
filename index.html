@@ -145,31 +145,6 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Initialize Lucide Icons
-        lucide.createIcons();
-    </script>
 </body>
-<script type="module">
-    import { initAuth } from './js/api/auth.js';
-    import { fetchFacturenUitGmail } from './js/api/gmail.js';
-    import { renderFactuurSuggesties, setInboxPeriode } from './js/ui/inbox.js';
-    import { initBtwModule } from './js/ui/btw.js';
-
-    // Initialiseer Lucide Icons
-    lucide.createIcons();
-
-    // De authenticatielogica is verplaatst. We initialiseren deze hier
-    // en geven de functie mee die na een succesvolle login moet worden aangeroepen.
-    initAuth(async () => {
-        const facturen = await fetchFacturenUitGmail();
-        renderFactuurSuggesties(facturen);
-    });
-
-    // Initialiseer modules
-    setInboxPeriode();
-    initBtwModule();
-</script>
-
+<script type="module" src="js/main.js"></script>
 </html>
