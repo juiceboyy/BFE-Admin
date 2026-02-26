@@ -72,3 +72,33 @@ export async function fetchFacturenUitGmail() {
         return [];
     }
 }
+
+export async function getInvoiceAttachment(messageId) {
+    if (!accessToken) return null;
+
+    try {
+        // 1. Haal de volledige message payload op (zonder format=metadata krijg je full)
+        const msgResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const msg = await msgResponse.json();
+
+        // 2. Zoek in parts naar een PDF
+        const parts = msg.payload.parts || [];
+        const pdfPart = parts.find(p => p.filename && p.filename.toLowerCase().endsWith('.pdf') && p.body && p.body.attachmentId);
+
+        if (!pdfPart) return null;
+
+        // 3. Haal de attachment data op via de attachmentId
+        const attachmentId = pdfPart.body.attachmentId;
+        const attResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const attData = await attResponse.json();
+
+        return attData.data; // Dit is de base64url string
+    } catch (error) {
+        console.error("🚨 Fout bij ophalen bijlage:", error);
+        return null;
+    }
+}
