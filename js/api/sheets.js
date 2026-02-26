@@ -1,4 +1,6 @@
 // --- Google Sheets API Fetcher ---
+import { accessToken } from './auth.js';
+
 export async function fetchBtwAdministratie() {
     if (!accessToken) {
         console.warn("Geen toegangstoken. Log eerst in.");
