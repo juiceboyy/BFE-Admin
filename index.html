@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Fish Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #fbfbfd; 
+            color: #1d1d1f;
+        }
+        
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.65); 
+            backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen p-8 selection:bg-blue-200">
+    <div class="max-w-5xl mx-auto">
+        
+        <header class="flex justify-between items-center mb-12 mt-8">
+            <div>
+                <h1 class="text-3xl font-semibold tracking-tight">Overzicht</h1>
+                <p class="text-gray-500 text-sm mt-1">Big Fish Entertainment</p>
+            </div>
+            <div class="flex gap-3">
+                <button class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm border border-gray-200 hover:shadow-md transition-all text-gray-700">
+                    <i data-lucide="cloud-download" class="w-4 h-4"></i> Sync Drive
+                </button>
+                <button class="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Nieuwe Btw-aangifte
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-1 transition-transform duration-300">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="p-3 bg-blue-50 rounded-2xl">
+                        <i data-lucide="calculator" class="w-6 h-6 text-blue-600"></i>
+                    </div>
+                    <span class="text-xs font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full">Actief</span>
+                </div>
+                <h2 class="text-xl font-medium mb-2">Btw-aangifte</h2>
+                <p class="text-sm text-gray-500 mb-6 leading-relaxed">Verzamel facturen, bereken voorbelasting en genereer de totalen voor het huidige tijdvak.</p>
+                <div class="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-500 w-1/3 rounded-full"></div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-3xl opacity-60">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="p-3 bg-gray-100 rounded-2xl">
+                        <i data-lucide="file-bar-chart-2" class="w-6 h-6 text-gray-600"></i>
+                    </div>
+                    <span class="text-xs font-medium bg-gray-200 text-gray-600 px-3 py-1 rounded-full">Fase 2</span>
+                </div>
+                <h2 class="text-xl font-medium mb-2">Inkomstenbelasting</h2>
+                <p class="text-sm text-gray-500 mb-6 leading-relaxed">Genereer de jaarrekening, beheer afschrijvingen en bereken je IB en Zvw.</p>
+                <div class="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gray-300 w-0 rounded-full"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
