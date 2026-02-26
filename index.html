@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="nl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,70 +10,139 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-        
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: #fbfbfd; 
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fbfbfd;
             color: #1d1d1f;
         }
-        
-        .glass-panel { 
-            background: rgba(255, 255, 255, 0.65); 
-            backdrop-filter: blur(20px); 
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.4); 
+            border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
         }
     </style>
 </head>
+
 <body class="antialiased min-h-screen p-8 selection:bg-blue-200">
     <div class="max-w-5xl mx-auto">
-        
+
         <header class="flex justify-between items-center mb-12 mt-8">
             <div>
                 <h1 class="text-3xl font-semibold tracking-tight">Overzicht</h1>
                 <p class="text-gray-500 text-sm mt-1">Big Fish Entertainment</p>
             </div>
             <div class="flex gap-3">
-                <button id="auth-btn" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm border border-gray-200 hover:shadow-md transition-all text-gray-700">
+                <button id="auth-btn"
+                    class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm border border-gray-200 hover:shadow-md transition-all text-gray-700">
                     <i data-lucide="cloud-download" class="w-4 h-4"></i> Sync Drive
                 </button>
-                <button class="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
+                <button
+                    class="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
                     <i data-lucide="plus" class="w-4 h-4"></i> Nieuwe Btw-aangifte
                 </button>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <div class="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-1 transition-transform duration-300">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="p-3 bg-blue-50 rounded-2xl">
-                        <i data-lucide="calculator" class="w-6 h-6 text-blue-600"></i>
+        <div id="app-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <div class="glass-panel p-6 rounded-3xl lg:col-span-2">
+                <h2 class="text-xl font-medium mb-6">Nieuwe boeking</h2>
+                <form id="btw-form" class="space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Type</label>
+                            <select id="type"
+                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                <option value="inkomsten">Inkomsten (Omzet)</option>
+                                <option value="uitgaven">Uitgaven (Kosten)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Datum</label>
+                            <input type="date" id="datum" required
+                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                        </div>
                     </div>
-                    <span class="text-xs font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full">Actief</span>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Omschrijving</label>
+                        <input type="text" id="omschrijving" placeholder="Bijv. Optreden / Studiohuur / Apparatuur"
+                            required
+                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Bedrag (Excl. Btw)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                <input type="number" step="0.01" id="bedrag" placeholder="0.00" required
+                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Btw-tarief</label>
+                            <select id="tarief"
+                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                <option value="9">9% (Muziek/Optredens)</option>
+                                <option value="21">21% (Algemeen)</option>
+                                <option value="0">0%</option>
+                                <option value="verlegd">Verlegd</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit"
+                        class="w-full mt-2 bg-black text-white rounded-xl py-3 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
+                        Boeking Toevoegen
+                    </button>
+                </form>
+            </div>
+
+            <div class="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xl font-medium mb-6">Btw-samenvatting</h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
+                            <span class="text-sm text-gray-500">Btw 21% (Omzet)</span>
+                            <span id="sum-btw-21" class="font-medium text-sm">€ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
+                            <span class="text-sm text-gray-500">Btw 9% (Omzet)</span>
+                            <span id="sum-btw-9" class="font-medium text-sm">€ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
+                            <span class="text-sm text-gray-500">Voorbelasting (Kosten)</span>
+                            <span id="sum-voorbelasting" class="font-medium text-sm text-blue-600">- € 0,00</span>
+                        </div>
+                    </div>
                 </div>
-                <h2 class="text-xl font-medium mb-2">Btw-aangifte</h2>
-                <p class="text-sm text-gray-500 mb-6 leading-relaxed">Verzamel facturen, bereken voorbelasting en genereer de totalen voor het huidige tijdvak.</p>
-                <div class="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div class="h-full bg-blue-500 w-1/3 rounded-full"></div>
+                <div class="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center">
+                    <span class="font-medium text-sm text-gray-500">Totaal te betalen</span>
+                    <span id="sum-totaal" class="text-2xl font-semibold tracking-tight">€ 0,00</span>
                 </div>
             </div>
 
-            <div class="glass-panel p-6 rounded-3xl opacity-60">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="p-3 bg-gray-100 rounded-2xl">
-                        <i data-lucide="file-bar-chart-2" class="w-6 h-6 text-gray-600"></i>
-                    </div>
-                    <span class="text-xs font-medium bg-gray-200 text-gray-600 px-3 py-1 rounded-full">Fase 2</span>
-                </div>
-                <h2 class="text-xl font-medium mb-2">Inkomstenbelasting</h2>
-                <p class="text-sm text-gray-500 mb-6 leading-relaxed">Genereer de jaarrekening, beheer afschrijvingen en bereken je IB en Zvw.</p>
-                <div class="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div class="h-full bg-gray-300 w-0 rounded-full"></div>
+            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
+                <h2 class="text-xl font-medium mb-4">Huidig tijdvak</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-400 uppercase bg-gray-50/50">
+                            <tr>
+                                <th class="px-4 py-3 rounded-l-xl font-medium">Datum</th>
+                                <th class="px-4 py-3 font-medium">Omschrijving</th>
+                                <th class="px-4 py-3 font-medium">Type</th>
+                                <th class="px-4 py-3 font-medium">Tarief</th>
+                                <th class="px-4 py-3 text-right font-medium">Excl. Btw</th>
+                                <th class="px-4 py-3 text-right rounded-r-xl font-medium">Btw</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-list" class="divide-y divide-gray-50/50">
+                        </tbody>
+                    </table>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -87,7 +157,7 @@
 
     const CLIENT_ID = '876110380505-g169p7tcffqh73qt3ukghme8g31gvu7g.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly';
-    
+
     let tokenClient;
     let accessToken = null;
 
@@ -102,7 +172,7 @@
                 }
                 accessToken = response.access_token;
                 console.log('Access token ontvangen:', accessToken);
-                
+
                 // Update UI om succes te tonen
                 const authBtn = document.getElementById('auth-btn');
                 authBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-500"></i> Gesynchroniseerd';
@@ -115,8 +185,86 @@
     document.getElementById('auth-btn').onclick = () => {
         if (!accessToken) {
             // Trigger de OAuth popup
-            tokenClient.requestAccessToken({prompt: 'consent'});
+            tokenClient.requestAccessToken({ prompt: 'consent' });
         }
     };
+    // --- Btw Module Logica ---
+    let transactions = [];
+
+    const formatCurrency = (amount) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
+
+    document.getElementById('btw-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const type = document.getElementById('type').value;
+        const datum = document.getElementById('datum').value;
+        const omschrijving = document.getElementById('omschrijving').value;
+        const bedragExcl = parseFloat(document.getElementById('bedrag').value);
+        const tarief = document.getElementById('tarief').value;
+
+        let btwBedrag = 0;
+        if (tarief === '21') btwBedrag = bedragExcl * 0.21;
+        if (tarief === '9') btwBedrag = bedragExcl * 0.09;
+
+        const transaction = { id: Date.now(), type, datum, omschrijving, bedragExcl, tarief, btwBedrag };
+        transactions.push(transaction);
+
+        e.target.reset();
+
+        // Zet datum terug op vandaag voor gemak
+        document.getElementById('datum').valueAsDate = new Date();
+        updateDashboard();
+    });
+
+    function updateDashboard() {
+        let btw21 = 0, btw9 = 0, voorbelasting = 0;
+        const listEl = document.getElementById('transactions-list');
+        listEl.innerHTML = '';
+
+        transactions.sort((a, b) => new Date(b.datum) - new Date(a.datum)).forEach(t => {
+            // Bereken totalen
+            if (t.type === 'inkomsten') {
+                if (t.tarief === '21') btw21 += t.btwBedrag;
+                if (t.tarief === '9') btw9 += t.btwBedrag;
+            } else if (t.type === 'uitgaven') {
+                // Check of btw aftrekbaar is (verlegd/0% heeft 0 voorbelasting)
+                voorbelasting += t.btwBedrag;
+            }
+
+            // Render rij
+            const isInkomst = t.type === 'inkomsten';
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-white/40 transition-colors';
+            row.innerHTML = `
+            <td class="px-4 py-3 text-gray-500">${new Date(t.datum).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })}</td>
+            <td class="px-4 py-3 font-medium text-gray-800">${t.omschrijving}</td>
+            <td class="px-4 py-3">
+                <span class="px-2.5 py-1 text-[11px] font-medium rounded-md ${isInkomst ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}">
+                    ${isInkomst ? 'Omzet' : 'Kosten'}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-gray-500">${t.tarief === 'verlegd' ? 'Verlegd' : t.tarief + '%'}</td>
+            <td class="px-4 py-3 text-right text-gray-700">${formatCurrency(t.bedragExcl)}</td>
+            <td class="px-4 py-3 text-right text-gray-500">${formatCurrency(t.btwBedrag)}</td>
+        `;
+            listEl.appendChild(row);
+        });
+
+        // Update UI Totalen
+        document.getElementById('sum-btw-21').innerText = formatCurrency(btw21);
+        document.getElementById('sum-btw-9').innerText = formatCurrency(btw9);
+        document.getElementById('sum-voorbelasting').innerText = '- ' + formatCurrency(voorbelasting);
+
+        const totaal = (btw21 + btw9) - voorbelasting;
+        const totaalEl = document.getElementById('sum-totaal');
+        totaalEl.innerText = formatCurrency(totaal);
+
+        // Groen als je terugkrijgt, Zwart als je moet betalen
+        totaalEl.className = `text-2xl font-semibold tracking-tight ${totaal < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
+    }
+
+    // Initialiseer datum veld op vandaag
+    document.getElementById('datum').valueAsDate = new Date();
 </script>
+
 </html>
