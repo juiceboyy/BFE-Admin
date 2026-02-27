@@ -9,64 +9,75 @@ export const handler = async (event, context) => {
 
     try {
         // Parse de inkomende data
-        const { base64Data, mimeType } = JSON.parse(event.body);
+        let { base64Data, mimeType } = JSON.parse(event.body);
 
-        // Haal de API key veilig op uit de environment variables
-        const API_KEY = process.env.GEMINI_API_KEY;
-
-        if (!API_KEY) {
-            console.error('GEMINI_API_KEY ontbreekt in environment variables.');
+        // Haal de API key veilig op en verwijder onzichtbare tekens
+        const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
+        
+        if (!apiKey) {
             return {
                 statusCode: 500,
                 body: JSON.stringify({ error: 'Server configuratiefout: API Key ontbreekt.' })
             };
         }
 
-        const prompt = "Act as a Dutch accountant and extract the following fields from the image: factuurnummer, datum (format YYYY-MM-DD), omschrijving (company name or short description), bedragExclusief (number), btwTarief (only 21, 9, or 0), and btwBedrag (number). Instruct it to return ONLY a raw JSON object, without markdown formatting or code blocks.";
+        // Gebruik de stabiele URL voor Gemini 1.5 Flash
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-        // Doe de request naar Google Gemini
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`, {
+        // Zorg ervoor dat base64Data géén data prefix bevat
+        if (base64Data.includes(',')) {
+            base64Data = base64Data.split(',')[1];
+        }
+
+        // Fetch request body volgens Gemini v1beta specificatie
+        const payload = {
+            contents: [{
+                parts: [
+                    { text: "Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), omschrijving, bedragExclusief (getal), btwTarief (21, 9 of 0), btwBedrag (getal) uit deze bon en return UITSLUITEND een geldig JSON object." },
+                    {
+                        inline_data: {
+                            mime_type: mimeType,
+                            data: base64Data
+                        }
+                    }
+                ]
+            }]
+        };
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        {
-                            inline_data: {
-                                mime_type: mimeType,
-                                data: base64Data
-                            }
-                        }
-                    ]
-                }]
-            })
+            body: JSON.stringify(payload)
         });
 
-        const data = await response.json();
-
-        // Check of Google een error teruggeeft (bijv. 400 of 404)
+        // Error handling: Google API fouten
         if (!response.ok) {
-            console.error('Gemini API Error:', data);
+            const errorData = await response.json();
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Fout bij Google Gemini API', details: data })
+                body: JSON.stringify(errorData)
             };
         }
+
+        // Succes handling: Data extractie en opschoning
+        const data = await response.json();
+        let text = data.candidates[0].content.parts[0].text;
+
+        // Strip markdown formatting (```json en ```)
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
+            body: text
         };
 
     } catch (error) {
-        console.error('Fout in scanReceipt functie:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Interne serverfout bij verwerken bon.', details: error.message })
+            body: JSON.stringify({ error: error.message })
         };
     }
 };
