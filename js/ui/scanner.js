@@ -1,13 +1,16 @@
 import { analyzeReceipt } from '../api/gemini.js';
+import { uploadToDrive, appendRowToSheet } from '../api/storage.js';
 
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
     const editForm = document.getElementById('receipt-edit-form');
+    let currentFile = null;
 
     if (uploadInput && editForm) {
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (file) {
+                currentFile = file;
                 // UI Loading State
                 const label = uploadInput.parentElement.querySelector('p.font-medium');
                 const originalText = label.innerText;
@@ -35,6 +38,49 @@ export function initScanner() {
                     // Reset loading state
                     label.innerText = originalText;
                 }
+            }
+        });
+
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = editForm.querySelector('button[type="submit"]');
+            const originalBtnContent = submitBtn.innerHTML;
+            
+            // Laad-status tonen
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met opslaan...';
+            lucide.createIcons();
+
+            try {
+                // Waarden ophalen
+                const factuurnummer = document.getElementById('scan-factuurnummer').value;
+                const datum = document.getElementById('scan-datum').value;
+                const omschrijving = document.getElementById('scan-omschrijving').value;
+                const bedrag = parseFloat(document.getElementById('scan-bedrag').value) || 0;
+                const tarief = document.getElementById('scan-tarief').value;
+                const btwBedrag = parseFloat(document.getElementById('scan-btw-bedrag').value) || 0;
+
+                // 1. Uploaden naar Drive (als er een bestand is)
+                if (currentFile) {
+                    await uploadToDrive(currentFile, factuurnummer);
+                }
+
+                // 2. Toevoegen aan Sheet (Datum, Omschrijving, Bedrag, Tarief, Btw, Factuurnummer)
+                await appendRowToSheet([datum, omschrijving, bedrag, tarief, btwBedrag, factuurnummer]);
+
+                alert('Bon succesvol opgeslagen!');
+                editForm.reset();
+                editForm.classList.add('hidden');
+                currentFile = null;
+                uploadInput.value = ''; // Reset file input
+            } catch (error) {
+                console.error('Fout bij opslaan:', error);
+                alert('Er ging iets mis bij het opslaan: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnContent;
+                lucide.createIcons();
             }
         });
     }
