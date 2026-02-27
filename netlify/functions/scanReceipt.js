@@ -25,7 +25,7 @@ export const handler = async (event, context) => {
         const prompt = "Act as a Dutch accountant and extract the following fields from the image: factuurnummer, datum (format YYYY-MM-DD), omschrijving (company name or short description), bedragExclusief (number), btwTarief (only 21, 9, or 0), and btwBedrag (number). Instruct it to return ONLY a raw JSON object, without markdown formatting or code blocks.";
 
         // Doe de request naar Google Gemini
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

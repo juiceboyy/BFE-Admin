@@ -21,6 +21,9 @@ export async function analyzeReceipt(file) {
 
     const response = await fetch('/.netlify/functions/scanReceipt', {
         method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
             base64Data,
             mimeType: file.type
