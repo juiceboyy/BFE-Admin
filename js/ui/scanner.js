@@ -29,9 +29,25 @@ export function initScanner() {
                     // Populate form inputs
                     document.getElementById('scan-factuurnummer').value = getNextInvoiceNumber();
                     document.getElementById('scan-datum').value = data.datum || '';
-                    document.getElementById('scan-omschrijving').value = data.omschrijving || '';
+                    
+                    // Leverancier en Memory Logic
+                    const leverancier = data.naamLeverancier || '';
+                    document.getElementById('scan-leverancier').value = leverancier;
+
+                    let omschrijving = data.omschrijving || '';
+                    let tarief = data.btwTarief || '21';
+
+                    if (leverancier) {
+                        const memory = JSON.parse(localStorage.getItem('vendor_' + leverancier.toLowerCase().trim()));
+                        if (memory) {
+                            omschrijving = memory.omschrijving || omschrijving;
+                            tarief = memory.btwTarief || tarief;
+                        }
+                    }
+
+                    document.getElementById('scan-omschrijving').value = omschrijving;
                     document.getElementById('scan-bedrag').value = data.bedragExclusief || '';
-                    document.getElementById('scan-tarief').value = data.btwTarief || '21';
+                    document.getElementById('scan-tarief').value = tarief;
                     document.getElementById('scan-btw-bedrag').value = data.btwBedrag || '';
 
                     // Unhide form
@@ -63,18 +79,24 @@ export function initScanner() {
                 // Waarden ophalen
                 const factuurnummer = document.getElementById('scan-factuurnummer').value;
                 const datum = document.getElementById('scan-datum').value;
+                const leverancier = document.getElementById('scan-leverancier').value;
                 const omschrijving = document.getElementById('scan-omschrijving').value;
                 const bedrag = parseFloat(document.getElementById('scan-bedrag').value) || 0;
                 const tarief = document.getElementById('scan-tarief').value;
                 const btwBedrag = parseFloat(document.getElementById('scan-btw-bedrag').value) || 0;
+
+                // Save Memory
+                if (leverancier) {
+                    localStorage.setItem('vendor_' + leverancier.toLowerCase().trim(), JSON.stringify({ omschrijving: omschrijving, btwTarief: tarief }));
+                }
 
                 // 1. Uploaden naar Drive (als er een bestand is)
                 if (currentFile) {
                     await uploadToDrive(currentFile, factuurnummer);
                 }
 
-                // 2. Toevoegen aan Sheet (Datum, Factuurnummer, Omschrijving, "", Totaal, Btw, Excl)
-                await insertRowInSheet([datum, factuurnummer, omschrijving, "", bedrag + btwBedrag, btwBedrag, bedrag]);
+                // 2. Toevoegen aan Sheet (Datum, Factuurnummer, Omschrijving, Leverancier, Totaal, Btw, Excl)
+                await insertRowInSheet([datum, factuurnummer, omschrijving, leverancier, bedrag + btwBedrag, btwBedrag, bedrag]);
 
                 // Update sequence in localStorage
                 const parts = factuurnummer.split('.');

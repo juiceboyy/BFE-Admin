@@ -33,7 +33,7 @@ export const handler = async (event, context) => {
         const payload = {
             contents: [{
                 parts: [
-                    { text: "Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), omschrijving, bedragExclusief (getal), btwTarief (21, 9 of 0), btwBedrag (getal) uit deze bon en return UITSLUITEND een geldig JSON object." },
+                    { text: "Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, omschrijving, bedragExclusief (getal), btwTarief (21, 9 of 0), btwBedrag (getal) uit deze bon en return UITSLUITEND een geldig JSON object." },
                     {
                         inline_data: {
                             mime_type: mimeType,
