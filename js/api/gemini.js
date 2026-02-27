@@ -31,15 +31,5 @@ export async function analyzeReceipt(file) {
     }
 
     const data = await response.json();
-
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error("Geen geldig antwoord ontvangen van AI.");
-    }
-
-    const textResponse = data.candidates[0].content.parts[0].text;
-    
-    // Parse de JSON (verwijder eventuele markdown code blocks voor de zekerheid)
-    const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    return JSON.parse(cleanJson);
+    return data;
 }
