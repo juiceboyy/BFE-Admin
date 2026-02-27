@@ -56,15 +56,43 @@ export async function uploadToDrive(file, factuurNummer) {
 }
 
 /**
- * Voegt een rij toe aan de Google Sheet.
+ * Voegt een rij toe aan de Google Sheet op de eerste lege plek of overschrijft 'Totalen'.
  * @param {Array} data - Array met waarden [datum, omschrijving, bedragExclusief, btwTarief, btwBedrag, factuurNummer]
  */
-export async function appendRowToSheet(data) {
+export async function insertRowInSheet(data) {
     if (!accessToken) throw new Error("Niet ingelogd bij Google.");
 
     try {
-        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Jan Inkoop'!A:F:append?valueInputOption=USER_ENTERED`, {
-            method: 'POST',
+        // Stap 1: Zoek de eerste lege rij of de rij met 'Totalen'
+        const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Jan Inkoop'!A1:A`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        if (!getRes.ok) {
+            const error = await getRes.json();
+            throw new Error(`Fout bij ophalen sheet data: ${error.error.message}`);
+        }
+
+        const getJson = await getRes.json();
+
+        let targetRow = getJson.values ? getJson.values.length + 1 : 2;
+
+        if (getJson.values) {
+            for (let i = 1; i < getJson.values.length; i++) {
+                const cellValue = getJson.values[i] && getJson.values[i][0] ? getJson.values[i][0] : '';
+                // Check op lege cel of 'Totalen'
+                if (!cellValue || cellValue === 'Totalen') {
+                    targetRow = i + 1; // i is 0-based index, Sheets row is 1-based
+                    break;
+                }
+            }
+        }
+
+        // Stap 2: Schrijf de data naar die specifieke rij
+        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Jan Inkoop'!A${targetRow}:G${targetRow}?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
@@ -80,7 +108,7 @@ export async function appendRowToSheet(data) {
         return await response.json();
 
     } catch (error) {
-        console.error('Sheet append error:', error);
+        console.error('Sheet insert error:', error);
         throw error;
     }
 }

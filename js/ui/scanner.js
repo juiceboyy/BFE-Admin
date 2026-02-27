@@ -1,5 +1,5 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { uploadToDrive, appendRowToSheet } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet } from '../api/storage.js';
 
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
@@ -73,8 +73,8 @@ export function initScanner() {
                     await uploadToDrive(currentFile, factuurnummer);
                 }
 
-                // 2. Toevoegen aan Sheet (Datum, Omschrijving, Bedrag, Tarief, Btw, Factuurnummer)
-                await appendRowToSheet([datum, omschrijving, bedrag, tarief, btwBedrag, factuurnummer]);
+                // 2. Toevoegen aan Sheet (Datum, Factuurnummer, Omschrijving, "", Totaal, Btw, Excl)
+                await insertRowInSheet([datum, factuurnummer, omschrijving, "", bedrag + btwBedrag, btwBedrag, bedrag]);
 
                 // Update sequence in localStorage
                 const parts = factuurnummer.split('.');
