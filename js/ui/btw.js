@@ -83,43 +83,44 @@ export function initBtwModule() {
     }
 
     // Exporteer deze functie zodat sheets.js hem kan aanroepen
-    export function addSheetTransactions(rows) {
-        // Check of er data is. We skippen rij 0 (i = 1) omdat dat meestal de header is (Datum, Omschrijving, etc.)
-        if (!rows || rows.length < 2) return;
+}
 
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
+export function addSheetTransactions(rows) {
+    // Check of er data is. We skippen rij 0 (i = 1) omdat dat meestal de header is (Datum, Omschrijving, etc.)
+    if (!rows || rows.length < 2) return;
 
-            // ⚠️ PAS DIT AAN NAAR JOUW KOLOMMEN IN DE SHEET:
-            // row[0] = Kolom A (bijv. Datum)
-            // row[1] = Kolom B (bijv. Omschrijving)
-            // row[2] = Kolom C (bijv. Bedrag Exclusief)
-            // row[3] = Kolom D (bijv. Btw-tarief: 21 of 9 of 0)
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
 
-            const rawDatum = row[0] || new Date().toISOString().split('T')[0];
-            const omschrijving = row[1] || 'Onbekende boeking';
+        // ⚠️ PAS DIT AAN NAAR JOUW KOLOMMEN IN DE SHEET:
+        // row[0] = Kolom A (bijv. Datum)
+        // row[1] = Kolom B (bijv. Omschrijving)
+        // row[2] = Kolom C (bijv. Bedrag Exclusief)
+        // row[3] = Kolom D (bijv. Btw-tarief: 21 of 9 of 0)
 
-            // Fix voor de komma/punt in Europese bedragen
-            const bedragExcl = parseFloat((row[2] || '0').toString().replace('€', '').replace('.', '').replace(',', '.').trim());
-            const tarief = row[3] ? row[3].toString().replace('%', '').trim() : '21'; // Default 21%
+        const rawDatum = row[0] || new Date().toISOString().split('T')[0];
+        const omschrijving = row[1] || 'Onbekende boeking';
 
-            let btwBedrag = 0;
-            if (tarief === '21') btwBedrag = bedragExcl * 0.21;
-            if (tarief === '9') btwBedrag = bedragExcl * 0.09;
+        // Fix voor de komma/punt in Europese bedragen
+        const bedragExcl = parseFloat((row[2] || '0').toString().replace('€', '').replace('.', '').replace(',', '.').trim());
+        const tarief = row[3] ? row[3].toString().replace('%', '').trim() : '21'; // Default 21%
 
-            // Voeg toe aan de bestaande lijst
-            transactions.push({
-                id: Date.now() + i,
-                type: 'uitgaven', // Omdat het uit je Inkoop sheet komt
-                datum: rawDatum,
-                omschrijving: omschrijving,
-                bedragExcl: bedragExcl,
-                tarief: tarief,
-                btwBedrag: btwBedrag
-            });
-        }
+        let btwBedrag = 0;
+        if (tarief === '21') btwBedrag = bedragExcl * 0.21;
+        if (tarief === '9') btwBedrag = bedragExcl * 0.09;
 
-        // BAM. Render het hele dashboard opnieuw!
-        updateDashboard();
+        // Voeg toe aan de bestaande lijst
+        transactions.push({
+            id: Date.now() + i,
+            type: 'uitgaven', // Omdat het uit je Inkoop sheet komt
+            datum: rawDatum,
+            omschrijving: omschrijving,
+            bedragExcl: bedragExcl,
+            tarief: tarief,
+            btwBedrag: btwBedrag
+        });
     }
+
+    // BAM. Render het hele dashboard opnieuw!
+    updateDashboard();
 }
