@@ -1,5 +1,6 @@
 // --- Google Sheets API Fetcher ---
 import { accessToken } from './auth.js';
+import { addSheetTransactions } from '../ui/btw.js'; // <-- Voeg deze toe
 
 export async function fetchBtwAdministratie() {
     if (!accessToken) {
@@ -25,6 +26,8 @@ export async function fetchBtwAdministratie() {
         }
 
         console.log("✅ Sheet Data binnen:", data.values);
+
+        addSheetTransactions(data.values);
 
         // data.values is een array van arrays. Bijv:
         // [
