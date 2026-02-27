@@ -1,8 +1,3 @@
-/**
- * Converteert een File object naar een Base64 string (zonder prefix).
- * @param {File} file 
- * @returns {Promise<string>}
- */
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -30,10 +25,15 @@ export async function analyzeReceipt(file) {
         })
     });
 
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+    }
+
     const data = await response.json();
 
-    if (data.error) {
-        throw new Error(data.error.message);
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error("Geen geldig antwoord ontvangen van AI.");
     }
 
     const textResponse = data.candidates[0].content.parts[0].text;
