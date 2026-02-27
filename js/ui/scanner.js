@@ -6,6 +6,13 @@ export function initScanner() {
     const editForm = document.getElementById('receipt-edit-form');
     let currentFile = null;
 
+    const getNextInvoiceNumber = () => {
+        const year = new Date().getFullYear();
+        const seq = parseInt(localStorage.getItem('nextInvoiceSeq') || '1', 10);
+        const paddedSeq = seq.toString().padStart(3, '0');
+        return `${year}.${paddedSeq}`;
+    };
+
     if (uploadInput && editForm) {
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
@@ -20,7 +27,7 @@ export function initScanner() {
                     const data = await analyzeReceipt(file);
                     
                     // Populate form inputs
-                    document.getElementById('scan-factuurnummer').value = data.factuurnummer || '';
+                    document.getElementById('scan-factuurnummer').value = getNextInvoiceNumber();
                     document.getElementById('scan-datum').value = data.datum || '';
                     document.getElementById('scan-omschrijving').value = data.omschrijving || '';
                     document.getElementById('scan-bedrag').value = data.bedragExclusief || '';
@@ -68,6 +75,15 @@ export function initScanner() {
 
                 // 2. Toevoegen aan Sheet (Datum, Omschrijving, Bedrag, Tarief, Btw, Factuurnummer)
                 await appendRowToSheet([datum, omschrijving, bedrag, tarief, btwBedrag, factuurnummer]);
+
+                // Update sequence in localStorage
+                const parts = factuurnummer.split('.');
+                if (parts.length === 2) {
+                    const seq = parseInt(parts[1], 10);
+                    if (!isNaN(seq)) {
+                        localStorage.setItem('nextInvoiceSeq', seq + 1);
+                    }
+                }
 
                 alert('Bon succesvol opgeslagen!');
                 editForm.reset();
