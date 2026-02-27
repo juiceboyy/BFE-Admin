@@ -3,11 +3,13 @@ import { fetchFacturenUitGmail } from './api/gmail.js';
 import { fetchBtwAdministratie } from './api/sheets.js';
 import { renderFactuurSuggesties, setInboxPeriode } from './ui/inbox.js';
 import { initBtwModule } from './ui/btw.js';
+import { initScanner } from './ui/scanner.js';
 
 // Initialiseer UI componenten
 lucide.createIcons();
 setInboxPeriode();
 initBtwModule();
+initScanner();
 
 // Initialiseer Authenticatie en data fetching
 // De callback wordt uitgevoerd zodra de gebruiker succesvol is ingelogd
