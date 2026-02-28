@@ -142,10 +142,10 @@ export async function saveBatchItem(id) {
             const currentMemory = await loadCloudMemory();
             const vendorKey = leverancier.toLowerCase().trim();
             const existingOptions = currentMemory[vendorKey] || [];
-            const tarief = item.data.btwTarief || '21';
+            const tarief = 'Mix';
 
-            // Check of deze specifieke combinatie (omschrijving + tarief) al bestaat
-            const exists = existingOptions.some(opt => opt.omschrijving === omschrijving && opt.btwTarief == tarief);
+            // Check of deze omschrijving al bestaat
+            const exists = existingOptions.some(opt => opt.omschrijving === omschrijving);
 
             if (!exists) {
                 await saveCloudMemory(leverancier, omschrijving, tarief);
@@ -194,23 +194,6 @@ export async function saveAllSuccessItems() {
 }
 window.saveAllSuccessItems = saveAllSuccessItems;
 
-export function updateBtwByDescription(id) {
-    const item = batchQueue.find(i => i.id === id);
-    const input = document.getElementById(`omschrijving-${id}`);
-    if (!item || !input || !item.data.options) return;
-
-    // Zoek de gekozen optie in het geheugen
-    const selectedOption = item.data.options.find(opt => opt.omschrijving === input.value);
-    if (selectedOption) {
-        // Update tarief in data en herbereken bedrag in UI
-        item.data.btwTarief = selectedOption.btwTarief;
-        const bedrag = parseFloat(document.getElementById(`bedrag-${id}`).value) || 0;
-        const nieuwBtwBedrag = bedrag * (parseFloat(selectedOption.btwTarief) / 100);
-        document.getElementById(`btw-${id}`).value = nieuwBtwBedrag.toFixed(2);
-    }
-}
-window.updateBtwByDescription = updateBtwByDescription;
-
 function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
     const tbody = document.getElementById('batch-table-body');
@@ -255,7 +238,7 @@ function renderBatchTable() {
         if (options.length > 0) {
             const listId = `list-omschrijving-${item.id}`;
             omschrijvingInput = `
-                <input type="text" id="omschrijving-${item.id}" list="${listId}" onchange="updateBtwByDescription(${item.id})" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
+                <input type="text" id="omschrijving-${item.id}" list="${listId}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
                 <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
         } else {
             omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">`;
