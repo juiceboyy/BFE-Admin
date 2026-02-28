@@ -132,10 +132,18 @@ export async function loadCloudMemory() {
             for (let i = 1; i < json.values.length; i++) {
                 const row = json.values[i];
                 if (row && row[0]) {
-                    memory[row[0].toLowerCase().trim()] = {
+                    const key = row[0].toLowerCase().trim();
+                    if (!memory[key]) memory[key] = [];
+
+                    const newItem = {
                         omschrijving: row[1] || '',
                         btwTarief: row[2] || 0
                     };
+
+                    // Filter duplicaten (zodat we niet 10x dezelfde optie krijgen)
+                    const exists = memory[key].some(item => item.omschrijving === newItem.omschrijving && item.btwTarief == newItem.btwTarief);
+                    
+                    if (!exists) memory[key].push(newItem);
                 }
             }
         }

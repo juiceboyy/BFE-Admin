@@ -72,15 +72,17 @@ async function processQueue() {
         item.status = 'processing';
         renderBatchTable(); // Update UI naar 'Bezig...'
         try {
-            const aiData = await analyzeReceipt(item.file);
             const currentMemory = await loadCloudMemory();
+            const aiData = await analyzeReceipt(item.file, currentMemory);
+            
+            // Opties ophalen voor deze leverancier
             const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
-            const savedVendor = currentMemory[vendorKey];
+            const options = currentMemory[vendorKey] || [];
+
             item.data = {
                 ...aiData,
-                omschrijving: savedVendor ? savedVendor.omschrijving : aiData.omschrijving,
-                btwTarief: savedVendor ? savedVendor.btwTarief : aiData.btwTarief,
-                factuurnummer: ''
+                factuurnummer: '',
+                options: options // Opslaan voor de UI dropdown
             };
             item.status = 'success';
         } catch (err) {
@@ -139,8 +141,13 @@ export async function saveBatchItem(id) {
         if (leverancier) {
             const currentMemory = await loadCloudMemory();
             const vendorKey = leverancier.toLowerCase().trim();
-            if (!currentMemory[vendorKey]) {
-                const tarief = item.data.btwTarief || '21';
+            const existingOptions = currentMemory[vendorKey] || [];
+            const tarief = item.data.btwTarief || '21';
+
+            // Check of deze specifieke combinatie (omschrijving + tarief) al bestaat
+            const exists = existingOptions.some(opt => opt.omschrijving === omschrijving && opt.btwTarief == tarief);
+
+            if (!exists) {
                 await saveCloudMemory(leverancier, omschrijving, tarief);
             }
         }
@@ -164,6 +171,46 @@ export async function saveBatchItem(id) {
 // Maak globaal beschikbaar voor de onclick handlers
 window.saveBatchItem = saveBatchItem;
 
+export async function saveAllSuccessItems() {
+    const btn = document.getElementById('save-all-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met opslaan...';
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    // Filter items die klaar staan (success)
+    const itemsToSave = batchQueue.filter(i => i.status === 'success');
+
+    for (const item of itemsToSave) {
+        await saveBatchItem(item.id);
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="save-all" class="w-4 h-4"></i> Alles Opslaan';
+        if (window.lucide) window.lucide.createIcons();
+    }
+}
+window.saveAllSuccessItems = saveAllSuccessItems;
+
+export function updateBtwByDescription(id) {
+    const item = batchQueue.find(i => i.id === id);
+    const input = document.getElementById(`omschrijving-${id}`);
+    if (!item || !input || !item.data.options) return;
+
+    // Zoek de gekozen optie in het geheugen
+    const selectedOption = item.data.options.find(opt => opt.omschrijving === input.value);
+    if (selectedOption) {
+        // Update tarief in data en herbereken bedrag in UI
+        item.data.btwTarief = selectedOption.btwTarief;
+        const bedrag = parseFloat(document.getElementById(`bedrag-${id}`).value) || 0;
+        const nieuwBtwBedrag = bedrag * (parseFloat(selectedOption.btwTarief) / 100);
+        document.getElementById(`btw-${id}`).value = nieuwBtwBedrag.toFixed(2);
+    }
+}
+window.updateBtwByDescription = updateBtwByDescription;
+
 function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
     const tbody = document.getElementById('batch-table-body');
@@ -178,6 +225,19 @@ function renderBatchTable() {
 
     tbody.innerHTML = '';
 
+    // Footer toevoegen voor 'Alles Opslaan'
+    let footer = document.getElementById('batch-footer');
+    if (!footer && batchQueue.length > 0) {
+        footer = document.createElement('div');
+        footer.id = 'batch-footer';
+        footer.className = 'px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end';
+        footer.innerHTML = `
+            <button id="save-all-btn" onclick="saveAllSuccessItems()" class="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-md hover:bg-emerald-700 shadow-sm transition-colors flex items-center gap-2">
+                <i data-lucide="save-all" class="w-4 h-4"></i> Alles Opslaan
+            </button>`;
+        dashboard.appendChild(footer);
+    }
+
     batchQueue.forEach(item => {
         const tr = document.createElement('tr');
         tr.className = 'bg-white border-b hover:bg-gray-50 transition-colors';
@@ -188,6 +248,18 @@ function renderBatchTable() {
         const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
         
         const d = item.data || {};
+        const options = d.options || [];
+        
+        // Dropdown logica (Datalist)
+        let omschrijvingInput = '';
+        if (options.length > 0) {
+            const listId = `list-omschrijving-${item.id}`;
+            omschrijvingInput = `
+                <input type="text" id="omschrijving-${item.id}" list="${listId}" onchange="updateBtwByDescription(${item.id})" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
+                <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
+        } else {
+            omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">`;
+        }
 
         tr.innerHTML = `
             <td class="px-4 py-3 whitespace-nowrap">
@@ -204,8 +276,7 @@ function renderBatchTable() {
                     value="${d.naamLeverancier || ''}" ${disabledAttr} placeholder="Leverancier">
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                <input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">
+                ${omschrijvingInput}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
                 <input type="number" id="bedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 

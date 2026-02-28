@@ -9,7 +9,7 @@ export const handler = async (event, context) => {
 
     try {
         // Parse de inkomende data
-        let { base64Data, mimeType } = JSON.parse(event.body);
+        let { base64Data, mimeType, cloudMemory } = JSON.parse(event.body);
 
         // Haal de API key veilig op en verwijder onzichtbare tekens
         const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
@@ -21,7 +21,7 @@ export const handler = async (event, context) => {
             };
         }
 
-        // Gebruik de stabiele URL voor Gemini 1.5 Flash
+        // Gebruik de stabiele URL voor Gemini 2.5 Flash
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
         // Zorg ervoor dat base64Data géén data prefix bevat
@@ -33,7 +33,7 @@ export const handler = async (event, context) => {
         const payload = {
             contents: [{
                 parts: [
-                    { text: "Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, omschrijving, bedragExclusief (getal), btwTarief (21, 9 of 0), btwBedrag (getal) uit deze bon en return UITSLUITEND een geldig JSON object." },
+                    { text: `Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, bedragExclusief, btwTarief, btwBedrag uit deze bon. \nBELANGRIJK: Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}. \nAls je de leverancier op de bon herkent in dit geheugen, kijk dan goed naar de specifieke producten op de bon. Kies de "omschrijving" en "btwTarief" uit het geheugen die het beste passen bij deze producten. Als de producten nieuw zijn voor deze leverancier, bedenk dan zelf een duidelijke nieuwe omschrijving en bepaal het juiste tarief. Return UITSLUITEND een geldig JSON object.` },
                     {
                         inline_data: {
                             mime_type: mimeType,

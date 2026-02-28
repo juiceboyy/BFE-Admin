@@ -11,7 +11,7 @@ function fileToBase64(file) {
     });
 }
 
-export async function analyzeReceipt(file) {
+export async function analyzeReceipt(file, cloudMemory) {
     const base64Data = await fileToBase64(file);
 
     const response = await fetch('/.netlify/functions/scanReceipt', {
@@ -21,7 +21,8 @@ export async function analyzeReceipt(file) {
         },
         body: JSON.stringify({
             base64Data,
-            mimeType: file.type
+            mimeType: file.type,
+            cloudMemory
         })
     });
 
