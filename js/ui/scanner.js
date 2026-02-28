@@ -79,7 +79,8 @@ async function processQueue() {
             item.data = {
                 ...aiData,
                 omschrijving: savedVendor ? savedVendor.omschrijving : aiData.omschrijving,
-                btwTarief: savedVendor ? savedVendor.btwTarief : aiData.btwTarief
+                btwTarief: savedVendor ? savedVendor.btwTarief : aiData.btwTarief,
+                factuurnummer: ''
             };
             item.status = 'success';
         } catch (err) {
@@ -142,8 +143,8 @@ function renderBatchTable() {
                     value="${d.btwBedrag || ''}" ${disabledAttr} placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                <input type="text" class="w-24 bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.factuurnummer || ''}" ${disabledAttr} placeholder="Factuurnr">
+                <input type="text" class="w-32 bg-transparent border-b border-transparent outline-none text-sm text-gray-500 cursor-default" 
+                    value="" readonly placeholder="Auto (bij opslaan)">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-center">
                 <button class="p-1 text-blue-600 hover:text-blue-800 disabled:text-gray-300 transition-colors" 
