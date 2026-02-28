@@ -2,6 +2,7 @@ import { analyzeReceipt } from '../api/gemini.js';
 import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+let batchQueue = [];
 
 function getTargetDateInfo() {
     const now = new Date();
@@ -24,126 +25,109 @@ function getTargetDateInfo() {
 
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
-    const editForm = document.getElementById('receipt-edit-form');
-    let currentFile = null;
+    const folderInput = document.getElementById('folder-upload');
 
-    if (uploadInput && editForm) {
-        uploadInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                currentFile = file;
-                // UI Loading State
-                const label = uploadInput.parentElement.querySelector('p.font-medium');
-                const originalText = label.innerText;
-                label.innerText = 'Bon wordt geanalyseerd door AI...';
+    const handleFiles = (files) => {
+        if (!files || files.length === 0) return;
 
-                try {
-                    const data = await analyzeReceipt(file);
-                    const currentMemory = await loadCloudMemory();
-                    
-                    // Populate form inputs
-                    const dateInfo = getTargetDateInfo();
-                    const factuurInput = document.getElementById('scan-factuurnummer');
-                    factuurInput.value = "Nummer ophalen...";
-
-                    const nextInvoiceNumber = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
-                    factuurInput.value = nextInvoiceNumber;
-
-                    document.getElementById('scan-datum').value = data.datum || '';
-                    
-                    // Leverancier en Memory Logic
-                    const leverancier = data.naamLeverancier || '';
-                    document.getElementById('scan-leverancier').value = leverancier;
-
-                    let omschrijving = data.omschrijving || '';
-                    let tarief = data.btwTarief || '21';
-
-                    if (leverancier) {
-                        const vendorKey = leverancier.toLowerCase().trim();
-                        const savedVendor = currentMemory[vendorKey];
-                        if (savedVendor) {
-                            omschrijving = savedVendor.omschrijving || omschrijving;
-                            tarief = savedVendor.btwTarief || tarief;
-                        }
-                    }
-
-                    document.getElementById('scan-omschrijving').value = omschrijving;
-                    document.getElementById('scan-bedrag').value = data.bedragExclusief || '';
-                    document.getElementById('scan-tarief').value = tarief;
-                    document.getElementById('scan-btw-bedrag').value = data.btwBedrag || '';
-
-                    // Unhide form
-                    editForm.classList.remove('hidden');
-                    editForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } catch (error) {
-                    console.error("Fout bij analyse:", error);
-                    alert("Kon de bon niet automatisch lezen. Vul de gegevens handmatig in.");
-                    editForm.classList.remove('hidden');
-                } finally {
-                    // Reset loading state
-                    label.innerText = originalText;
-                }
-            }
+        Array.from(files).forEach(file => {
+            batchQueue.push({
+                id: Date.now() + Math.random(),
+                file: file,
+                status: 'pending',
+                data: null
+            });
         });
 
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const submitBtn = editForm.querySelector('button[type="submit"]');
-            const originalBtnContent = submitBtn.innerHTML;
-            
-            // Laad-status tonen
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met opslaan...';
-            lucide.createIcons();
+        renderBatchTable();
+        
+        // Reset inputs
+        if (uploadInput) uploadInput.value = '';
+        if (folderInput) folderInput.value = '';
+    };
 
-            try {
-                // Waarden ophalen
-                const factuurnummer = document.getElementById('scan-factuurnummer').value;
-                const datum = document.getElementById('scan-datum').value;
-                const leverancier = document.getElementById('scan-leverancier').value;
-                const omschrijving = document.getElementById('scan-omschrijving').value;
-                const bedrag = parseFloat(document.getElementById('scan-bedrag').value) || 0;
-                const tarief = document.getElementById('scan-tarief').value;
-                const btwBedrag = parseFloat(document.getElementById('scan-btw-bedrag').value) || 0;
+    if (uploadInput) {
+        uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    }
 
-                // Save Memory
-                if (leverancier) {
-                    const checkMemory = await loadCloudMemory();
-                    const vendorKey = leverancier.toLowerCase().trim();
+    if (folderInput) {
+        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    }
+}
 
-                    if (!checkMemory[vendorKey]) {
-                        // Alleen als hij ECHT nieuw is, opslaan in de cloud
-                        await saveCloudMemory(leverancier, omschrijving, tarief);
-                    }
-                }
+function renderBatchTable() {
+    const dashboard = document.getElementById('batch-dashboard');
+    const tbody = document.getElementById('batch-table-body');
 
-                // 1. Uploaden naar Drive (als er een bestand is)
-                if (currentFile) {
-                    await uploadToDrive(currentFile, factuurnummer);
-                }
+    if (!dashboard || !tbody) return;
 
-                // 2. Toevoegen aan Sheet (Datum, Factuurnummer, Omschrijving, Leverancier, Totaal, Btw, Excl)
-                const dateInfo = getTargetDateInfo();
-                await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, bedrag + btwBedrag, btwBedrag, bedrag]);
+    if (batchQueue.length > 0) {
+        dashboard.classList.remove('hidden');
+    } else {
+        dashboard.classList.add('hidden');
+    }
 
-                alert('Bon succesvol opgeslagen!');
-                editForm.reset();
-                editForm.classList.add('hidden');
-                currentFile = null;
-                uploadInput.value = ''; // Reset file input
-            } catch (error) {
-                if (error.message === 'TOKEN_EXPIRED') {
-                    alert('Je Google sessie is verlopen (duurt 1 uur). Klik bovenaan opnieuw op Inloggen / Sync Drive en probeer daarna nogmaals op te slaan!');
-                } else {
-                    console.error('Fout bij opslaan:', error);
-                    alert('Er ging iets mis bij het opslaan: ' + error.message);
-                }
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnContent;
-                lucide.createIcons();
-            }
-        });
+    tbody.innerHTML = '';
+
+    batchQueue.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-white border-b hover:bg-gray-50 transition-colors';
+
+        const isDisabled = item.status === 'pending' || item.status === 'processing';
+        const disabledAttr = isDisabled ? 'disabled' : '';
+        const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
+        
+        const d = item.data || {};
+
+        tr.innerHTML = `
+            <td class="px-4 py-3 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
+                    <span class="text-sm font-medium text-gray-900 truncate max-w-[150px]" title="${item.file.name}">${item.file.name}</span>
+                </div>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+                ${getStatusBadge(item.status)}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+                <input type="text" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.naamLeverancier || ''}" ${disabledAttr} placeholder="Leverancier">
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+                <input type="text" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-right">
+                <input type="number" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.bedragExclusief || ''}" ${disabledAttr} placeholder="0.00">
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-right">
+                 <input type="number" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.btwBedrag || ''}" ${disabledAttr} placeholder="0.00">
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+                <input type="text" class="w-24 bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.factuurnummer || ''}" ${disabledAttr} placeholder="Factuurnr">
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-center">
+                <button class="p-1 text-blue-600 hover:text-blue-800 disabled:text-gray-300 transition-colors" 
+                    ${item.status !== 'success' ? 'disabled' : ''} title="Opslaan">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function getStatusBadge(status) {
+    switch(status) {
+        case 'pending': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Wachtrij</span>';
+        case 'processing': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i data-lucide="loader-2" class="w-3 h-3 animate-spin mr-1"></i> Bezig</span>';
+        case 'success': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Klaar</span>';
+        case 'error': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Fout</span>';
+        default: return '';
     }
 }
