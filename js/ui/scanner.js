@@ -1,7 +1,27 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
 
 let cloudMemory = {};
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+function getTargetDateInfo() {
+    const now = new Date();
+    let targetMonthIndex = now.getMonth() - 1;
+    let targetYear = now.getFullYear();
+
+    if (targetMonthIndex < 0) {
+        targetMonthIndex = 11;
+        targetYear -= 1;
+    }
+
+    const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
+
+    return {
+        targetSheet: `${MONTH_NAMES[targetMonthIndex]} Inkoop`,
+        prevSheet: `${MONTH_NAMES[prevMonthIndex]} Inkoop`,
+        targetYear: targetYear
+    };
+}
 
 export function initScanner() {
     // Laad geheugen in bij opstarten
@@ -12,13 +32,6 @@ export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
     const editForm = document.getElementById('receipt-edit-form');
     let currentFile = null;
-
-    const getNextInvoiceNumber = () => {
-        const year = new Date().getFullYear();
-        const seq = parseInt(localStorage.getItem('nextInvoiceSeq') || '1', 10);
-        const paddedSeq = seq.toString().padStart(3, '0');
-        return `${year}.${paddedSeq}`;
-    };
 
     if (uploadInput && editForm) {
         uploadInput.addEventListener('change', async (event) => {
@@ -34,7 +47,13 @@ export function initScanner() {
                     const data = await analyzeReceipt(file);
                     
                     // Populate form inputs
-                    document.getElementById('scan-factuurnummer').value = getNextInvoiceNumber();
+                    const dateInfo = getTargetDateInfo();
+                    const factuurInput = document.getElementById('scan-factuurnummer');
+                    factuurInput.value = "Nummer ophalen...";
+
+                    const nextInvoiceNumber = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
+                    factuurInput.value = nextInvoiceNumber;
+
                     document.getElementById('scan-datum').value = data.datum || '';
                     
                     // Leverancier en Memory Logic
@@ -111,16 +130,8 @@ export function initScanner() {
                 }
 
                 // 2. Toevoegen aan Sheet (Datum, Factuurnummer, Omschrijving, Leverancier, Totaal, Btw, Excl)
-                await insertRowInSheet([datum, factuurnummer, omschrijving, leverancier, bedrag + btwBedrag, btwBedrag, bedrag]);
-
-                // Update sequence in localStorage
-                const parts = factuurnummer.split('.');
-                if (parts.length === 2) {
-                    const seq = parseInt(parts[1], 10);
-                    if (!isNaN(seq)) {
-                        localStorage.setItem('nextInvoiceSeq', seq + 1);
-                    }
-                }
+                const dateInfo = getTargetDateInfo();
+                await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, bedrag + btwBedrag, btwBedrag, bedrag]);
 
                 alert('Bon succesvol opgeslagen!');
                 editForm.reset();
