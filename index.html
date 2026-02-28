@@ -35,7 +35,7 @@
 
         <div id="app-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-2">
+            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
                 <h2 class="text-xl font-medium mb-6">Nieuwe boeking</h2>
                 <form id="btw-form" class="space-y-5">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -86,31 +86,7 @@
                 </form>
             </div>
 
-            <div class="glass-panel p-6 rounded-3xl flex flex-col justify-between">
-                <div>
-                    <h2 class="text-xl font-medium mb-6">Btw-samenvatting</h2>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Btw 21% (Omzet)</span>
-                            <span id="sum-btw-21" class="font-medium text-sm">€ 0,00</span>
-                        </div>
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Btw 9% (Omzet)</span>
-                            <span id="sum-btw-9" class="font-medium text-sm">€ 0,00</span>
-                        </div>
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Voorbelasting (Kosten)</span>
-                            <span id="sum-voorbelasting" class="font-medium text-sm text-blue-600">- € 0,00</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center">
-                    <span class="font-medium text-sm text-gray-500">Totaal te betalen</span>
-                    <span id="sum-totaal" class="text-2xl font-semibold tracking-tight">€ 0,00</span>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-2">
+            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
                 <h2 class="text-xl font-medium mb-6">Bonnen & Facturen Scanner</h2>
                 
                 <!-- Upload Zone -->
@@ -150,26 +126,6 @@
                             </tr>
                         </thead>
                         <tbody id="batch-table-body" class="divide-y divide-gray-100">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
-                <h2 class="text-xl font-medium mb-4">Huidig tijdvak</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-400 uppercase bg-gray-50/50">
-                            <tr>
-                                <th class="px-4 py-3 rounded-l-xl font-medium">Datum</th>
-                                <th class="px-4 py-3 font-medium">Omschrijving</th>
-                                <th class="px-4 py-3 font-medium">Type</th>
-                                <th class="px-4 py-3 font-medium">Tarief</th>
-                                <th class="px-4 py-3 text-right font-medium">Excl. Btw</th>
-                                <th class="px-4 py-3 text-right rounded-r-xl font-medium">Btw</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactions-list" class="divide-y divide-gray-50/50">
                         </tbody>
                     </table>
                 </div>
