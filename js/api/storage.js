@@ -1,0 +1,219 @@
+import { accessToken } from './auth.js';
+
+const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
+const DRIVE_FOLDER_ID = '1NBCQ89t1soAvZ315_UA-p-lF340qkraH';
+
+/**
+ * Uploadt een bestand naar Google Drive in twee stappen (Metadata + Content).
+ * @param {File} file - Het bestandsobject.
+ * @param {string} factuurNummer - De naam die het bestand krijgt in Drive.
+ */
+export async function uploadToDrive(file, factuurNummer) {
+    if (!accessToken) throw new Error("Niet ingelogd bij Google.");
+
+    try {
+        // Stap 1: Metadata aanmaken (lege huls)
+        const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: factuurNummer || file.name,
+                mimeType: file.type,
+                parents: [DRIVE_FOLDER_ID]
+            })
+        });
+
+        if (!metadataResponse.ok) {
+            const error = await metadataResponse.json();
+            throw new Error(`Fout bij aanmaken bestand in Drive: ${error.error.message}`);
+        }
+
+        const metadata = await metadataResponse.json();
+        const fileId = metadata.id;
+
+        // Stap 2: Inhoud uploaden (Media)
+        const uploadResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': file.type
+            },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            const error = await uploadResponse.json();
+            throw new Error(`Fout bij uploaden inhoud naar Drive: ${error.error.message}`);
+        }
+
+        return await uploadResponse.json();
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        throw error;
+    }
+}
+
+/**
+ * Voegt een rij toe aan de Google Sheet op de eerste lege plek of overschrijft 'Totalen'.
+ * @param {string} sheetName - De naam van het tabblad (bijv. 'Jan Inkoop').
+ * @param {Array} data - Array met waarden [datum, factuurnummer, omschrijving, leverancier, totaal, btw, excl]
+ */
+export async function insertRowInSheet(sheetName, data) {
+    if (!accessToken) throw new Error("Niet ingelogd bij Google.");
+
+    try {
+        // Stap 1: Zoek de eerste lege rij of de rij met 'Totalen'
+        const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        if (!getRes.ok) {
+            const error = await getRes.json();
+            throw new Error(`Fout bij ophalen sheet data: ${error.error.message}`);
+        }
+
+        const getJson = await getRes.json();
+
+        let targetRow = getJson.values ? getJson.values.length + 1 : 2;
+
+        if (getJson.values) {
+            for (let i = 1; i < getJson.values.length; i++) {
+                const cellValue = getJson.values[i] && getJson.values[i][0] ? getJson.values[i][0] : '';
+                // Check op lege cel of 'Totalen'
+                if (!cellValue || cellValue === 'Totalen') {
+                    targetRow = i + 1; // i is 0-based index, Sheets row is 1-based
+                    break;
+                }
+            }
+        }
+
+        // Stap 2: Schrijf de data naar die specifieke rij
+        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A${targetRow}:G${targetRow}?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ values: [data] })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Fout bij schrijven naar Sheet: ${error.error.message}`);
+        }
+
+        return await response.json();
+
+    } catch (error) {
+        console.error('Sheet insert error:', error);
+        throw error;
+    }
+}
+
+export async function loadCloudMemory() {
+    try {
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const json = await res.json();
+        const memory = {};
+        if (json.values && json.values.length > 1) {
+            // Loop starts at 1 to skip headers
+            for (let i = 1; i < json.values.length; i++) {
+                const row = json.values[i];
+                if (row && row[0]) {
+                    memory[row[0].toLowerCase().trim()] = {
+                        omschrijving: row[1] || '',
+                        btwTarief: row[2] || 0
+                    };
+                }
+            }
+        }
+        return memory;
+    } catch (e) {
+        console.error("Fout bij laden cloud memory:", e);
+        return {};
+    }
+}
+
+export async function saveCloudMemory(leverancier, omschrijving, tarief) {
+    if (!accessToken) return;
+
+    try {
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ values: [[leverancier, omschrijving, tarief]] })
+        });
+    } catch (error) {
+        console.error('Fout bij opslaan cloud memory:', error);
+    }
+}
+
+export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
+    if (!accessToken) return `${targetYear}.001`;
+
+    const fetchMaxFromSheet = async (sheet) => {
+        try {
+            const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheet}'!B:B`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+
+            if (!response.ok) return null;
+
+            const data = await response.json();
+            if (!data.values) return null;
+
+            let maxSeq = null;
+
+            for (const row of data.values) {
+                const val = row[0];
+                if (val && typeof val === 'string' && val.startsWith(`${targetYear}.`)) {
+                    const parts = val.split('.');
+                    if (parts.length === 2) {
+                        const seq = parseInt(parts[1], 10);
+                        if (!isNaN(seq)) {
+                            if (maxSeq === null || seq > maxSeq) {
+                                maxSeq = seq;
+                            }
+                        }
+                    }
+                }
+            }
+            return maxSeq;
+        } catch (error) {
+            console.error('Error fetching max seq:', error);
+            return null;
+        }
+    };
+
+    let maxSeq = await fetchMaxFromSheet(targetSheet);
+
+    if (maxSeq !== null) {
+        return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+    }
+
+    if (targetSheet.startsWith('Jan')) {
+        return `${targetYear}.001`;
+    }
+
+    if (prevSheet) {
+        maxSeq = await fetchMaxFromSheet(prevSheet);
+        if (maxSeq !== null) {
+            return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+        }
+    }
+
+    return `${targetYear}.001`;
+}
