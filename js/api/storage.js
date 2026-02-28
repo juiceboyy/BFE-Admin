@@ -1,6 +1,7 @@
 import { accessToken } from './auth.js';
 
 const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
+const DRIVE_FOLDER_ID = '1NBCQ89t1soAvZ315_UA-p-lF340qkraH';
 
 /**
  * Uploadt een bestand naar Google Drive in twee stappen (Metadata + Content).
@@ -20,7 +21,8 @@ export async function uploadToDrive(file, factuurNummer) {
             },
             body: JSON.stringify({
                 name: factuurNummer || file.name,
-                mimeType: file.type
+                mimeType: file.type,
+                parents: [DRIVE_FOLDER_ID]
             })
         });
 
