@@ -112,3 +112,55 @@ export async function insertRowInSheet(data) {
         throw error;
     }
 }
+
+export async function loadCloudMemory() {
+    if (!accessToken) return {};
+
+    try {
+        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        if (!response.ok) return {};
+
+        const data = await response.json();
+        const memory = {};
+
+        if (data.values && data.values.length > 1) {
+            // Sla rij 1 (headers) over
+            for (let i = 1; i < data.values.length; i++) {
+                const row = data.values[i];
+                if (row[0]) {
+                    memory[row[0].toLowerCase().trim()] = { 
+                        omschrijving: row[1], 
+                        btwTarief: row[2] 
+                    };
+                }
+            }
+        }
+
+        return memory;
+    } catch (error) {
+        console.error('Fout bij laden cloud memory:', error);
+        return {};
+    }
+}
+
+export async function saveCloudMemory(leverancier, omschrijving, tarief) {
+    if (!accessToken) return;
+
+    try {
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ values: [[leverancier, omschrijving, tarief]] })
+        });
+    } catch (error) {
+        console.error('Fout bij opslaan cloud memory:', error);
+    }
+}

@@ -1,7 +1,14 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { uploadToDrive, insertRowInSheet } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory } from '../api/storage.js';
+
+let cloudMemory = {};
 
 export function initScanner() {
+    // Laad geheugen in bij opstarten
+    loadCloudMemory().then(data => {
+        cloudMemory = data;
+    });
+
     const uploadInput = document.getElementById('receipt-upload');
     const editForm = document.getElementById('receipt-edit-form');
     let currentFile = null;
@@ -38,7 +45,8 @@ export function initScanner() {
                     let tarief = data.btwTarief || '21';
 
                     if (leverancier) {
-                        const memory = JSON.parse(localStorage.getItem('vendor_' + leverancier.toLowerCase().trim()));
+                        const vendorKey = leverancier.toLowerCase().trim();
+                        const memory = cloudMemory[vendorKey];
                         if (memory) {
                             omschrijving = memory.omschrijving || omschrijving;
                             tarief = memory.btwTarief || tarief;
@@ -87,7 +95,14 @@ export function initScanner() {
 
                 // Save Memory
                 if (leverancier) {
-                    localStorage.setItem('vendor_' + leverancier.toLowerCase().trim(), JSON.stringify({ omschrijving: omschrijving, btwTarief: tarief }));
+                    const vendorKey = leverancier.toLowerCase().trim();
+                    const currentMemory = cloudMemory[vendorKey];
+
+                    // Check of het nieuw is of gewijzigd
+                    if (!currentMemory || currentMemory.omschrijving !== omschrijving || currentMemory.btwTarief !== tarief) {
+                        await saveCloudMemory(leverancier, omschrijving, tarief);
+                        cloudMemory[vendorKey] = { omschrijving, btwTarief: tarief };
+                    }
                 }
 
                 // 1. Uploaden naar Drive (als er een bestand is)
