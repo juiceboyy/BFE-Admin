@@ -31,6 +31,11 @@ export function initScanner() {
         if (!files || files.length === 0) return;
 
         Array.from(files).forEach(file => {
+            // Negeer verborgen bestanden (zoals .DS_Store) en sta alleen images/pdfs toe
+            if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) {
+                return;
+            }
+
             batchQueue.push({
                 id: Date.now() + Math.random(),
                 file: file,
