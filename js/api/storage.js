@@ -26,6 +26,7 @@ export async function uploadToDrive(file, factuurNummer) {
             })
         });
 
+        if (metadataResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!metadataResponse.ok) {
             const error = await metadataResponse.json();
             throw new Error(`Fout bij aanmaken bestand in Drive: ${error.error.message}`);
@@ -44,6 +45,7 @@ export async function uploadToDrive(file, factuurNummer) {
             body: file
         });
 
+        if (uploadResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!uploadResponse.ok) {
             const error = await uploadResponse.json();
             throw new Error(`Fout bij uploaden inhoud naar Drive: ${error.error.message}`);
@@ -73,6 +75,7 @@ export async function insertRowInSheet(sheetName, data) {
             }
         });
 
+        if (getRes.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!getRes.ok) {
             const error = await getRes.json();
             throw new Error(`Fout bij ophalen sheet data: ${error.error.message}`);
@@ -103,6 +106,7 @@ export async function insertRowInSheet(sheetName, data) {
             body: JSON.stringify({ values: [data] })
         });
 
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!response.ok) {
             const error = await response.json();
             throw new Error(`Fout bij schrijven naar Sheet: ${error.error.message}`);
@@ -146,7 +150,7 @@ export async function saveCloudMemory(leverancier, omschrijving, tarief) {
     if (!accessToken) return;
 
     try {
-        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
+        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -154,7 +158,9 @@ export async function saveCloudMemory(leverancier, omschrijving, tarief) {
             },
             body: JSON.stringify({ values: [[leverancier, omschrijving, tarief]] })
         });
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
     } catch (error) {
+        if (error.message === 'TOKEN_EXPIRED') throw error;
         console.error('Fout bij opslaan cloud memory:', error);
     }
 }

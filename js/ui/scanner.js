@@ -133,8 +133,12 @@ export function initScanner() {
                 currentFile = null;
                 uploadInput.value = ''; // Reset file input
             } catch (error) {
-                console.error('Fout bij opslaan:', error);
-                alert('Er ging iets mis bij het opslaan: ' + error.message);
+                if (error.message === 'TOKEN_EXPIRED') {
+                    alert('Je Google sessie is verlopen (duurt 1 uur). Klik bovenaan opnieuw op Inloggen / Sync Drive en probeer daarna nogmaals op te slaan!');
+                } else {
+                    console.error('Fout bij opslaan:', error);
+                    alert('Er ging iets mis bij het opslaan: ' + error.message);
+                }
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalBtnContent;
