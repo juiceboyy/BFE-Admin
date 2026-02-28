@@ -3,6 +3,7 @@ import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getN
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 let batchQueue = [];
+let isProcessingQueue = false;
 
 function getTargetDateInfo() {
     const now = new Date();
@@ -49,6 +50,8 @@ export function initScanner() {
         // Reset inputs
         if (uploadInput) uploadInput.value = '';
         if (folderInput) folderInput.value = '';
+
+        processQueue();
     };
 
     if (uploadInput) {
@@ -58,6 +61,34 @@ export function initScanner() {
     if (folderInput) {
         folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
     }
+}
+
+async function processQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+    while (true) {
+        const item = batchQueue.find(i => i.status === 'pending');
+        if (!item) break; // Queue is leeg of alles is verwerkt
+        item.status = 'processing';
+        renderBatchTable(); // Update UI naar 'Bezig...'
+        try {
+            const aiData = await analyzeReceipt(item.file);
+            const currentMemory = await loadCloudMemory();
+            const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
+            const savedVendor = currentMemory[vendorKey];
+            item.data = {
+                ...aiData,
+                omschrijving: savedVendor ? savedVendor.omschrijving : aiData.omschrijving,
+                btwTarief: savedVendor ? savedVendor.btwTarief : aiData.btwTarief
+            };
+            item.status = 'success';
+        } catch (err) {
+            item.status = 'error';
+            item.data = { error: err.message };
+        }
+        renderBatchTable(); // Update UI met resultaten
+    }
+    isProcessingQueue = false;
 }
 
 function renderBatchTable() {
@@ -129,10 +160,10 @@ function renderBatchTable() {
 
 function getStatusBadge(status) {
     switch(status) {
-        case 'pending': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Wachtrij</span>';
-        case 'processing': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i data-lucide="loader-2" class="w-3 h-3 animate-spin mr-1"></i> Bezig</span>';
-        case 'success': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Klaar</span>';
-        case 'error': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Fout</span>';
+        case 'pending': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Wachtend...</span>';
+        case 'processing': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⏳ Scannen...</span>';
+        case 'success': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">✅ Klaar</span>';
+        case 'error': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">❌ Fout</span>';
         default: return '';
     }
 }
