@@ -1,7 +1,6 @@
 import { analyzeReceipt } from '../api/gemini.js';
 import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
 
-let cloudMemory = {};
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
 function getTargetDateInfo() {
@@ -24,11 +23,6 @@ function getTargetDateInfo() {
 }
 
 export function initScanner() {
-    // Laad geheugen in bij opstarten
-    loadCloudMemory().then(data => {
-        cloudMemory = data;
-    });
-
     const uploadInput = document.getElementById('receipt-upload');
     const editForm = document.getElementById('receipt-edit-form');
     let currentFile = null;
@@ -45,6 +39,7 @@ export function initScanner() {
 
                 try {
                     const data = await analyzeReceipt(file);
+                    const currentMemory = await loadCloudMemory();
                     
                     // Populate form inputs
                     const dateInfo = getTargetDateInfo();
@@ -65,10 +60,10 @@ export function initScanner() {
 
                     if (leverancier) {
                         const vendorKey = leverancier.toLowerCase().trim();
-                        const memory = cloudMemory[vendorKey];
-                        if (memory) {
-                            omschrijving = memory.omschrijving || omschrijving;
-                            tarief = memory.btwTarief || tarief;
+                        const savedVendor = currentMemory[vendorKey];
+                        if (savedVendor) {
+                            omschrijving = savedVendor.omschrijving || omschrijving;
+                            tarief = savedVendor.btwTarief || tarief;
                         }
                     }
 
@@ -114,13 +109,12 @@ export function initScanner() {
 
                 // Save Memory
                 if (leverancier) {
+                    const checkMemory = await loadCloudMemory();
                     const vendorKey = leverancier.toLowerCase().trim();
-                    const currentMemory = cloudMemory[vendorKey];
 
-                    // Check of het nieuw is of gewijzigd
-                    if (!currentMemory || currentMemory.omschrijving !== omschrijving || currentMemory.btwTarief !== tarief) {
+                    if (!checkMemory[vendorKey]) {
+                        // Alleen als hij ECHT nieuw is, opslaan in de cloud
                         await saveCloudMemory(leverancier, omschrijving, tarief);
-                        cloudMemory[vendorKey] = { omschrijving, btwTarief: tarief };
                     }
                 }
 

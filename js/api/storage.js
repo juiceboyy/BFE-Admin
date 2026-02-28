@@ -117,36 +117,27 @@ export async function insertRowInSheet(sheetName, data) {
 }
 
 export async function loadCloudMemory() {
-    if (!accessToken) return {};
-
     try {
-        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`
-            }
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
         });
-
-        if (!response.ok) return {};
-
-        const data = await response.json();
+        const json = await res.json();
         const memory = {};
-
-        if (data.values && data.values.length > 1) {
-            // Sla rij 1 (headers) over
-            for (let i = 1; i < data.values.length; i++) {
-                const row = data.values[i];
-                if (row[0]) {
-                    memory[row[0].toLowerCase().trim()] = { 
-                        omschrijving: row[1], 
-                        btwTarief: row[2] 
+        if (json.values && json.values.length > 1) {
+            // Loop starts at 1 to skip headers
+            for (let i = 1; i < json.values.length; i++) {
+                const row = json.values[i];
+                if (row && row[0]) {
+                    memory[row[0].toLowerCase().trim()] = {
+                        omschrijving: row[1] || '',
+                        btwTarief: row[2] || 0
                     };
                 }
             }
         }
-
         return memory;
-    } catch (error) {
-        console.error('Fout bij laden cloud memory:', error);
+    } catch (e) {
+        console.error("Fout bij laden cloud memory:", e);
         return {};
     }
 }
