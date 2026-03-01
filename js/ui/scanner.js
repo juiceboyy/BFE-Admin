@@ -5,6 +5,7 @@ import { getBatchRowHTML } from './scanner-row.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
+let currentMode = 'inkoop';
 
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
@@ -28,6 +29,24 @@ export function initScanner() {
 
     if (uploadInput) uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
     if (folderInput) folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    // Mode Toggles
+    const btnInkoop = document.getElementById('mode-inkoop');
+    const btnVerkoop = document.getElementById('mode-verkoop');
+
+    const setMode = (mode) => {
+        currentMode = mode;
+        if (mode === 'inkoop') {
+            btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
+            btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+        } else {
+            btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
+            btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+        }
+    };
+
+    if (btnInkoop) btnInkoop.addEventListener('click', () => setMode('inkoop'));
+    if (btnVerkoop) btnVerkoop.addEventListener('click', () => setMode('verkoop'));
 }
 
 async function processQueue() {
@@ -40,7 +59,7 @@ async function processQueue() {
         renderBatchTable(); // Update UI naar 'Bezig...'
         try {
             const currentMemory = await loadCloudMemory();
-            const aiData = await analyzeReceipt(item.file, currentMemory);
+            const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
             
             // Opties ophalen voor deze leverancier
             const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
@@ -77,7 +96,7 @@ export async function saveBatchItem(id) {
         const vergoedingExcl = factuurBedrag - btw;
 
         // 2. Nummering & Datum
-        const dateInfo = getTargetDateInfo();
+        const dateInfo = getTargetDateInfo(currentMode);
         if (!isDateValidForPeriod(datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
             const proceed = confirm(`⚠️ WAARSCHUWING: De datum (${datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nWeet je zeker dat je deze bon in dit tijdvak wilt inboeken?`);
             if (!proceed) {
@@ -94,19 +113,40 @@ export async function saveBatchItem(id) {
         if (factuurInput) factuurInput.value = factuurnummer;
 
         // 3. Opslaan
-        // Upload naar Drive
-        await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`);
+        if (currentMode === 'verkoop') {
+            // Verkoop Modus
+            await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`); // leverancier input bevat hier de KlantNaam
 
-        // Rij toevoegen aan Sheet
-        await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, factuurBedrag, btw, vergoedingExcl]);
+            // Rij toevoegen aan Sheet (13 kolommen voor Verkoop)
+            const d = item.data || {};
+            const rowValues = [
+                datum,
+                factuurnummer,
+                omschrijving,
+                leverancier, // KlantNaam
+                factuurBedrag, // TotaalBedrag
+                parseFloat(d.btwLaag) || 0,
+                parseFloat(d.btwHoog) || 0,
+                parseFloat(d.omzetLaag) || 0,
+                parseFloat(d.omzetHoog) || 0,
+                parseFloat(d.omzetNul) || 0,
+                "", "", ""
+            ];
+            await insertRowInSheet(dateInfo.targetSheet, rowValues);
 
-        // Cloud Memory updaten indien nodig
-        if (leverancier) {
-            const currentMemory = await loadCloudMemory();
-            const vendorKey = leverancier.toLowerCase().trim();
-            const existingOptions = currentMemory[vendorKey] || [];
-            if (!existingOptions.some(opt => opt.omschrijving === omschrijving)) {
-                await saveCloudMemory(leverancier, omschrijving, 'Mix');
+        } else {
+            // Inkoop Modus (Standaard)
+            await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`);
+            await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, factuurBedrag, btw, vergoedingExcl]);
+
+            // Cloud Memory updaten indien nodig (Alleen bij inkoop)
+            if (leverancier) {
+                const currentMemory = await loadCloudMemory();
+                const vendorKey = leverancier.toLowerCase().trim();
+                const existingOptions = currentMemory[vendorKey] || [];
+                if (!existingOptions.some(opt => opt.omschrijving === omschrijving)) {
+                    await saveCloudMemory(leverancier, omschrijving, 'Mix');
+                }
             }
         }
 

@@ -5,7 +5,7 @@
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
-export function getTargetDateInfo() {
+export function getTargetDateInfo(mode = 'inkoop') {
     const now = new Date();
     let targetMonthIndex = now.getMonth() - 1;
     let targetYear = now.getFullYear();
@@ -16,10 +16,11 @@ export function getTargetDateInfo() {
     }
 
     const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
+    const suffix = mode === 'verkoop' ? ' Verkoop' : ' Inkoop';
 
     return {
-        targetSheet: `${MONTH_NAMES[targetMonthIndex]} Inkoop`,
-        prevSheet: `${MONTH_NAMES[prevMonthIndex]} Inkoop`,
+        targetSheet: `${MONTH_NAMES[targetMonthIndex]}${suffix}`,
+        prevSheet: `${MONTH_NAMES[prevMonthIndex]}${suffix}`,
         targetYear: targetYear,
         targetMonthNum: targetMonthIndex + 1
     };

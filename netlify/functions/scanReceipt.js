@@ -9,7 +9,7 @@ export const handler = async (event, context) => {
 
     try {
         // Parse de inkomende data
-        let { base64Data, mimeType, cloudMemory } = JSON.parse(event.body);
+        let { base64Data, mimeType, cloudMemory, mode } = JSON.parse(event.body);
 
         // Haal de API key veilig op en verwijder onzichtbare tekens
         const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
@@ -29,11 +29,19 @@ export const handler = async (event, context) => {
             base64Data = base64Data.split(',')[1];
         }
 
+        // Bepaal de system prompt op basis van de modus (inkoop vs verkoop)
+        let systemPrompt;
+        if (mode === 'verkoop') {
+            systemPrompt = `Je bent een accountant die een UITGAANDE verkoopfactuur analyseert. Return een JSON object met: factuurnummer (indien aanwezig), datum (YYYY-MM-DD), klantNaam (aan wie de factuur gericht is), omschrijving (korte samenvatting), totaalBedrag (absolute eindbedrag incl. btw), btwLaag (totaalbedrag aan 9% btw), btwHoog (totaalbedrag aan 21% btw), omzetLaag (vergoeding/excl bedrag vallend onder 9%), omzetHoog (vergoeding/excl bedrag vallend onder 21%), omzetNul (vergoeding/excl bedrag met 0% of vrijgesteld).`;
+        } else {
+            systemPrompt = `Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, omschrijving, factuurBedrag, btwBedrag uit deze bon. \nBELANGRIJK: Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}. \nAls je de leverancier op de bon herkent in dit geheugen, kijk dan goed naar de specifieke producten op de bon. Kies de "omschrijving" uit het geheugen die het beste past bij deze producten. Als de producten nieuw zijn voor deze leverancier, bedenk dan zelf een duidelijke nieuwe omschrijving. \nZoek het absolute eindtotaal van de bon (het volledige bedrag inclusief eventuele btw en onbelaste artikelen, wat de klant daadwerkelijk heeft moeten betalen). Return dit als getal in de key factuurBedrag. \nTel alle btw-bedragen op de bon (zowel hoog als laag) bij elkaar op tot één absoluut totaal en return dit als getal in btwBedrag. Return UITSLUITEND een geldig JSON object.\n\nUITZONDERING VOOR ING BANKAFSCHRIFTEN:\nAls je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrijvingen):\n\nFocus UITSLUITEND op de eerste pagina van het document, de rest mag je negeren.\n\nVul "Tesla" in als naamLeverancier.\n\n4. Om het factuurBedrag te bepalen: negeer de losse transacties in de tabel. Zoek op de eerste pagina specifiek naar het kopje "Totaal af (EUR)". Het getal dat daar direct onder of naast staat (bijvoorbeeld 158,60) is het absolute eindbedrag. Gebruik dit getal als het factuurBedrag en negeer eventuele mintekens.\n\nEr staat geen btw op een bankafschrift. Bereken dit zelf door uit te gaan van 21% btw. De formule voor het btwBedrag is: (factuurBedrag * 21) / 121. Rond dit af op 2 decimalen.\n\nBedenk een logische omschrijving (bijvoorbeeld "Tesla Supercharging" of "Tesla Afschrijving").\n\n7. Bepaal over welke maand het afschrift gaat en gebruik altijd de LAATSTE DAG VAN DIE MAAND als de datum (format: YYYY-MM-DD).\n8. Laat het factuurnummer altijd helemaal leeg (return een lege string "" of null). Verzin zelf geen nummers, dit wordt door een ander systeem afgehandeld.`;
+        }
+
         // Fetch request body volgens Gemini v1beta specificatie
         const payload = {
             contents: [{
                 parts: [
-                    { text: `Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, omschrijving, factuurBedrag, btwBedrag uit deze bon. \nBELANGRIJK: Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}. \nAls je de leverancier op de bon herkent in dit geheugen, kijk dan goed naar de specifieke producten op de bon. Kies de "omschrijving" uit het geheugen die het beste past bij deze producten. Als de producten nieuw zijn voor deze leverancier, bedenk dan zelf een duidelijke nieuwe omschrijving. \nZoek het absolute eindtotaal van de bon (het volledige bedrag inclusief eventuele btw en onbelaste artikelen, wat de klant daadwerkelijk heeft moeten betalen). Return dit als getal in de key factuurBedrag. \nTel alle btw-bedragen op de bon (zowel hoog als laag) bij elkaar op tot één absoluut totaal en return dit als getal in btwBedrag. Return UITSLUITEND een geldig JSON object.\n\nUITZONDERING VOOR ING BANKAFSCHRIFTEN:\nAls je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrijvingen):\n\nFocus UITSLUITEND op de eerste pagina van het document, de rest mag je negeren.\n\nVul "Tesla" in als naamLeverancier.\n\n4. Om het factuurBedrag te bepalen: negeer de losse transacties in de tabel. Zoek op de eerste pagina specifiek naar het kopje "Totaal af (EUR)". Het getal dat daar direct onder of naast staat (bijvoorbeeld 158,60) is het absolute eindbedrag. Gebruik dit getal als het factuurBedrag en negeer eventuele mintekens.\n\nEr staat geen btw op een bankafschrift. Bereken dit zelf door uit te gaan van 21% btw. De formule voor het btwBedrag is: (factuurBedrag * 21) / 121. Rond dit af op 2 decimalen.\n\nBedenk een logische omschrijving (bijvoorbeeld "Tesla Supercharging" of "Tesla Afschrijving").\n\n7. Bepaal over welke maand het afschrift gaat en gebruik altijd de LAATSTE DAG VAN DIE MAAND als de datum (format: YYYY-MM-DD).\n8. Laat het factuurnummer altijd helemaal leeg (return een lege string "" of null). Verzin zelf geen nummers, dit wordt door een ander systeem afgehandeld.` },
+                    { text: systemPrompt },
                     {
                         inline_data: {
                             mime_type: mimeType,
