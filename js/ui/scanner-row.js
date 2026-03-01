@@ -13,9 +13,9 @@ export function getBatchRowHTML(item) {
     
     const dateInfo = getTargetDateInfo();
     const isDateWarning = d.datum ? !isDateValidForPeriod(d.datum, dateInfo.targetYear, dateInfo.targetMonthNum) : false;
-    const dateClass = isDateWarning 
-        ? `bg-orange-50 border-b border-orange-500 text-orange-700 focus:border-orange-600 outline-none text-sm ${opacityClass}`
-        : `bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm `;
+    const dateClasses = isDateWarning 
+        ? `border-orange-500 bg-orange-50 text-orange-800 font-bold focus:ring-orange-500 ${opacityClass}` 
+        : `border-gray-300 bg-gray-50 text-gray-900 focus:ring-blue-500 ${opacityClass}`;
 
     let omschrijvingInput;
     if (options.length > 0) {
@@ -39,8 +39,8 @@ export function getBatchRowHTML(item) {
                 ${getStatusBadge(item.status)}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                <input type="date" id="datum-${item.id}" class="" 
-                    value="${d.datum || ''}" >
+                <input type="date" id="datum-${item.id}" class="w-full p-2 border rounded outline-none ${dateClasses}" 
+                    value="${d.datum || ''}" ${disabledAttr}>
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <input type="text" id="leverancier-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
