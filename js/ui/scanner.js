@@ -90,9 +90,9 @@ export async function saveBatchItem(id) {
         // 1. DOM Lezen
         const getVal = (f) => document.getElementById(`${f}-${id}`)?.value || '';
         const [leverancier, omschrijving, datum] = ['leverancier', 'omschrijving', 'datum'].map(getVal);
-        const bedrag = parseFloat(getVal('bedrag')) || 0;
+        const factuurBedrag = parseFloat(getVal('factuurbedrag')) || 0;
         const btw = parseFloat(getVal('btw')) || 0;
-        const totaal = bedrag + btw;
+        const vergoedingExcl = factuurBedrag - btw;
 
         // 2. Nummering & Datum
         const dateInfo = getTargetDateInfo();
@@ -105,7 +105,7 @@ export async function saveBatchItem(id) {
         await uploadToDrive(item.file, factuurnummer);
 
         // Rij toevoegen aan Sheet
-        await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, totaal, btw, bedrag]);
+        await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, factuurBedrag, btw, vergoedingExcl]);
 
         // Cloud Memory updaten indien nodig
         if (leverancier) {
@@ -222,8 +222,8 @@ function getBatchRowHTML(item) {
                 ${omschrijvingInput}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                <input type="number" id="bedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.bedragExclusief || ''}" ${disabledAttr} placeholder="0.00">
+                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.factuurBedrag || ''}" ${disabledAttr} placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
                  <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
