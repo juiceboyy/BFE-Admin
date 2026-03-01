@@ -36,13 +36,21 @@ export function initScanner() {
 
     const setMode = (mode) => {
         currentMode = mode;
+        const thLeverancier = document.getElementById('th-leverancier');
+        const thBedrag = document.getElementById('th-bedrag');
+
         if (mode === 'inkoop') {
             btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
             btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+            if (thLeverancier) thLeverancier.innerText = 'Leverancier';
+            if (thBedrag) thBedrag.innerText = 'Factuurbedrag';
         } else {
             btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
             btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+            if (thLeverancier) thLeverancier.innerText = 'Klant';
+            if (thBedrag) thBedrag.innerText = 'Totaal (incl)';
         }
+        renderBatchTable();
     };
 
     if (btnInkoop) btnInkoop.addEventListener('click', () => setMode('inkoop'));
@@ -211,6 +219,6 @@ function renderBatchTable() {
         dashboard.appendChild(footer);
     }
 
-    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item)).join('');
+    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item, currentMode)).join('');
     if (window.lucide) window.lucide.createIcons();
 }
