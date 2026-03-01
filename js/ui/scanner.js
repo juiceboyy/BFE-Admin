@@ -102,7 +102,7 @@ export async function saveBatchItem(id) {
 
         // 3. Opslaan
         // Upload naar Drive
-        await uploadToDrive(item.file, factuurnummer);
+        await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`);
 
         // Rij toevoegen aan Sheet
         await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, factuurBedrag, btw, vergoedingExcl]);
