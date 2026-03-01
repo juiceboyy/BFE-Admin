@@ -35,9 +35,13 @@
 
         <div id="app-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
-                <h2 class="text-xl font-medium mb-6">Nieuwe boeking</h2>
-                <form id="btw-form" class="space-y-5">
+            <details class="bg-white shadow rounded-lg group lg:col-span-3">
+                <summary class="cursor-pointer p-4 font-semibold text-gray-700 hover:bg-gray-50 rounded-lg outline-none select-none flex items-center justify-between">
+                    <span>➕ Handmatige boeking toevoegen</span>
+                    <span class="group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div class="p-4 border-t border-gray-100">
+                    <form id="btw-form" class="space-y-5">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1.5">Type</label>
@@ -84,7 +88,8 @@
                         Boeking Toevoegen
                     </button>
                 </form>
-            </div>
+                </div>
+            </details>
 
             <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
                 <h2 class="text-xl font-medium mb-6">Bonnen & Facturen Scanner</h2>
