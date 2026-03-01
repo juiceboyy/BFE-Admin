@@ -32,35 +32,20 @@ export function initScanner() {
         if (!files || files.length === 0) return;
 
         Array.from(files).forEach(file => {
-            // Negeer verborgen bestanden (zoals .DS_Store) en sta alleen images/pdfs toe
-            if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) {
-                return;
-            }
-
+            if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) return;
             batchQueue.push({
-                id: Date.now() + Math.random(),
-                file: file,
-                status: 'pending',
-                data: null
+                id: Date.now() + Math.random(), file: file, status: 'pending', data: null
             });
         });
 
         renderBatchTable();
-        
-        // Reset inputs
         if (uploadInput) uploadInput.value = '';
         if (folderInput) folderInput.value = '';
-
         processQueue();
     };
 
-    if (uploadInput) {
-        uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
-    }
-
-    if (folderInput) {
-        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
-    }
+    if (uploadInput) uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    if (folderInput) folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
 }
 
 async function processQueue() {
@@ -79,11 +64,7 @@ async function processQueue() {
             const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
             const options = currentMemory[vendorKey] || [];
 
-            item.data = {
-                ...aiData,
-                factuurnummer: '',
-                options: options // Opslaan voor de UI dropdown
-            };
+            item.data = { ...aiData, factuurnummer: '', options };
             item.status = 'success';
         } catch (err) {
             item.status = 'error';
@@ -99,7 +80,6 @@ export async function saveBatchItem(id) {
     if (!item) return;
 
     const btn = document.getElementById(`btn-save-${id}`);
-    // UI Loading State
     if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
@@ -107,28 +87,18 @@ export async function saveBatchItem(id) {
     }
 
     try {
-        // 1. DOM Lezen (actuele waarden ophalen)
-        const leverancierInput = document.getElementById(`leverancier-${id}`);
-        const omschrijvingInput = document.getElementById(`omschrijving-${id}`);
-        const bedragInput = document.getElementById(`bedrag-${id}`);
-        const btwInput = document.getElementById(`btw-${id}`);
-        const factuurInput = document.getElementById(`factuurnummer-${id}`);
-
-        const leverancier = leverancierInput.value;
-        const omschrijving = omschrijvingInput.value;
-        const bedrag = parseFloat(bedragInput.value) || 0;
-        const btw = parseFloat(btwInput.value) || 0;
+        // 1. DOM Lezen
+        const getVal = (f) => document.getElementById(`${f}-${id}`)?.value || '';
+        const [leverancier, omschrijving, datum] = ['leverancier', 'omschrijving', 'datum'].map(getVal);
+        const bedrag = parseFloat(getVal('bedrag')) || 0;
+        const btw = parseFloat(getVal('btw')) || 0;
         const totaal = bedrag + btw;
 
         // 2. Nummering & Datum
         const dateInfo = getTargetDateInfo();
         const factuurnummer = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
-        
-        // Visueel invullen
+        const factuurInput = document.getElementById(`factuurnummer-${id}`);
         if (factuurInput) factuurInput.value = factuurnummer;
-
-        // Datum bepalen (uit AI data of vandaag)
-        const datum = item.data && item.data.datum ? item.data.datum : new Date().toISOString().split('T')[0];
 
         // 3. Opslaan
         // Upload naar Drive
@@ -142,13 +112,8 @@ export async function saveBatchItem(id) {
             const currentMemory = await loadCloudMemory();
             const vendorKey = leverancier.toLowerCase().trim();
             const existingOptions = currentMemory[vendorKey] || [];
-            const tarief = 'Mix';
-
-            // Check of deze omschrijving al bestaat
-            const exists = existingOptions.some(opt => opt.omschrijving === omschrijving);
-
-            if (!exists) {
-                await saveCloudMemory(leverancier, omschrijving, tarief);
+            if (!existingOptions.some(opt => opt.omschrijving === omschrijving)) {
+                await saveCloudMemory(leverancier, omschrijving, 'Mix');
             }
         }
 
@@ -182,9 +147,7 @@ export async function saveAllSuccessItems() {
     // Filter items die klaar staan (success)
     const itemsToSave = batchQueue.filter(i => i.status === 'success');
 
-    for (const item of itemsToSave) {
-        await saveBatchItem(item.id);
-    }
+    for (const item of itemsToSave) await saveBatchItem(item.id);
 
     if (btn) {
         btn.disabled = false;
@@ -197,14 +160,8 @@ window.saveAllSuccessItems = saveAllSuccessItems;
 function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
     const tbody = document.getElementById('batch-table-body');
-
     if (!dashboard || !tbody) return;
-
-    if (batchQueue.length > 0) {
-        dashboard.classList.remove('hidden');
-    } else {
-        dashboard.classList.add('hidden');
-    }
+    dashboard.classList.toggle('hidden', batchQueue.length === 0);
 
     tbody.innerHTML = '';
 
@@ -221,30 +178,29 @@ function renderBatchTable() {
         dashboard.appendChild(footer);
     }
 
-    batchQueue.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.className = 'bg-white border-b hover:bg-gray-50 transition-colors';
-        tr.id = `batch-row-${item.id}`;
+    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item)).join('');
+    if (window.lucide) window.lucide.createIcons();
+}
 
-        const isDisabled = item.status === 'pending' || item.status === 'processing' || item.status === 'saved';
-        const disabledAttr = isDisabled ? 'disabled' : '';
-        const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
-        
-        const d = item.data || {};
-        const options = d.options || [];
-        
-        // Dropdown logica (Datalist)
-        let omschrijvingInput = '';
-        if (options.length > 0) {
-            const listId = `list-omschrijving-${item.id}`;
-            omschrijvingInput = `
-                <input type="text" id="omschrijving-${item.id}" list="${listId}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
-                <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
-        } else {
-            omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">`;
-        }
+function getBatchRowHTML(item) {
+    const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
+    const disabledAttr = isDisabled ? 'disabled' : '';
+    const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
+    const d = item.data || {};
+    const options = d.options || [];
+    
+    let omschrijvingInput;
+    if (options.length > 0) {
+        const listId = `list-omschrijving-${item.id}`;
+        omschrijvingInput = `
+            <input type="text" id="omschrijving-${item.id}" list="${listId}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
+            <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
+    } else {
+        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">`;
+    }
 
-        tr.innerHTML = `
+    return `
+        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors">
             <td class="px-4 py-3 whitespace-nowrap">
                 <div class="flex items-center gap-2">
                     <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
@@ -253,6 +209,10 @@ function renderBatchTable() {
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 ${getStatusBadge(item.status)}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+                <input type="date" id="datum-${item.id}" class="bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                    value="${d.datum || ''}" ${disabledAttr}>
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <input type="text" id="leverancier-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
@@ -282,11 +242,7 @@ function renderBatchTable() {
                     <i data-lucide="${item.status === 'saved' ? 'check' : 'save'}" class="w-4 h-4"></i>
                 </button>
             </td>
-        `;
-        tbody.appendChild(tr);
-    });
-
-    if (window.lucide) window.lucide.createIcons();
+        </tr>`;
 }
 
 function getStatusBadge(status) {
