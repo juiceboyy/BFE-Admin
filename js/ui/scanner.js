@@ -1,5 +1,7 @@
 import { analyzeReceipt } from '../api/gemini.js';
 import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
+import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
+import { getBatchRowHTML } from './scanner-row.js';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 let batchQueue = [];
@@ -20,8 +22,15 @@ function getTargetDateInfo() {
     return {
         targetSheet: `${MONTH_NAMES[targetMonthIndex]} Inkoop`,
         prevSheet: `${MONTH_NAMES[prevMonthIndex]} Inkoop`,
-        targetYear: targetYear
+        targetYear: targetYear,
+        targetMonthNum: targetMonthIndex + 1
     };
+}
+
+function isDateValidForPeriod(dateStr, targetYear, targetMonthNum) {
+    if (!dateStr) return true;
+    const [year, month] = dateStr.split('-');
+    return parseInt(year, 10) === targetYear && parseInt(month, 10) === targetMonthNum;
 }
 
 export function initScanner() {
@@ -96,6 +105,17 @@ export async function saveBatchItem(id) {
 
         // 2. Nummering & Datum
         const dateInfo = getTargetDateInfo();
+        if (!isDateValidForPeriod(datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
+            const proceed = confirm(`⚠️ WAARSCHUWING: De datum (${datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nWeet je zeker dat je deze bon in dit tijdvak wilt inboeken?`);
+            if (!proceed) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i>';
+                    if (window.lucide) window.lucide.createIcons();
+                }
+                return;
+            }
+        }
         const factuurnummer = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
         const factuurInput = document.getElementById(`factuurnummer-${id}`);
         if (factuurInput) factuurInput.value = factuurnummer;
@@ -189,6 +209,12 @@ function getBatchRowHTML(item) {
     const d = item.data || {};
     const options = d.options || [];
     
+    const dateInfo = getTargetDateInfo();
+    const isDateWarning = d.datum ? !isDateValidForPeriod(d.datum, dateInfo.targetYear, dateInfo.targetMonthNum) : false;
+    const dateClass = isDateWarning 
+        ? `bg-orange-50 border-b border-orange-500 text-orange-700 focus:border-orange-600 outline-none text-sm ${opacityClass}`
+        : `bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}`;
+
     let omschrijvingInput;
     if (options.length > 0) {
         const listId = `list-omschrijving-${item.id}`;
@@ -211,7 +237,7 @@ function getBatchRowHTML(item) {
                 ${getStatusBadge(item.status)}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                <input type="date" id="datum-${item.id}" class="bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
+                <input type="date" id="datum-${item.id}" class="${dateClass}" 
                     value="${d.datum || ''}" ${disabledAttr}>
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
