@@ -9,7 +9,7 @@ export const handler = async (event, context) => {
 
     try {
         // Parse de inkomende data
-        let { base64Data, mimeType, cloudMemory, mode } = JSON.parse(event.body);
+        let { base64Data, mimeType, cloudMemory, mode = 'inkoop' } = JSON.parse(event.body);
 
         // Haal de API key veilig op en verwijder onzichtbare tekens
         const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
