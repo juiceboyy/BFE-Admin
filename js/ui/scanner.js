@@ -3,35 +3,8 @@ import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getN
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 let batchQueue = [];
 let isProcessingQueue = false;
-
-function getTargetDateInfo() {
-    const now = new Date();
-    let targetMonthIndex = now.getMonth() - 1;
-    let targetYear = now.getFullYear();
-
-    if (targetMonthIndex < 0) {
-        targetMonthIndex = 11;
-        targetYear -= 1;
-    }
-
-    const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
-
-    return {
-        targetSheet: `${MONTH_NAMES[targetMonthIndex]} Inkoop`,
-        prevSheet: `${MONTH_NAMES[prevMonthIndex]} Inkoop`,
-        targetYear: targetYear,
-        targetMonthNum: targetMonthIndex + 1
-    };
-}
-
-function isDateValidForPeriod(dateStr, targetYear, targetMonthNum) {
-    if (!dateStr) return true;
-    const [year, month] = dateStr.split('-');
-    return parseInt(year, 10) === targetYear && parseInt(month, 10) === targetMonthNum;
-}
 
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
@@ -200,84 +173,4 @@ function renderBatchTable() {
 
     tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item)).join('');
     if (window.lucide) window.lucide.createIcons();
-}
-
-function getBatchRowHTML(item) {
-    const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
-    const disabledAttr = isDisabled ? 'disabled' : '';
-    const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
-    const d = item.data || {};
-    const options = d.options || [];
-    
-    const dateInfo = getTargetDateInfo();
-    const isDateWarning = d.datum ? !isDateValidForPeriod(d.datum, dateInfo.targetYear, dateInfo.targetMonthNum) : false;
-    const dateClass = isDateWarning 
-        ? `bg-orange-50 border-b border-orange-500 text-orange-700 focus:border-orange-600 outline-none text-sm ${opacityClass}`
-        : `bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}`;
-
-    let omschrijvingInput;
-    if (options.length > 0) {
-        const listId = `list-omschrijving-${item.id}`;
-        omschrijvingInput = `
-            <input type="text" id="omschrijving-${item.id}" list="${listId}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Kies of typ...">
-            <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
-    } else {
-        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" value="${d.omschrijving || ''}" ${disabledAttr} placeholder="Omschrijving">`;
-    }
-
-    return `
-        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors">
-            <td class="px-4 py-3 whitespace-nowrap">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
-                    <span class="text-sm font-medium text-gray-900 truncate max-w-[150px]" title="${item.file.name}">${item.file.name}</span>
-                </div>
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                ${getStatusBadge(item.status)}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                <input type="date" id="datum-${item.id}" class="${dateClass}" 
-                    value="${d.datum || ''}" ${disabledAttr}>
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                <input type="text" id="leverancier-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.naamLeverancier || ''}" ${disabledAttr} placeholder="Leverancier">
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                ${omschrijvingInput}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-right">
-                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.factuurBedrag || ''}" ${disabledAttr} placeholder="0.00">
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-right">
-                 <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm ${opacityClass}" 
-                    value="${d.btwBedrag || ''}" ${disabledAttr} placeholder="0.00">
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                <input type="text" id="factuurnummer-${item.id}" class="w-32 bg-transparent border-b border-transparent outline-none text-sm text-gray-500 cursor-default" 
-                    value="${d.factuurnummer || ''}" readonly placeholder="Auto (bij opslaan)">
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-center">
-                <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})" 
-                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors" 
-                    ${item.status !== 'success' && item.status !== 'saved' ? 'disabled' : ''} 
-                    ${item.status === 'saved' ? 'disabled' : ''}
-                    title="${item.status === 'saved' ? 'Opgeslagen' : 'Opslaan'}">
-                    <i data-lucide="${item.status === 'saved' ? 'check' : 'save'}" class="w-4 h-4"></i>
-                </button>
-            </td>
-        </tr>`;
-}
-
-function getStatusBadge(status) {
-    switch(status) {
-        case 'pending': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Wachtend...</span>';
-        case 'processing': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⏳ Scannen...</span>';
-        case 'success': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">✅ Klaar</span>';
-        case 'error': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">❌ Fout</span>';
-        case 'saved': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">💾 Opgeslagen</span>';
-        default: return '';
-    }
 }
