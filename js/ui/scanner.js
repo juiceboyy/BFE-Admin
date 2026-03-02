@@ -2,30 +2,17 @@ import { analyzeReceipt } from '../api/gemini.js';
 import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
+import { prepareItemData, getFormDataFromDOM, constructSheetRow } from './scanner-helpers.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
 let currentMode = 'inkoop';
 
+// --- Initialization ---
+
 export function initScanner() {
     const uploadInput = document.getElementById('receipt-upload');
     const folderInput = document.getElementById('folder-upload');
-
-    const handleFiles = (files) => {
-        if (!files || files.length === 0) return;
-
-        Array.from(files).forEach(file => {
-            if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) return;
-            batchQueue.push({
-                id: Date.now() + Math.random(), file: file, status: 'pending', data: null
-            });
-        });
-
-        renderBatchTable();
-        if (uploadInput) uploadInput.value = '';
-        if (folderInput) folderInput.value = '';
-        processQueue();
-    };
 
     if (uploadInput) uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
     if (folderInput) folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
@@ -34,67 +21,73 @@ export function initScanner() {
     const btnInkoop = document.getElementById('mode-inkoop');
     const btnVerkoop = document.getElementById('mode-verkoop');
 
-    const setMode = (mode) => {
-        currentMode = mode;
-        const thLeverancier = document.getElementById('th-leverancier');
-        const thBedrag = document.getElementById('th-bedrag');
-
-        if (mode === 'inkoop') {
-            btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
-            btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
-            if (thLeverancier) thLeverancier.innerText = 'Leverancier';
-            if (thBedrag) thBedrag.innerText = 'Factuurbedrag';
-        } else {
-            btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
-            btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
-            if (thLeverancier) thLeverancier.innerText = 'Klant';
-            if (thBedrag) thBedrag.innerText = 'Totaal (incl)';
-        }
-        renderBatchTable();
-    };
-
     if (btnInkoop) btnInkoop.addEventListener('click', () => setMode('inkoop'));
     if (btnVerkoop) btnVerkoop.addEventListener('click', () => setMode('verkoop'));
 }
 
+// --- Event Handlers ---
+
+function handleFiles(files) {
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach(file => {
+        if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) return;
+        batchQueue.push({
+            id: Date.now() + Math.random(), file: file, status: 'pending', data: null
+        });
+    });
+
+    renderBatchTable();
+    
+    // Reset inputs
+    const uploadInput = document.getElementById('receipt-upload');
+    const folderInput = document.getElementById('folder-upload');
+    if (uploadInput) uploadInput.value = '';
+    if (folderInput) folderInput.value = '';
+    
+    processQueue();
+}
+
+function setMode(mode) {
+    currentMode = mode;
+    const thLeverancier = document.getElementById('th-leverancier');
+    const thBedrag = document.getElementById('th-bedrag');
+    const btnInkoop = document.getElementById('mode-inkoop');
+    const btnVerkoop = document.getElementById('mode-verkoop');
+
+    if (mode === 'inkoop') {
+        if (btnInkoop) btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
+        if (btnVerkoop) btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+        if (thLeverancier) thLeverancier.innerText = 'Leverancier';
+        if (thBedrag) thBedrag.innerText = 'Factuurbedrag';
+    } else {
+        if (btnVerkoop) btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
+        if (btnInkoop) btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
+        if (thLeverancier) thLeverancier.innerText = 'Klant';
+        if (thBedrag) thBedrag.innerText = 'Totaal (incl)';
+    }
+    renderBatchTable();
+}
+
+// --- Core Logic ---
+
 async function processQueue() {
     if (isProcessingQueue) return;
     isProcessingQueue = true;
+    
     while (true) {
         const item = batchQueue.find(i => i.status === 'pending');
         if (!item) break; // Queue is leeg of alles is verwerkt
+        
         item.status = 'processing';
         renderBatchTable(); // Update UI naar 'Bezig...'
+        
         try {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
             console.log('🤖 RAW AI DATA:', aiData);
             
-            if (currentMode === 'verkoop') {
-                // Voor verkoop vertrouwen we puur op de AI samenvatting (geen leveranciers-geheugen)
-                item.data = {
-                    ...aiData,
-                    omschrijving: aiData.omschrijving || '',
-                    factuurnummer: '', // Blijft auto-generate bij opslaan
-                    options: []
-                };
-            } else {
-                // Voor inkoop gebruiken we het geheugen (bestaande logica)
-                const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
-                const savedVendor = currentMemory[vendorKey];
-
-                // Als er meerdere smaken zijn (array), pakken we voor het gemak even de eerste, 
-                // of we laten het over aan de UI dropdown. Zorg dat hij in ieder geval niet leeggooit als er geen match is.
-                const memoryOmschrijving = (savedVendor && Array.isArray(savedVendor) && savedVendor.length > 0) ? savedVendor[0].omschrijving : (savedVendor ? savedVendor.omschrijving : null);
-
-                item.data = {
-                    ...aiData,
-                    omschrijving: memoryOmschrijving || aiData.omschrijving || '',
-                    factuurnummer: '',
-                    options: savedVendor || []
-                };
-            }
-            
+            item.data = prepareItemData(currentMode, aiData, currentMemory);
             item.status = 'success';
         } catch (err) {
             item.status = 'error';
@@ -117,17 +110,13 @@ export async function saveBatchItem(id) {
     }
 
     try {
-        // 1. DOM Lezen
-        const getVal = (f) => document.getElementById(`${f}-${id}`)?.value || '';
-        const [leverancier, omschrijving, datum] = ['leverancier', 'omschrijving', 'datum'].map(getVal);
-        const factuurBedrag = parseFloat(getVal('factuurbedrag')) || 0;
-        const btw = parseFloat(getVal('btw')) || 0;
-        const vergoedingExcl = factuurBedrag - btw;
+        // 1. Data ophalen uit DOM
+        const formData = getFormDataFromDOM(id);
 
         // 2. Nummering & Datum
         const dateInfo = getTargetDateInfo(currentMode);
-        if (!isDateValidForPeriod(datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
-            const proceed = confirm(`⚠️ WAARSCHUWING: De datum (${datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nWeet je zeker dat je deze bon in dit tijdvak wilt inboeken?`);
+        if (!isDateValidForPeriod(formData.datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
+            const proceed = confirm(`⚠️ WAARSCHUWING: De datum (${formData.datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nWeet je zeker dat je deze bon in dit tijdvak wilt inboeken?`);
             if (!proceed) {
                 if (btn) {
                     btn.disabled = false;
@@ -142,40 +131,21 @@ export async function saveBatchItem(id) {
         if (factuurInput) factuurInput.value = factuurnummer;
 
         // 3. Opslaan
-        if (currentMode === 'verkoop') {
-            // Verkoop Modus
-            await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`); // leverancier input bevat hier de KlantNaam
+        
+        // Upload naar Drive (naamgeving: Factuurnummer - Tegenpartij)
+        await uploadToDrive(item.file, `${factuurnummer} - ${formData.leverancier}`);
 
-            // Rij toevoegen aan Sheet (13 kolommen voor Verkoop)
-            const d = item.data || {};
-            const rowValues = [
-                datum,
-                factuurnummer,
-                omschrijving,
-                leverancier, // KlantNaam
-                factuurBedrag, // TotaalBedrag
-                parseFloat(d.btwLaag) || 0,
-                parseFloat(d.btwHoog) || 0,
-                parseFloat(d.omzetLaag) || 0,
-                parseFloat(d.omzetHoog) || 0,
-                parseFloat(d.omzetNul) || 0,
-                "", "", ""
-            ];
-            await insertRowInSheet(dateInfo.targetSheet, rowValues);
+        // Bereid de rij voor de sheet voor (inclusief 'Wasstraat' cleaning)
+        const rowValues = constructSheetRow(currentMode, formData, item.data || {}, factuurnummer);
+        await insertRowInSheet(dateInfo.targetSheet, rowValues);
 
-        } else {
-            // Inkoop Modus (Standaard)
-            await uploadToDrive(item.file, `${factuurnummer} - ${leverancier}`);
-            await insertRowInSheet(dateInfo.targetSheet, [datum, factuurnummer, omschrijving, leverancier, factuurBedrag, btw, vergoedingExcl]);
-
-            // Cloud Memory updaten indien nodig (Alleen bij inkoop)
-            if (leverancier) {
-                const currentMemory = await loadCloudMemory();
-                const vendorKey = leverancier.toLowerCase().trim();
-                const existingOptions = currentMemory[vendorKey] || [];
-                if (!existingOptions.some(opt => opt.omschrijving === omschrijving)) {
-                    await saveCloudMemory(leverancier, omschrijving, 'Mix');
-                }
+        // Cloud Memory updaten indien nodig (Alleen bij inkoop)
+        if (currentMode === 'inkoop' && formData.leverancier) {
+            const currentMemory = await loadCloudMemory();
+            const vendorKey = formData.leverancier.toLowerCase().trim();
+            const existingOptions = currentMemory[vendorKey] || [];
+            if (!existingOptions.some(opt => opt.omschrijving === formData.omschrijving)) {
+                await saveCloudMemory(formData.leverancier, formData.omschrijving, 'Mix');
             }
         }
 
@@ -218,6 +188,8 @@ export async function saveAllSuccessItems() {
     }
 }
 window.saveAllSuccessItems = saveAllSuccessItems;
+
+// --- UI Rendering ---
 
 function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
