@@ -46,7 +46,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop') {
                     value="${currentMode === 'verkoop' ? (d.klantNaam || '') : (d.naamLeverancier || '')}"  placeholder="${currentMode === 'verkoop' ? 'Klant' : 'Leverancier'}">
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                
+                ${omschrijvingInput}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
                 <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
