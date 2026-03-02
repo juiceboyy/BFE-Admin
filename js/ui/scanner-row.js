@@ -2,16 +2,15 @@
  * js/ui/scanner-row.js
  * Verantwoordelijk voor het genereren van HTML voor de scanner tabel.
  */
-import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
+import { isDateValidForPeriod } from '../utils/date.js';
 
-export function getBatchRowHTML(item, currentMode = 'inkoop') {
+export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop') {
     const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
     const disabledAttr = isDisabled ? 'disabled' : '';
     const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
     const d = item.data || {};
     const options = d.options || [];
     
-    const dateInfo = getTargetDateInfo();
     const isDateWarning = d.datum ? !isDateValidForPeriod(d.datum, dateInfo.targetYear, dateInfo.targetMonthNum) : false;
     const dateClasses = isDateWarning 
         ? `border-orange-500 bg-orange-50 text-orange-800 font-bold focus:ring-orange-500 ${opacityClass}` 
@@ -21,10 +20,10 @@ export function getBatchRowHTML(item, currentMode = 'inkoop') {
     if (options.length > 0) {
         const listId = `list-omschrijving-${item.id}`;
         omschrijvingInput = `
-            <input type="text" id="omschrijving-${item.id}" list="" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${d.omschrijving || ''}"  placeholder="Kies of typ...">
+            <input type="text" id="omschrijving-${item.id}" list="" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data ? (item.data.omschrijving || '') : ''}"  placeholder="Kies of typ...">
             <datalist id="">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
     } else {
-        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${d.omschrijving || ''}"  placeholder="Omschrijving">`;
+        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data ? (item.data.omschrijving || '') : ''}"  placeholder="Omschrijving">`;
     }
 
     return `

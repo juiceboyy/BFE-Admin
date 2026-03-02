@@ -225,8 +225,6 @@ function renderBatchTable() {
     if (!dashboard || !tbody) return;
     dashboard.classList.toggle('hidden', batchQueue.length === 0);
 
-    tbody.innerHTML = '';
-
     // Footer toevoegen voor 'Alles Opslaan'
     let footer = document.getElementById('batch-footer');
     if (!footer && batchQueue.length > 0) {
@@ -240,6 +238,7 @@ function renderBatchTable() {
         dashboard.appendChild(footer);
     }
 
-    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item, currentMode)).join('');
+    const dateInfo = getTargetDateInfo(currentMode);
+    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item, dateInfo, currentMode)).join('');
     if (window.lucide) window.lucide.createIcons();
 }
