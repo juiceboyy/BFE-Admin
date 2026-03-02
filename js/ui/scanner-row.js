@@ -20,10 +20,10 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop') {
     if (options.length > 0) {
         const listId = `list-omschrijving-${item.id}`;
         omschrijvingInput = `
-            <input type="text" id="omschrijving-${item.id}" list="" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data ? (item.data.omschrijving || '') : ''}"  placeholder="Kies of typ...">
-            <datalist id="">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
+            <input type="text" id="omschrijving-${item.id}" list="${listId}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data && item.data.omschrijving ? item.data.omschrijving : ''}"  placeholder="Kies of typ...">
+            <datalist id="${listId}">${options.map(opt => `<option value="${opt.omschrijving}">`).join('')}</datalist>`;
     } else {
-        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data ? (item.data.omschrijving || '') : ''}"  placeholder="Omschrijving">`;
+        omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data && item.data.omschrijving ? item.data.omschrijving : ''}"  placeholder="Omschrijving">`;
     }
 
     return `
