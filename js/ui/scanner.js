@@ -68,6 +68,7 @@ async function processQueue() {
         try {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
+            console.log('🤖 RAW AI DATA:', aiData);
             
             if (currentMode === 'verkoop') {
                 // Voor verkoop vertrouwen we puur op de AI samenvatting (geen leveranciers-geheugen)
