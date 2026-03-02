@@ -69,11 +69,31 @@ async function processQueue() {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
             
-            // Opties ophalen voor deze leverancier
-            const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
-            const options = currentMemory[vendorKey] || [];
+            if (currentMode === 'verkoop') {
+                // Voor verkoop vertrouwen we puur op de AI samenvatting (geen leveranciers-geheugen)
+                item.data = {
+                    ...aiData,
+                    omschrijving: aiData.omschrijving || '',
+                    factuurnummer: '', // Blijft auto-generate bij opslaan
+                    options: []
+                };
+            } else {
+                // Voor inkoop gebruiken we het geheugen (bestaande logica)
+                const vendorKey = aiData.naamLeverancier ? aiData.naamLeverancier.toLowerCase().trim() : '';
+                const savedVendor = currentMemory[vendorKey];
 
-            item.data = { ...aiData, factuurnummer: '', options };
+                // Als er meerdere smaken zijn (array), pakken we voor het gemak even de eerste, 
+                // of we laten het over aan de UI dropdown. Zorg dat hij in ieder geval niet leeggooit als er geen match is.
+                const memoryOmschrijving = (savedVendor && Array.isArray(savedVendor) && savedVendor.length > 0) ? savedVendor[0].omschrijving : (savedVendor ? savedVendor.omschrijving : null);
+
+                item.data = {
+                    ...aiData,
+                    omschrijving: memoryOmschrijving || aiData.omschrijving || '',
+                    factuurnummer: '',
+                    options: savedVendor || []
+                };
+            }
+            
             item.status = 'success';
         } catch (err) {
             item.status = 'error';
