@@ -1,5 +1,5 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud, getSheetHeaders } from '../api/storage.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, constructSheetRow } from './scanner-helpers.js';
@@ -137,8 +137,11 @@ export async function saveBatchItem(id) {
         // Upload naar Drive (naamgeving: Factuurnummer - Tegenpartij)
         await uploadToDrive(item.file, `${factuurnummer} - ${formData.leverancier}`);
 
+        // Haal de dynamische sheet headers op
+        const headers = await getSheetHeaders(dateInfo.targetSheet);
+
         // Bereid de rij voor de sheet voor (inclusief 'Wasstraat' cleaning)
-        const rowValues = constructSheetRow(currentMode, formData, item.data || {}, factuurnummer);
+        const rowValues = constructSheetRow(currentMode, formData, item.data || {}, factuurnummer, headers);
         await insertRowInSheet(dateInfo.targetSheet, rowValues);
 
         // Cloud Memory updaten indien nodig (Alleen bij inkoop)

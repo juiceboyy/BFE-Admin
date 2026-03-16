@@ -231,3 +231,23 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 
     return `${targetYear}.001`;
 }
+
+export async function getSheetHeaders(sheetName) {
+    if (!accessToken) return [];
+    try {
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z1`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (res.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!res.ok) return [];
+        
+        const json = await res.json();
+        if (json.values && json.values[0]) {
+            return json.values[0].map(h => String(h || '').toLowerCase());
+        }
+        return [];
+    } catch (e) {
+        console.error("Fout bij ophalen headers:", e);
+        return [];
+    }
+}

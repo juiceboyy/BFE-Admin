@@ -34,26 +34,51 @@ export function getFormDataFromDOM(id) {
     };
 }
 
-export function constructSheetRow(mode, formData, itemData, factuurnummer) {
+export function constructSheetRow(mode, formData, itemData, factuurnummer, headers = []) {
     let rowValues = [];
+    
+    // Helper om de index van een kolom te vinden via keywords
+    const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
 
     if (mode === 'verkoop') {
-        rowValues = [
-            formData.datum,
-            factuurnummer,
-            formData.omschrijving,
-            formData.leverancier, // KlantNaam
-            formData.factuurBedrag, // TotaalBedrag
-            parseFloat(itemData.btwLaag) || 0,
-            parseFloat(itemData.btwHoog) || 0,
-            parseFloat(itemData.omzetLaag) || 0,
-            parseFloat(itemData.omzetHoog) || 0,
-            parseFloat(itemData.omzetNul) || 0,
-            "", "", ""
-        ];
+        if (headers.length > 0) {
+            rowValues = new Array(headers.length).fill("");
+            const setVal = (keys, val) => { const i = getIdx(keys); if (i !== -1) rowValues[i] = val; };
+
+            setVal(['datum', 'date'], formData.datum);
+            setVal(['factuur', 'nr', 'nummer'], factuurnummer);
+            setVal(['omschrijving', 'beschrijving'], formData.omschrijving);
+            setVal(['klant', 'relatie', 'naam', 'debiteur'], formData.leverancier);
+            setVal(['totaal', 'bedrag incl', 'incl'], formData.factuurBedrag);
+            setVal(['btw laag', 'btw 9', 'btw l'], parseFloat(itemData.btwLaag) || 0);
+            setVal(['btw hoog', 'btw 21', 'btw h'], parseFloat(itemData.btwHoog) || 0);
+            setVal(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9'], parseFloat(itemData.omzetLaag) || 0);
+            setVal(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21'], parseFloat(itemData.omzetHoog) || 0);
+            setVal(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0'], parseFloat(itemData.omzetNul) || 0);
+        } else {
+            rowValues = [
+                formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, formData.factuurBedrag,
+                parseFloat(itemData.btwLaag) || 0, parseFloat(itemData.btwHoog) || 0,
+                parseFloat(itemData.omzetLaag) || 0, parseFloat(itemData.omzetHoog) || 0, parseFloat(itemData.omzetNul) || 0,
+                "", "", ""
+            ];
+        }
     } else {
         const vergoedingExcl = formData.factuurBedrag - formData.btw;
-        rowValues = [formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, formData.factuurBedrag, formData.btw, vergoedingExcl];
+        if (headers.length > 0) {
+            rowValues = new Array(headers.length).fill("");
+            const setVal = (keys, val) => { const i = getIdx(keys); if (i !== -1) rowValues[i] = val; };
+            
+            setVal(['datum', 'date'], formData.datum);
+            setVal(['factuur', 'nr', 'nummer'], factuurnummer);
+            setVal(['omschrijving', 'beschrijving'], formData.omschrijving);
+            setVal(['leverancier', 'naam leverancier', 'klant'], formData.leverancier);
+            setVal(['totaal', 'bedrag incl', 'incl'], formData.factuurBedrag);
+            setVal(['btw', 'voorbelasting'], formData.btw);
+            setVal(['vergoeding', 'excl', 'factuurbedrag excl'], vergoedingExcl);
+        } else {
+            rowValues = [formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, formData.factuurBedrag, formData.btw, vergoedingExcl];
+        }
     }
 
     // Wasstraat: verander elke 0 of '0.00' in een lege string voor een schonere spreadsheet
