@@ -43,7 +43,7 @@ export async function collectYearData(year, spreadsheetId) {
             valueRenderOption: 'UNFORMATTED_VALUE', // CRITICAL: Raw floats needed, no currency strings
             dateTimeRenderOption: 'FORMATTED_STRING'
         });
-        targetSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:K`));
+        targetSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
 
         const batchResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
