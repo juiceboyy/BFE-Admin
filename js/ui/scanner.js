@@ -3,6 +3,7 @@ import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getN
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, constructSheetRow } from './scanner-helpers.js';
+import { updateDashboard } from './dashboard.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -67,6 +68,7 @@ function setMode(mode) {
         if (thBedrag) thBedrag.innerText = 'Totaal (incl)';
     }
     renderBatchTable();
+    updateDashboard(batchQueue, currentMode);
 }
 
 // --- Core Logic ---
@@ -213,4 +215,5 @@ function renderBatchTable() {
     const dateInfo = getTargetDateInfo(currentMode);
     tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item, dateInfo, currentMode)).join('');
     if (window.lucide) window.lucide.createIcons();
+    updateDashboard(batchQueue, currentMode);
 }
