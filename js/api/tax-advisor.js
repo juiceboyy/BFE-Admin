@@ -3,6 +3,8 @@
  * AI Advisor Module om strategisch fiscaal advies op te halen via Gemini.
  */
 
+import { fetchWithRetry } from '../utils/network.js';
+
 export async function getFiscalAdvice(calculatedTaxData, fiscalState) {
     const prompt = `Je bent een proactieve, strategische Nederlandse belastingadviseur. 
 Analyseer de volgende financiële data voor het jaar ${calculatedTaxData.year}.
@@ -33,7 +35,7 @@ Structuur per object:
 
     try {
         // We maken gebruik van dezelfde brug-logica als de scanner, gericht op een AI proxy
-        const response = await fetch('/.netlify/functions/fiscalAdvisor', {
+        const response = await fetchWithRetry('/.netlify/functions/fiscalAdvisor', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

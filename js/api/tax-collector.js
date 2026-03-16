@@ -1,4 +1,5 @@
 import { accessToken } from './auth.js';
+import { fetchWithRetry } from '../utils/network.js';
 
 /**
  * Haalt alle financiële data voor een specifiek jaar op en aggregeert dit.
@@ -18,7 +19,7 @@ export async function collectYearData(year, spreadsheetId) {
 
     try {
         // 2. Metadata: Ophalen van alle sheet titles
-        const metaResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+        const metaResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
@@ -45,7 +46,7 @@ export async function collectYearData(year, spreadsheetId) {
         });
         targetSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
 
-        const batchResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params.toString()}`, {
+        const batchResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
@@ -57,11 +58,14 @@ export async function collectYearData(year, spreadsheetId) {
 
         const batchData = await batchResponse.json();
 
-        // Helper om veilig getallen op te tellen (inclusief string bedragen met komma's)
-        const parseAmount = (val) => {
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string') return parseFloat(val.replace(',', '.')) || 0;
-            return 0;
+        // Bulletproof Number Parsing
+        const parseEuro = (val) => {
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
+            if (!val) return 0;
+            // Verwijder alles behalve cijfers, min-tekens, komma's en punten (stript '€', 'EUR', spaties, etc.)
+            // Zet daarna "1.234,56" om naar "1234.56"
+            const cleaned = String(val).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+            return parseFloat(cleaned) || 0;
         };
 
         // 5. Aggregation & Business Rules
@@ -91,15 +95,18 @@ export async function collectYearData(year, spreadsheetId) {
                     console.log(`Mapped indices for Verkoop (${rangeName}):`, { idxDatum, idxKlant, idxBtwLaag, idxBtwHoog, idxOmzetLaag, idxOmzetHoog, idxOmzetNul });
 
                     for (let i = 1; i < rangeData.values.length; i++) {
-                        const row = rangeData.values[i];
-                        const dateVal = row[idxDatum];
-                        if (!dateVal || !String(dateVal).includes(String(year))) continue;
+                        try {
+                            const row = rangeData.values[i];
+                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
 
-                        result.btwAfgedragen.laag9 += parseAmount(row[idxBtwLaag]);
-                        result.btwAfgedragen.hoog21 += parseAmount(row[idxBtwHoog]);
-                        result.omzet.laag9 += parseAmount(row[idxOmzetLaag]);
-                        result.omzet.hoog21 += parseAmount(row[idxOmzetHoog]);
-                        result.omzet.nul0 += parseAmount(row[idxOmzetNul]);
+                            result.btwAfgedragen.laag9 += idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
+                            result.btwAfgedragen.hoog21 += idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
+                            result.omzet.laag9 += idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
+                            result.omzet.hoog21 += idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
+                            result.omzet.nul0 += idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
+                        } catch (err) {
+                            console.warn(`⚠️ Fout bij verwerken rij ${i} in ${rangeName} (Verkoop), rij overgeslagen:`, err);
+                        }
                     }
                 } else if (isInkoop) {
                     const idxLeverancier = getIdx(['leverancier', 'naam leverancier', 'klant']);
@@ -109,18 +116,21 @@ export async function collectYearData(year, spreadsheetId) {
                     console.log(`Mapped indices for Inkoop (${rangeName}):`, { idxDatum, idxLeverancier, idxBtw, idxExcl });
 
                     for (let i = 1; i < rangeData.values.length; i++) {
-                        const row = rangeData.values[i];
-                        const dateVal = row[idxDatum];
-                        if (!dateVal || !String(dateVal).includes(String(year))) continue;
+                        try {
+                            const row = rangeData.values[i];
+                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
 
-                        const leverancier = row[idxLeverancier] ? String(row[idxLeverancier]).trim() : 'Onbekend';
-                        const voorbelasting = parseAmount(row[idxBtw]);
-                        const kostenExcl = parseAmount(row[idxExcl]);
+                            const leverancier = idxLeverancier !== -1 && row[idxLeverancier] ? String(row[idxLeverancier]).trim() : 'Onbekend';
+                            const voorbelasting = idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0;
+                            const kostenExcl = idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0;
 
-                        result.voorbelasting.totaal += voorbelasting;
-                        result.kosten.totaal += kostenExcl;
-                        
-                        result.kosten.perLeverancier[leverancier] = (result.kosten.perLeverancier[leverancier] || 0) + kostenExcl;
+                            result.voorbelasting.totaal += voorbelasting;
+                            result.kosten.totaal += kostenExcl;
+                            
+                            result.kosten.perLeverancier[leverancier] = (result.kosten.perLeverancier[leverancier] || 0) + kostenExcl;
+                        } catch (err) {
+                            console.warn(`⚠️ Fout bij verwerken rij ${i} in ${rangeName} (Inkoop), rij overgeslagen:`, err);
+                        }
                     }
                 }
             }

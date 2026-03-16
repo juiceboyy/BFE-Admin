@@ -1,4 +1,5 @@
 import { accessToken } from './auth.js';
+import { fetchWithRetry } from '../utils/network.js';
 
 const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
 const DRIVE_FOLDER_ID = '1NBCQ89t1soAvZ315_UA-p-lF340qkraH';
@@ -13,7 +14,7 @@ export async function uploadToDrive(file, factuurNummer) {
 
     try {
         // Stap 1: Metadata aanmaken (lege huls)
-        const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+        const metadataResponse = await fetchWithRetry('https://www.googleapis.com/drive/v3/files', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -36,7 +37,7 @@ export async function uploadToDrive(file, factuurNummer) {
         const fileId = metadata.id;
 
         // Stap 2: Inhoud uploaden (Media)
-        const uploadResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        const uploadResponse = await fetchWithRetry(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -69,7 +70,7 @@ export async function insertRowInSheet(sheetName, data) {
 
     try {
         // Stap 1: Zoek de eerste lege rij of de rij met 'Totalen'
-        const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
+        const getRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
             }
@@ -97,7 +98,7 @@ export async function insertRowInSheet(sheetName, data) {
         }
 
         // Stap 2: Schrijf de data naar die specifieke rij
-        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A${targetRow}:Z${targetRow}?valueInputOption=USER_ENTERED`, {
+        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A${targetRow}:Z${targetRow}?valueInputOption=USER_ENTERED`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -122,7 +123,7 @@ export async function insertRowInSheet(sheetName, data) {
 
 export async function loadCloudMemory() {
     try {
-        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
+        const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         const json = await res.json();
@@ -158,7 +159,7 @@ export async function saveCloudMemory(leverancier, omschrijving, tarief) {
     if (!accessToken) return;
 
     try {
-        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
+        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -178,7 +179,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 
     const fetchMaxFromSheet = async (sheet) => {
         try {
-            const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheet}'!B:B`, {
+            const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheet}'!B:B`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
                 }
@@ -235,7 +236,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 export async function getSheetHeaders(sheetName) {
     if (!accessToken) return [];
     try {
-        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z1`, {
+        const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z1`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (res.status === 401) throw new Error('TOKEN_EXPIRED');

@@ -1,3 +1,5 @@
+import { fetchWithRetry } from '../utils/network.js';
+
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -14,7 +16,7 @@ function fileToBase64(file) {
 export async function analyzeReceipt(file, cloudMemory, mode) {
     const base64Data = await fileToBase64(file);
 
-    const response = await fetch('/.netlify/functions/scanReceipt', {
+    const response = await fetchWithRetry('/.netlify/functions/scanReceipt', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
