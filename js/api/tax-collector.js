@@ -7,8 +7,6 @@ import { accessToken } from './auth.js';
  * @returns {Promise<Object>} Geaggregeerd data object.
  */
 export async function collectYearData(year, spreadsheetId) {
-    if (!accessToken) throw new Error("Niet ingelogd bij Google.");
-
     // 1. Data Contract Initialisatie
     const result = {
         year: String(year),
@@ -24,6 +22,7 @@ export async function collectYearData(year, spreadsheetId) {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
+        if (metaResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!metaResponse.ok) {
             const error = await metaResponse.json();
             throw new Error(`Fout bij ophalen spreadsheet metadata: ${error.error.message}`);
@@ -50,6 +49,7 @@ export async function collectYearData(year, spreadsheetId) {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
+        if (batchResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!batchResponse.ok) {
             const error = await batchResponse.json();
             throw new Error(`Fout bij ophalen batch data: ${error.error.message}`);
