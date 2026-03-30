@@ -3,16 +3,8 @@
  * Beheert de real-time updates van het Session Dashboard.
  */
 
-import { getMonthlyTotals } from '../api/storage-queries.js';
-import { getTargetDateInfo } from '../utils/date.js';
-
-let cachedVerkoopBtw = 0;
-let cachedInkoopBtw = 0;
-let isFetchingTotals = false;
-let hasFetchedTotals = false;
-
 export function invalidateDashboardCache() {
-    hasFetchedTotals = false;
+    // Wordt gehandhaafd als lege export zodat imports in andere bestanden niet crashen
 }
 
 const parseEuro = (val) => {
@@ -28,11 +20,9 @@ export function updateDashboard(batchQueue, currentMode) {
 
     const countEl = document.getElementById('dash-count');
     const totalEl = document.getElementById('dash-total');
-    const vatEl = document.getElementById('dash-vat');
     const totalLabelEl = document.getElementById('dash-total-label');
-    const vatLabelEl = document.getElementById('dash-vat-label');
 
-    if (!countEl || !totalEl || !vatEl) return;
+    if (!countEl || !totalEl) return;
 
     let totalUitgaven = 0;
     let count = 0;
@@ -54,42 +44,5 @@ export function updateDashboard(batchQueue, currentMode) {
     
     if (totalLabelEl) {
         totalLabelEl.innerText = 'Wachtrij Uitgaven';
-    }
-    if (vatLabelEl) {
-        vatLabelEl.innerText = 'BTW Balans (Huidige Maand)';
-    }
-
-    if (currentMode === 'inkoop') {
-        if (!hasFetchedTotals && !isFetchingTotals) {
-            isFetchingTotals = true;
-            vatEl.classList.add('opacity-50');
-            vatEl.innerText = "Laden...";
-            
-            Promise.all([
-                getMonthlyTotals(getTargetDateInfo('verkoop').targetSheet).catch(() => null),
-                getMonthlyTotals(getTargetDateInfo('inkoop').targetSheet).catch(() => null)
-            ]).then(([verkoopData, inkoopData]) => {
-                if (vatEl) vatEl.classList.remove('opacity-50');
-                if (!verkoopData || !inkoopData) {
-                    isFetchingTotals = false;
-                    if (vatEl) vatEl.innerText = "Log in voor data";
-                    if (vatEl) vatEl.className = "text-sm font-medium text-gray-400 transition-all";
-                    return;
-                }
-                cachedVerkoopBtw = verkoopData.totaalBtw || 0;
-                cachedInkoopBtw = inkoopData.totaalBtw || 0;
-                hasFetchedTotals = true;
-                isFetchingTotals = false;
-                updateDashboard(batchQueue, currentMode);
-            });
-            return;
-        }
-
-        if (hasFetchedTotals) {
-            // Toon de actuele balans uit de Google Sheets, los van de scan-wachtrij.
-            const balans = cachedVerkoopBtw - cachedInkoopBtw;
-            vatEl.innerText = formatEur(balans);
-            vatEl.className = `text-2xl font-bold transition-all ${balans < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
-        }
     }
 }
