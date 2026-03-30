@@ -49,7 +49,7 @@ async function setMode(mode) {
     setText('th-leverancier', isVerkoop ? 'Klant' : 'Leverancier');
     setText('th-bedrag', isVerkoop ? 'Totaal (incl)' : 'Factuurbedrag');
     setText('dash-total-label', isVerkoop ? "Totaal Omzet (Huidige Maand)" : "Wachtrij Uitgaven");
-    setText('dash-vat-label', isVerkoop ? "Af te dragen BTW" : "BTW Balans");
+    setText('dash-vat-label', isVerkoop ? "Af te dragen BTW" : "BTW Balans (Huidige Maand)");
 
     ['upload-zone-container', 'folder-upload-container', 'dash-count-card'].forEach(id => {
         const el = document.getElementById(id);

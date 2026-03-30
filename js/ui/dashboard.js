@@ -56,7 +56,7 @@ export function updateDashboard(batchQueue, currentMode) {
         totalLabelEl.innerText = 'Wachtrij Uitgaven';
     }
     if (vatLabelEl) {
-        vatLabelEl.innerText = 'BTW Balans';
+        vatLabelEl.innerText = 'BTW Balans (Huidige Maand)';
     }
 
     if (currentMode === 'inkoop') {
