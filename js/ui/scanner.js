@@ -18,6 +18,10 @@ export function initScanner() {
     bindEvent('folder-upload', 'change', (e) => handleFiles(e.target.files));
     bindEvent('mode-inkoop', 'click', () => setMode('inkoop'));
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
+    bindEvent('btn-refresh-dashboard', 'click', () => {
+        invalidateDashboardCache();
+        setMode(currentMode);
+    });
 }
 
 // --- Event Handlers ---
@@ -72,8 +76,14 @@ async function setMode(mode) {
         if (totalLabel) totalLabel.innerText = "Totaal Omzet (Huidige Maand)";
         if (vatLabel) vatLabel.innerText = "Af te dragen BTW";
         
-        if (dashTotal) dashTotal.innerText = "Laden...";
-        if (dashVat) dashVat.innerText = "Laden...";
+        if (dashTotal) {
+            dashTotal.classList.add('opacity-50');
+            dashTotal.innerText = "Laden...";
+        }
+        if (dashVat) {
+            dashVat.classList.add('opacity-50');
+            dashVat.innerText = "Laden...";
+        }
         
         renderBatchTable();
         
@@ -83,14 +93,15 @@ async function setMode(mode) {
             const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
             if (dashTotal) {
                 dashTotal.innerText = formatEur(totals.totaalOmzet);
+                dashTotal.classList.remove('opacity-50');
             }
             if (dashVat) {
                 dashVat.innerText = formatEur(totals.totaalBtw);
-                dashVat.className = "text-2xl font-bold text-gray-900"; // Reset text color styling
+                dashVat.className = "text-2xl font-bold text-gray-900 transition-all"; 
             }
         } catch (e) {
-            if (dashTotal) dashTotal.innerText = "Fout";
-            if (dashVat) dashVat.innerText = "Fout";
+            if (dashTotal) { dashTotal.innerText = "Fout"; dashTotal.classList.remove('opacity-50'); }
+            if (dashVat) { dashVat.innerText = "Fout"; dashVat.classList.remove('opacity-50'); }
         }
     } else {
         if (uploadZone) uploadZone.classList.remove('hidden');

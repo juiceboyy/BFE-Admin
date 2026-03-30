@@ -55,16 +55,18 @@ export function updateDashboard(batchQueue, currentMode) {
     if (currentMode === 'inkoop') {
         if (!hasFetchedTotals && !isFetchingTotals) {
             isFetchingTotals = true;
+            vatEl.classList.add('opacity-50');
             vatEl.innerText = "Laden...";
             
             Promise.all([
                 getMonthlyTotals(getTargetDateInfo('verkoop').targetSheet).catch(() => null),
                 getMonthlyTotals(getTargetDateInfo('inkoop').targetSheet).catch(() => null)
             ]).then(([verkoopData, inkoopData]) => {
+                if (vatEl) vatEl.classList.remove('opacity-50');
                 if (!verkoopData || !inkoopData) {
                     isFetchingTotals = false;
                     if (vatEl) vatEl.innerText = "Log in voor data";
-                    if (vatEl) vatEl.className = "text-sm font-medium text-gray-400";
+                    if (vatEl) vatEl.className = "text-sm font-medium text-gray-400 transition-all";
                     return;
                 }
                 cachedVerkoopBtw = verkoopData.totaalBtw || 0;
@@ -80,7 +82,7 @@ export function updateDashboard(batchQueue, currentMode) {
             // BTW te betalen uit Verkoop minus Voorbelasting uit Inkoop én de huidige Wachtrij
             const balans = cachedVerkoopBtw - cachedInkoopBtw - queueVat;
             vatEl.innerText = formatEur(balans);
-            vatEl.className = `text-2xl font-bold ${balans < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
+            vatEl.className = `text-2xl font-bold transition-all ${balans < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
         }
     }
 }

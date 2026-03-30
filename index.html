@@ -127,11 +127,16 @@
                         </div>
                         <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col items-center justify-center">
                             <span id="dash-total-label" class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Totaal Uitgaven</span>
-                            <span id="dash-total" class="text-2xl font-bold text-gray-900">€ 0,00</span>
+                            <span id="dash-total" class="text-2xl font-bold text-gray-900 transition-all">€ 0,00</span>
                         </div>
                         <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col items-center justify-center">
-                            <span id="dash-vat-label" class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">BTW Balans</span>
-                            <span id="dash-vat" class="text-2xl font-bold text-gray-900">€ 0,00</span>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span id="dash-vat-label" class="text-xs font-medium text-gray-500 uppercase tracking-wider">BTW Balans</span>
+                                <button id="btn-refresh-dashboard" class="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer" title="Data verversen">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <span id="dash-vat" class="text-2xl font-bold text-gray-900 transition-all">€ 0,00</span>
                         </div>
                     </div>
 

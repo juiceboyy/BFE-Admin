@@ -122,9 +122,12 @@ export async function getMonthlyTotals(sheetName) {
         if (isVerkoop) {
             const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
             const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
+            const idxBtwGen = getIdx(['btw', 'btw bedrag', 'belasting']);
+            
             const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9', 'vergoeding l', 'netto 9']);
             const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21', 'vergoeding h', 'netto 21']);
             const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld', 'omzet 0', 'vergoeding 0', 'excl 0']);
+            const idxOmzetGen = getIdx(['omzet', 'excl', 'vergoeding', 'netto']);
 
             for (let i = 1; i < data.values.length; i++) {
                 const row = data.values[i];
@@ -133,16 +136,32 @@ export async function getMonthlyTotals(sheetName) {
                 const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                 if (isTotalRow) continue;
 
-                totaalBtw += (idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0);
-                totaalBtw += (idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0);
-                
-                totaalOmzet += (idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0);
-                totaalOmzet += (idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0);
-                totaalOmzet += (idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0);
+                let rowBtw = 0;
+                if (idxBtwLaag !== -1 || idxBtwHoog !== -1) {
+                    if (idxBtwLaag !== -1) rowBtw += parseEuro(row[idxBtwLaag]);
+                    if (idxBtwHoog !== -1) rowBtw += parseEuro(row[idxBtwHoog]);
+                } else if (idxBtwGen !== -1) {
+                    rowBtw += parseEuro(row[idxBtwGen]);
+                } else if (row.length >= 7) {
+                    rowBtw += parseEuro(row[5]) + parseEuro(row[6]); // Positional fallback
+                }
+                totaalBtw += rowBtw;
+
+                let rowOmzet = 0;
+                if (idxOmzetLaag !== -1 || idxOmzetHoog !== -1 || idxOmzetNul !== -1) {
+                    if (idxOmzetLaag !== -1) rowOmzet += parseEuro(row[idxOmzetLaag]);
+                    if (idxOmzetHoog !== -1) rowOmzet += parseEuro(row[idxOmzetHoog]);
+                    if (idxOmzetNul !== -1) rowOmzet += parseEuro(row[idxOmzetNul]);
+                } else if (idxOmzetGen !== -1) {
+                    rowOmzet += parseEuro(row[idxOmzetGen]);
+                } else if (row.length >= 10) {
+                    rowOmzet += parseEuro(row[7]) + parseEuro(row[8]) + parseEuro(row[9]); // Positional fallback
+                }
+                totaalOmzet += rowOmzet;
             }
         } else {
-            const idxBtw = getIdx(['btw', 'voorbelasting']);
-            const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
+            const idxBtw = getIdx(['btw', 'voorbelasting', 'belasting']);
+            const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl', 'netto']);
             
             for (let i = 1; i < data.values.length; i++) {
                 const row = data.values[i];
@@ -151,8 +170,11 @@ export async function getMonthlyTotals(sheetName) {
                 const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                 if (isTotalRow) continue;
 
-                totaalBtw += (idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0);
-                totaalOmzet += (idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0);
+                if (idxBtw !== -1) totaalBtw += parseEuro(row[idxBtw]);
+                else if (row.length >= 6) totaalBtw += parseEuro(row[5]);
+
+                if (idxExcl !== -1) totaalOmzet += parseEuro(row[idxExcl]);
+                else if (row.length >= 7) totaalOmzet += parseEuro(row[6]);
             }
         }
         return { totaalOmzet, totaalBtw };
