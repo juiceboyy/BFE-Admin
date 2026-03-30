@@ -139,6 +139,17 @@ export async function collectYearData(year, spreadsheetId) {
         // Sub-totalen berekenen en afronden om JS float errors (e.g., 0.300000000004) te fixen
         const round2 = (num) => Math.round(num * 100) / 100;
         
+        // Bedragen door twee delen omdat de 'Totalen' rij van de sheet is meegenomen in de loop
+        result.omzet.laag9 /= 2;
+        result.omzet.hoog21 /= 2;
+        result.omzet.nul0 /= 2;
+        result.btwAfgedragen.laag9 /= 2;
+        result.btwAfgedragen.hoog21 /= 2;
+        result.voorbelasting.totaal /= 2;
+        result.kosten.totaal /= 2;
+        
+        for (let lev in result.kosten.perLeverancier) result.kosten.perLeverancier[lev] /= 2;
+
         result.omzet.totaal = round2(result.omzet.laag9 + result.omzet.hoog21 + result.omzet.nul0);
         result.btwAfgedragen.totaal = round2(result.btwAfgedragen.laag9 + result.btwAfgedragen.hoog21);
         
