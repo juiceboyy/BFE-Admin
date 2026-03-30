@@ -136,16 +136,9 @@ export async function getMonthlyTotals(sheetName) {
                 const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                 if (isTotalRow) continue;
 
-                let rowBtw = 0;
-                if (idxBtwLaag !== -1 || idxBtwHoog !== -1) {
-                    if (idxBtwLaag !== -1) rowBtw += parseEuro(row[idxBtwLaag]);
-                    if (idxBtwHoog !== -1) rowBtw += parseEuro(row[idxBtwHoog]);
-                } else if (idxBtwGen !== -1) {
-                    rowBtw += parseEuro(row[idxBtwGen]);
-                } else if (row.length >= 7) {
-                    rowBtw += parseEuro(row[5]) + parseEuro(row[6]); // Positional fallback
-                }
-                totaalBtw += rowBtw;
+                const btwLaag = idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
+                const btwHoog = idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
+                totaalBtw += (btwLaag + btwHoog);
 
                 let rowOmzet = 0;
                 if (idxOmzetLaag !== -1 || idxOmzetHoog !== -1 || idxOmzetNul !== -1) {
@@ -177,6 +170,7 @@ export async function getMonthlyTotals(sheetName) {
                 else if (row.length >= 7) totaalOmzet += parseEuro(row[6]);
             }
         }
+        if (isVerkoop) console.log('Calculated Verkoop Totals:', { totaalOmzet, totaalBtw });
         return { totaalOmzet, totaalBtw };
     } catch (e) {
         console.error("Fout bij ophalen maandtotalen:", e);

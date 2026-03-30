@@ -62,26 +62,19 @@ async function setMode(mode) {
     if (isVerkoop) {
         const dashTotal = document.getElementById('dash-total');
         const dashVat = document.getElementById('dash-vat');
-        const updateDash = (el, txt, isErr = false) => {
-            if (!el) return;
-            el.innerText = txt;
-            el.classList.toggle('opacity-50', txt === 'Laden...');
-            if (!isErr && txt !== 'Laden...') el.className = "text-2xl font-bold text-gray-900 transition-all";
-        };
+        if (dashTotal) dashTotal.innerText = 'Laden...';
+        if (dashVat) dashVat.innerText = 'Laden...';
 
-        updateDash(dashTotal, "Laden...");
-        updateDash(dashVat, "Laden...");
+        const sheetName = getTargetDateInfo('verkoop').targetSheet;
+        getMonthlyTotals(sheetName).then(totals => {
+            const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num || 0);
+            if (dashTotal) dashTotal.innerText = formatEur(totals.totaalOmzet);
+            if (dashVat) dashVat.innerText = formatEur(totals.totaalBtw);
 
-        try {
-            const sheetName = getTargetDateInfo('verkoop').targetSheet;
-            const totals = await getMonthlyTotals(sheetName);
-            const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-            updateDash(dashTotal, formatEur(totals.totaalOmzet));
-            updateDash(dashVat, formatEur(totals.totaalBtw));
-        } catch (e) {
-            updateDash(dashTotal, "Fout", true);
-            updateDash(dashVat, "Fout", true);
-        }
+            // Force the labels to change so there is no confusion
+            const vatCard = document.getElementById('dash-vat')?.parentElement;
+            if (vatCard) vatCard.querySelector('span.text-xs').innerText = 'Af te dragen BTW';
+        });
     }
 }
 
