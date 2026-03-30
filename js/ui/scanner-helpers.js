@@ -1,3 +1,5 @@
+import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getSheetHeaders } from '../api/storage.js';
+
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {
         return {
@@ -88,4 +90,24 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
         }
         return val;
     });
+}
+
+export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo) {
+    // Upload naar Drive
+    await uploadToDrive(file, `${factuurnummer} - ${formData.leverancier}`);
+
+    // Haal de dynamische sheet headers op
+    const headers = await getSheetHeaders(dateInfo.targetSheet);
+    const rowValues = constructSheetRow(currentMode, formData, itemData, factuurnummer, headers);
+    await insertRowInSheet(dateInfo.targetSheet, rowValues);
+
+    // Cloud Memory updaten indien nodig (Alleen bij inkoop)
+    if (currentMode === 'inkoop' && formData.leverancier) {
+        const currentMemory = await loadCloudMemory();
+        const vendorKey = formData.leverancier.toLowerCase().trim();
+        const existingOptions = currentMemory[vendorKey] || [];
+        if (!existingOptions.some(opt => opt.omschrijving === formData.omschrijving)) {
+            await saveCloudMemory(formData.leverancier, formData.omschrijving, 'Mix');
+        }
+    }
 }

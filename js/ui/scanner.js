@@ -1,8 +1,8 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getNextInvoiceNumberFromCloud, getSheetHeaders } from '../api/storage.js';
+import { loadCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
-import { prepareItemData, getFormDataFromDOM, constructSheetRow } from './scanner-helpers.js';
+import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { updateDashboard } from './dashboard.js';
 
 let batchQueue = [];
@@ -12,18 +12,12 @@ let currentMode = 'inkoop';
 // --- Initialization ---
 
 export function initScanner() {
-    const uploadInput = document.getElementById('receipt-upload');
-    const folderInput = document.getElementById('folder-upload');
-
-    if (uploadInput) uploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
-    if (folderInput) folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-    // Mode Toggles
-    const btnInkoop = document.getElementById('mode-inkoop');
-    const btnVerkoop = document.getElementById('mode-verkoop');
-
-    if (btnInkoop) btnInkoop.addEventListener('click', () => setMode('inkoop'));
-    if (btnVerkoop) btnVerkoop.addEventListener('click', () => setMode('verkoop'));
+    const bindEvent = (id, evt, cb) => { const el = document.getElementById(id); if (el) el.addEventListener(evt, cb); };
+    
+    bindEvent('receipt-upload', 'change', (e) => handleFiles(e.target.files));
+    bindEvent('folder-upload', 'change', (e) => handleFiles(e.target.files));
+    bindEvent('mode-inkoop', 'click', () => setMode('inkoop'));
+    bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
 }
 
 // --- Event Handlers ---
@@ -32,43 +26,37 @@ function handleFiles(files) {
     if (!files || files.length === 0) return;
 
     Array.from(files).forEach(file => {
-        if (file.name.startsWith('.') || (!file.type.startsWith('image/') && file.type !== 'application/pdf')) return;
-        batchQueue.push({
-            id: Date.now() + Math.random(), file: file, status: 'pending', data: null
-        });
+        if (!file.name.startsWith('.') && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null });
+        }
     });
 
+    const resetInput = (id) => { const el = document.getElementById(id); if (el) el.value = ''; };
+    resetInput('receipt-upload');
+    resetInput('folder-upload');
+    
     renderBatchTable();
-    
-    // Reset inputs
-    const uploadInput = document.getElementById('receipt-upload');
-    const folderInput = document.getElementById('folder-upload');
-    if (uploadInput) uploadInput.value = '';
-    if (folderInput) folderInput.value = '';
-    
     processQueue();
 }
 
 function setMode(mode) {
     currentMode = mode;
-    const thLeverancier = document.getElementById('th-leverancier');
-    const thBedrag = document.getElementById('th-bedrag');
-    const btnInkoop = document.getElementById('mode-inkoop');
-    const btnVerkoop = document.getElementById('mode-verkoop');
+    const isVerkoop = mode === 'verkoop';
+    
+    const updateBtn = (id, active) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.className = `px-6 py-2 rounded-md text-sm font-medium transition-all ${active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`;
+    };
+    
+    updateBtn('mode-inkoop', !isVerkoop);
+    updateBtn('mode-verkoop', isVerkoop);
 
-    if (mode === 'inkoop') {
-        if (btnInkoop) btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
-        if (btnVerkoop) btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
-        if (thLeverancier) thLeverancier.innerText = 'Leverancier';
-        if (thBedrag) thBedrag.innerText = 'Factuurbedrag';
-    } else {
-        if (btnVerkoop) btnVerkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm';
-        if (btnInkoop) btnInkoop.className = 'px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900';
-        if (thLeverancier) thLeverancier.innerText = 'Klant';
-        if (thBedrag) thBedrag.innerText = 'Totaal (incl)';
-    }
+    const thLev = document.getElementById('th-leverancier');
+    const thBed = document.getElementById('th-bedrag');
+    if (thLev) thLev.innerText = isVerkoop ? 'Klant' : 'Leverancier';
+    if (thBed) thBed.innerText = isVerkoop ? 'Totaal (incl)' : 'Factuurbedrag';
+
     renderBatchTable();
-    updateDashboard(batchQueue, currentMode);
 }
 
 // --- Core Logic ---
@@ -79,15 +67,14 @@ async function processQueue() {
     
     while (true) {
         const item = batchQueue.find(i => i.status === 'pending');
-        if (!item) break; // Queue is leeg of alles is verwerkt
+            if (!item) break;
         
         item.status = 'processing';
-        renderBatchTable(); // Update UI naar 'Bezig...'
+            renderBatchTable();
         
         try {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
-            console.log('🤖 RAW AI DATA:', aiData);
             
             item.data = prepareItemData(currentMode, aiData, currentMemory);
             item.status = 'success';
@@ -95,7 +82,7 @@ async function processQueue() {
             item.status = 'error';
             item.data = { error: err.message };
         }
-        renderBatchTable(); // Update UI met resultaten
+            renderBatchTable();
     }
     isProcessingQueue = false;
 }
@@ -104,69 +91,42 @@ export async function saveBatchItem(id) {
     const item = batchQueue.find(i => i.id === id);
     if (!item) return;
 
-    const btn = document.getElementById(`btn-save-${id}`);
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
+    const setBtnState = (loading, icon = 'save', isError = false) => {
+        const btn = document.getElementById(`btn-save-${id}`);
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>' : `<i data-lucide="${icon}" class="w-4 h-4"></i>`;
+        if (isError) btn.classList.add('text-red-500');
+        else btn.classList.remove('text-red-500');
         if (window.lucide) window.lucide.createIcons();
-    }
+    };
+
+    setBtnState(true);
 
     try {
-        // 1. Data ophalen uit DOM
         const formData = getFormDataFromDOM(id);
-
-        // 2. Nummering & Datum
         const dateInfo = getTargetDateInfo(currentMode);
+
         if (!isDateValidForPeriod(formData.datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
-            const proceed = confirm(`⚠️ WAARSCHUWING: De datum (${formData.datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nWeet je zeker dat je deze bon in dit tijdvak wilt inboeken?`);
-            if (!proceed) {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i>';
-                    if (window.lucide) window.lucide.createIcons();
-                }
+            if (!confirm(`⚠️ WAARSCHUWING: De datum (${formData.datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nDoorgaan?`)) {
+                setBtnState(false);
                 return;
             }
         }
+
         const factuurnummer = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
         const factuurInput = document.getElementById(`factuurnummer-${id}`);
         if (factuurInput) factuurInput.value = factuurnummer;
 
-        // 3. Opslaan
-        
-        // Upload naar Drive (naamgeving: Factuurnummer - Tegenpartij)
-        await uploadToDrive(item.file, `${factuurnummer} - ${formData.leverancier}`);
+        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo);
 
-        // Haal de dynamische sheet headers op
-        const headers = await getSheetHeaders(dateInfo.targetSheet);
-
-        // Bereid de rij voor de sheet voor (inclusief 'Wasstraat' cleaning)
-        const rowValues = constructSheetRow(currentMode, formData, item.data || {}, factuurnummer, headers);
-        await insertRowInSheet(dateInfo.targetSheet, rowValues);
-
-        // Cloud Memory updaten indien nodig (Alleen bij inkoop)
-        if (currentMode === 'inkoop' && formData.leverancier) {
-            const currentMemory = await loadCloudMemory();
-            const vendorKey = formData.leverancier.toLowerCase().trim();
-            const existingOptions = currentMemory[vendorKey] || [];
-            if (!existingOptions.some(opt => opt.omschrijving === formData.omschrijving)) {
-                await saveCloudMemory(formData.leverancier, formData.omschrijving, 'Mix');
-            }
-        }
-
-        // 4. Succes UI
-        item.status = 'saved'; // Update status om re-renders goed te houden
-        renderBatchTable(); // Herrender de tabel om de 'saved' status correct te tonen (inputs disabled, groen vinkje)
-
+        item.status = 'saved';
+        renderBatchTable();
     } catch (error) {
-        console.error("Fout bij opslaan rij:", error);
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4"></i>';
-            btn.classList.add('text-red-500');
-            btn.title = error.message;
-        }
-        if (window.lucide) window.lucide.createIcons();
+        console.error("Fout bij opslaan:", error);
+        setBtnState(false, 'alert-circle', true);
+        const btn = document.getElementById(`btn-save-${id}`);
+        if (btn) btn.title = error.message;
         alert(`Er ging iets mis: ${error.message}`);
     }
 }
@@ -181,9 +141,7 @@ export async function saveAllSuccessItems() {
         if (window.lucide) window.lucide.createIcons();
     }
 
-    // Filter items die klaar staan (success)
     const itemsToSave = batchQueue.filter(i => i.status === 'success');
-
     for (const item of itemsToSave) await saveBatchItem(item.id);
 
     if (btn) {
@@ -200,9 +158,9 @@ function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
     const tbody = document.getElementById('batch-table-body');
     if (!dashboard || !tbody) return;
+        
     dashboard.classList.toggle('hidden', batchQueue.length === 0);
 
-    // Footer toevoegen voor 'Alles Opslaan'
     let footer = document.getElementById('batch-footer');
     if (!footer && batchQueue.length > 0) {
         footer = document.createElement('div');
