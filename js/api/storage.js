@@ -268,11 +268,7 @@ export async function getMonthlyTotals(sheetName) {
         const headers = data.values[0].map(h => String(h || '').toLowerCase());
         const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
 
-        const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
-        const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
-        const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9', 'vergoeding l', 'netto 9']);
-        const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21', 'vergoeding h', 'netto 21']);
-        const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld', 'omzet 0', 'vergoeding 0', 'excl 0']);
+        const isVerkoop = sheetName.toLowerCase().includes('verkoop');
 
         const parseEuro = (val) => {
             if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -284,16 +280,35 @@ export async function getMonthlyTotals(sheetName) {
         let totaalOmzet = 0;
         let totaalBtw = 0;
 
-        for (let i = 1; i < data.values.length; i++) {
-            const row = data.values[i];
-            if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+        if (isVerkoop) {
+            const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
+            const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
+            const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9', 'vergoeding l', 'netto 9']);
+            const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21', 'vergoeding h', 'netto 21']);
+            const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld', 'omzet 0', 'vergoeding 0', 'excl 0']);
 
-            totaalBtw += (idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0);
-            totaalBtw += (idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0);
+            for (let i = 1; i < data.values.length; i++) {
+                const row = data.values[i];
+                if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+
+                totaalBtw += (idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0);
+                totaalBtw += (idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0);
+                
+                totaalOmzet += (idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0);
+                totaalOmzet += (idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0);
+                totaalOmzet += (idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0);
+            }
+        } else {
+            const idxBtw = getIdx(['btw', 'voorbelasting']);
+            const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
             
-            totaalOmzet += (idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0);
-            totaalOmzet += (idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0);
-            totaalOmzet += (idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0);
+            for (let i = 1; i < data.values.length; i++) {
+                const row = data.values[i];
+                if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+
+                totaalBtw += (idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0);
+                totaalOmzet += (idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0);
+            }
         }
         // Deel door twee omdat de totaalrij uit de Google Sheet ongemerkt is meegenomen
         return { totaalOmzet: totaalOmzet / 2, totaalBtw: totaalBtw / 2 };

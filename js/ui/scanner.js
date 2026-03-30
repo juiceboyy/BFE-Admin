@@ -3,7 +3,7 @@ import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
-import { updateDashboard } from './dashboard.js';
+import { updateDashboard, invalidateDashboardCache } from './dashboard.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -81,8 +81,13 @@ async function setMode(mode) {
             const sheetName = getTargetDateInfo('verkoop').targetSheet;
             const totals = await getMonthlyTotals(sheetName);
             const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-            if (dashTotal) dashTotal.innerText = formatEur(totals.totaalOmzet);
-            if (dashVat) dashVat.innerText = formatEur(totals.totaalBtw);
+            if (dashTotal) {
+                dashTotal.innerText = formatEur(totals.totaalOmzet);
+            }
+            if (dashVat) {
+                dashVat.innerText = formatEur(totals.totaalBtw);
+                dashVat.className = "text-2xl font-bold text-gray-900"; // Reset text color styling
+            }
         } catch (e) {
             if (dashTotal) dashTotal.innerText = "Fout";
             if (dashVat) dashVat.innerText = "Fout";
@@ -160,6 +165,7 @@ export async function saveBatchItem(id) {
         await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo);
 
         item.status = 'saved';
+        invalidateDashboardCache(); // Zorgt voor een herberekening van de actuele BTW balans
         renderBatchTable();
     } catch (error) {
         console.error("Fout bij opslaan:", error);
