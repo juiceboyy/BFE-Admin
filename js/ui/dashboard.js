@@ -15,6 +15,13 @@ export function invalidateDashboardCache() {
     hasFetchedTotals = false;
 }
 
+const parseEuro = (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const cleaned = String(val).replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
+};
+
 export function updateDashboard(batchQueue, currentMode) {
     // Guard clause: this function should NOT update the Verkoop dashboard.
     if (currentMode === 'verkoop') return;
@@ -35,9 +42,11 @@ export function updateDashboard(batchQueue, currentMode) {
         if (item.status !== 'error') {
             count++;
             if (item.data && currentMode === 'inkoop') {
-                totalUitgaven += parseFloat(item.data.factuurBedrag) || 0;
+                const rawTotal = item.data.factuurBedrag || item.data.totaalBedrag || item.data.bedrag || 0;
+                totalUitgaven += parseEuro(rawTotal);
                 if (item.status !== 'saved') {
-                    queueVat += parseFloat(item.data.btwBedrag) || 0;
+                    const rawVat = item.data.btwBedrag || item.data.btw || item.data.voorbelasting || 0;
+                    queueVat += parseEuro(rawVat);
                 }
             }
         }
