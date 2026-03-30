@@ -5,15 +5,17 @@
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
-export function getTargetDateInfo(mode = 'inkoop') {
-    const now = new Date();
-    let targetMonthIndex = now.getMonth() - 1;
-    let targetYear = now.getFullYear();
+// Default to previous month. Set date to 1st to avoid edge cases (e.g., March 31 -> Feb 31 -> March 3).
+let globalTargetDate = new Date();
+globalTargetDate.setDate(1); 
+globalTargetDate.setMonth(globalTargetDate.getMonth() - 1); 
 
-    if (targetMonthIndex < 0) {
-        targetMonthIndex = 11;
-        targetYear -= 1;
-    }
+export const setGlobalTargetDate = (dateObj) => { globalTargetDate = dateObj; };
+export const getGlobalTargetDate = () => globalTargetDate;
+
+export function getTargetDateInfo(mode = 'inkoop') {
+    const targetMonthIndex = globalTargetDate.getMonth();
+    const targetYear = globalTargetDate.getFullYear();
 
     const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
     const suffix = mode === 'verkoop' ? ' Verkoop' : ' Inkoop';

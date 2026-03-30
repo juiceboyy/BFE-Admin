@@ -1,6 +1,6 @@
 import { analyzeReceipt } from '../api/gemini.js';
 import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from '../api/storage-queries.js';
-import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
+import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache } from './dashboard.js';
@@ -18,6 +18,42 @@ export function initScanner() {
     bindEvent('mode-inkoop', 'click', () => setMode('inkoop'));
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
     bindEvent('btn-refresh-dashboard', 'click', () => { invalidateDashboardCache(); setMode(currentMode); });
+
+    // --- Period Selector Setup ---
+    // We zoeken de 2e knop in de header (voorheen "Nieuwe Btw-aangifte")
+    const btnPeriod = document.querySelectorAll('header button')[1];
+    if (btnPeriod) {
+        const updateBtnText = () => {
+            const d = getGlobalTargetDate();
+            const monthYear = d.toLocaleString('nl-NL', { month: 'long', year: 'numeric' });
+            // Hoofdletter voor de maand (bijv. "Februari 2026")
+            const formattedDate = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
+            
+            btnPeriod.innerHTML = `<i data-lucide="calendar" class="w-4 h-4"></i> Periode: ${formattedDate}`;
+            if (window.lucide) window.lucide.createIcons();
+        };
+        
+        updateBtnText(); // Initialiseer direct op opstarten
+
+        btnPeriod.addEventListener('click', () => {
+            const currentD = getGlobalTargetDate();
+            const currentStr = `${String(currentD.getMonth() + 1).padStart(2, '0')}-${currentD.getFullYear()}`;
+            const userInput = prompt("Voor welke maand wil je de data bekijken/boeken? (Formaat: MM-YYYY)", currentStr);
+            
+            if (userInput) {
+                const [month, year] = userInput.split('-');
+                if (month && year) {
+                    const newDate = new Date(year, parseInt(month) - 1, 1);
+                    setGlobalTargetDate(newDate);
+                    updateBtnText();
+                    
+                    // CRITICAL: Refresh the dashboard data & Activeer de nieuwe sheet logica
+                    invalidateDashboardCache();
+                    setMode(currentMode);
+                }
+            }
+        });
+    }
 }
 
 // --- Event Handlers ---
