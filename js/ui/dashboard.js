@@ -16,6 +16,9 @@ export function invalidateDashboardCache() {
 }
 
 export function updateDashboard(batchQueue, currentMode) {
+    // Guard clause: overschrijf geen verkoop-dashboard data als er niet actief gescand wordt
+    if (currentMode === 'verkoop' && batchQueue.length === 0) return;
+
     const countEl = document.getElementById('dash-count');
     const totalEl = document.getElementById('dash-total');
     const vatEl = document.getElementById('dash-vat');

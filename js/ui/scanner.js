@@ -57,6 +57,7 @@ async function setMode(mode) {
     });
 
     renderBatchTable();
+    updateDashboard(batchQueue, currentMode);
 
     if (isVerkoop) {
         const dashTotal = document.getElementById('dash-total');
@@ -81,8 +82,6 @@ async function setMode(mode) {
             updateDash(dashTotal, "Fout", true);
             updateDash(dashVat, "Fout", true);
         }
-    } else {
-        updateDashboard(batchQueue, 'inkoop');
     }
 }
 
