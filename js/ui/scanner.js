@@ -1,5 +1,5 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { loadCloudMemory, getNextInvoiceNumberFromCloud } from '../api/storage.js';
+import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from '../api/storage.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
@@ -39,7 +39,7 @@ function handleFiles(files) {
     processQueue();
 }
 
-function setMode(mode) {
+async function setMode(mode) {
     currentMode = mode;
     const isVerkoop = mode === 'verkoop';
     
@@ -56,7 +56,46 @@ function setMode(mode) {
     if (thLev) thLev.innerText = isVerkoop ? 'Klant' : 'Leverancier';
     if (thBed) thBed.innerText = isVerkoop ? 'Totaal (incl)' : 'Factuurbedrag';
 
-    renderBatchTable();
+    const uploadZone = document.getElementById('upload-zone-container');
+    const folderUpload = document.getElementById('folder-upload-container');
+    const dashCountCard = document.getElementById('dash-count-card');
+    const totalLabel = document.getElementById('dash-total-label');
+    const vatLabel = document.getElementById('dash-vat-label');
+    const dashTotal = document.getElementById('dash-total');
+    const dashVat = document.getElementById('dash-vat');
+
+    if (isVerkoop) {
+        if (uploadZone) uploadZone.classList.add('hidden');
+        if (folderUpload) folderUpload.classList.add('hidden');
+        if (dashCountCard) dashCountCard.classList.add('hidden');
+        
+        if (totalLabel) totalLabel.innerText = "Totaal Omzet (Huidige Maand)";
+        if (vatLabel) vatLabel.innerText = "Af te dragen BTW";
+        
+        if (dashTotal) dashTotal.innerText = "Laden...";
+        if (dashVat) dashVat.innerText = "Laden...";
+        
+        renderBatchTable();
+        
+        try {
+            const sheetName = getTargetDateInfo('verkoop').targetSheet;
+            const totals = await getMonthlyTotals(sheetName);
+            const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
+            if (dashTotal) dashTotal.innerText = formatEur(totals.totaalOmzet);
+            if (dashVat) dashVat.innerText = formatEur(totals.totaalBtw);
+        } catch (e) {
+            if (dashTotal) dashTotal.innerText = "Fout";
+            if (dashVat) dashVat.innerText = "Fout";
+        }
+    } else {
+        if (uploadZone) uploadZone.classList.remove('hidden');
+        if (folderUpload) folderUpload.classList.remove('hidden');
+        if (dashCountCard) dashCountCard.classList.remove('hidden');
+        if (vatLabel) vatLabel.innerText = "BTW Balans";
+        
+        renderBatchTable();
+        updateDashboard(batchQueue, 'inkoop');
+    }
 }
 
 // --- Core Logic ---
@@ -158,6 +197,11 @@ function renderBatchTable() {
     const dashboard = document.getElementById('batch-dashboard');
     const tbody = document.getElementById('batch-table-body');
     if (!dashboard || !tbody) return;
+    
+    if (currentMode === 'verkoop') {
+        dashboard.classList.add('hidden');
+        return;
+    }
         
     dashboard.classList.toggle('hidden', batchQueue.length === 0);
 

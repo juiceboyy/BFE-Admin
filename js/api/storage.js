@@ -252,3 +252,52 @@ export async function getSheetHeaders(sheetName) {
         return [];
     }
 }
+
+export async function getMonthlyTotals(sheetName) {
+    if (!accessToken) throw new Error("Niet ingelogd bij Google.");
+    try {
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z?valueRenderOption=UNFORMATTED_VALUE`;
+        const res = await fetchWithRetry(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        
+        if (res.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!res.ok) return { totaalOmzet: 0, totaalBtw: 0 };
+        
+        const data = await res.json();
+        if (!data.values || data.values.length <= 1) return { totaalOmzet: 0, totaalBtw: 0 };
+
+        const headers = data.values[0].map(h => String(h || '').toLowerCase());
+        const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+
+        const idxBtwLaag = getIdx(['btw laag', 'btw 9']);
+        const idxBtwHoog = getIdx(['btw hoog', 'btw 21']);
+        const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9']);
+        const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21']);
+        const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld']);
+
+        const parseEuro = (val) => {
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
+            if (!val) return 0;
+            const cleaned = String(val).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+            return parseFloat(cleaned) || 0;
+        };
+
+        let totaalOmzet = 0;
+        let totaalBtw = 0;
+
+        for (let i = 1; i < data.values.length; i++) {
+            const row = data.values[i];
+            if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+
+            totaalBtw += (idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0);
+            totaalBtw += (idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0);
+            
+            totaalOmzet += (idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0);
+            totaalOmzet += (idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0);
+            totaalOmzet += (idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0);
+        }
+        return { totaalOmzet, totaalBtw };
+    } catch (e) {
+        console.error("Fout bij ophalen maandtotalen:", e);
+        return { totaalOmzet: 0, totaalBtw: 0 };
+    }
+}
