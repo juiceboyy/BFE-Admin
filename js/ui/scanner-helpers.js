@@ -1,4 +1,5 @@
-import { uploadToDrive, insertRowInSheet, loadCloudMemory, saveCloudMemory, getSheetHeaders } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
+import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries.js';
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {

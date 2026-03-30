@@ -3,7 +3,7 @@
  * Beheert de real-time updates van het Session Dashboard.
  */
 
-import { getMonthlyTotals } from '../api/storage.js';
+import { getMonthlyTotals } from '../api/storage-queries.js';
 import { getTargetDateInfo } from '../utils/date.js';
 
 let cachedVerkoopBtw = 0;
