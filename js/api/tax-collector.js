@@ -98,8 +98,9 @@ export async function collectYearData(year, spreadsheetId) {
                         try {
                             const row = rangeData.values[i];
                             if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
-                            if (String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
-                            if (String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+                            
+                            const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                            if (isTotalRow) continue;
 
                             result.btwAfgedragen.laag9 += idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
                             result.btwAfgedragen.hoog21 += idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
@@ -121,6 +122,9 @@ export async function collectYearData(year, spreadsheetId) {
                         try {
                             const row = rangeData.values[i];
                             if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
+
+                            const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                            if (isTotalRow) continue;
 
                             const leverancier = idxLeverancier !== -1 && row[idxLeverancier] ? String(row[idxLeverancier]).trim() : 'Onbekend';
                             const voorbelasting = idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0;

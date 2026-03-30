@@ -289,7 +289,14 @@ export async function getMonthlyTotals(sheetName) {
 
             for (let i = 1; i < data.values.length; i++) {
                 const row = data.values[i];
-                if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+                if (!row || row.length === 0) continue;
+
+                const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                if (isTotalRow) continue;
+                if (!row || row.length === 0) continue;
+
+                const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                if (isTotalRow) continue;
 
                 totaalBtw += (idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0);
                 totaalBtw += (idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0);
