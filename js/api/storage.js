@@ -268,11 +268,11 @@ export async function getMonthlyTotals(sheetName) {
         const headers = data.values[0].map(h => String(h || '').toLowerCase());
         const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
 
-        const idxBtwLaag = getIdx(['btw laag', 'btw 9']);
-        const idxBtwHoog = getIdx(['btw hoog', 'btw 21']);
-        const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9']);
-        const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21']);
-        const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld']);
+        const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
+        const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
+        const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding 9', 'vergoeding l', 'netto 9']);
+        const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding 21', 'vergoeding h', 'netto 21']);
+        const idxOmzetNul = getIdx(['omzet nul', 'vrijgesteld', 'omzet 0', 'vergoeding 0', 'excl 0']);
 
         const parseEuro = (val) => {
             if (typeof val === 'number') return isNaN(val) ? 0 : val;
