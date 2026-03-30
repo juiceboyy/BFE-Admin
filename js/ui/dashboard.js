@@ -35,7 +35,6 @@ export function updateDashboard(batchQueue, currentMode) {
     if (!countEl || !totalEl || !vatEl) return;
 
     let totalUitgaven = 0;
-    let queueVat = 0;
     let count = 0;
 
     batchQueue.forEach(item => {
@@ -44,10 +43,6 @@ export function updateDashboard(batchQueue, currentMode) {
             if (item.data && currentMode === 'inkoop') {
                 const rawTotal = item.data.factuurBedrag || item.data.totaalBedrag || item.data.bedrag || 0;
                 totalUitgaven += parseEuro(rawTotal);
-                if (item.status !== 'saved') {
-                    const rawVat = item.data.btwBedrag || item.data.btw || item.data.voorbelasting || 0;
-                    queueVat += parseEuro(rawVat);
-                }
             }
         }
     });
@@ -91,8 +86,8 @@ export function updateDashboard(batchQueue, currentMode) {
         }
 
         if (hasFetchedTotals) {
-            // BTW te betalen uit Verkoop minus Voorbelasting uit Inkoop én de huidige Wachtrij
-            const balans = cachedVerkoopBtw - cachedInkoopBtw - queueVat;
+            // Toon de actuele balans uit de Google Sheets, los van de scan-wachtrij.
+            const balans = cachedVerkoopBtw - cachedInkoopBtw;
             vatEl.innerText = formatEur(balans);
             vatEl.className = `text-2xl font-bold transition-all ${balans < 0 ? 'text-emerald-500' : 'text-gray-900'}`;
         }
