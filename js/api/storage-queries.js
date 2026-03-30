@@ -146,7 +146,10 @@ export async function getMonthlyTotals(sheetName) {
             
             for (let i = 1; i < data.values.length; i++) {
                 const row = data.values[i];
-                if (!row || row.length === 0 || String(row[0] || '').toLowerCase().includes('totaal') || String(row[1] || '').toLowerCase().includes('totaal')) continue;
+                if (!row || row.length === 0) continue;
+
+                const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                if (isTotalRow) continue;
 
                 totaalBtw += (idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0);
                 totaalOmzet += (idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0);

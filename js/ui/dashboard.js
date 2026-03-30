@@ -58,9 +58,15 @@ export function updateDashboard(batchQueue, currentMode) {
             vatEl.innerText = "Laden...";
             
             Promise.all([
-                getMonthlyTotals(getTargetDateInfo('verkoop').targetSheet).catch(() => ({ totaalBtw: 0 })),
-                getMonthlyTotals(getTargetDateInfo('inkoop').targetSheet).catch(() => ({ totaalBtw: 0 }))
+                getMonthlyTotals(getTargetDateInfo('verkoop').targetSheet).catch(() => null),
+                getMonthlyTotals(getTargetDateInfo('inkoop').targetSheet).catch(() => null)
             ]).then(([verkoopData, inkoopData]) => {
+                if (!verkoopData || !inkoopData) {
+                    isFetchingTotals = false;
+                    if (vatEl) vatEl.innerText = "Log in voor data";
+                    if (vatEl) vatEl.className = "text-sm font-medium text-gray-400";
+                    return;
+                }
                 cachedVerkoopBtw = verkoopData.totaalBtw || 0;
                 cachedInkoopBtw = inkoopData.totaalBtw || 0;
                 hasFetchedTotals = true;
