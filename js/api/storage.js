@@ -310,8 +310,7 @@ export async function getMonthlyTotals(sheetName) {
                 totaalOmzet += (idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0);
             }
         }
-        // Deel door twee omdat de totaalrij uit de Google Sheet ongemerkt is meegenomen
-        return { totaalOmzet: totaalOmzet / 2, totaalBtw: totaalBtw / 2 };
+        return { totaalOmzet, totaalBtw };
     } catch (e) {
         console.error("Fout bij ophalen maandtotalen:", e);
         return { totaalOmzet: 0, totaalBtw: 0 };
