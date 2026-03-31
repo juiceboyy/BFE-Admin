@@ -105,14 +105,26 @@ export async function getMonthlyTotals(sheetName) {
         const data = await res.json();
         if (!data.values || data.values.length <= 1) return { totaalOmzet: 0, totaalBtw: 0 };
 
-        const headers = data.values[0].map(h => String(h || '').toLowerCase());
-        const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+        const getIdx = (keywords) => {
+            return data.values[0].findIndex(header => {
+                const headerStr = String(header || '').toLowerCase().trim();
+                return keywords.some(k => headerStr.includes(k.toLowerCase()));
+            });
+        };
         const isVerkoop = sheetName.toLowerCase().includes('verkoop');
 
         const parseEuro = (val) => {
-            if (typeof val === 'number') return isNaN(val) ? 0 : val;
-            if (!val) return 0;
-            const cleaned = String(val).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+            if (val === undefined || val === null || val === '') return 0;
+            if (typeof val === 'number') return val;
+
+            // Strip everything EXCEPT numbers, comma, period, and minus sign
+            let cleaned = String(val).replace(/[^0-9.,-]/g, '');
+
+            // Handle Dutch formatting (e.g., 1.234,56 -> 1234.56)
+            if (cleaned.includes(',')) {
+                cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+            }
+
             return parseFloat(cleaned) || 0;
         };
 
@@ -153,7 +165,7 @@ export async function getMonthlyTotals(sheetName) {
                 totaalOmzet += rowOmzet;
             }
         } else {
-            const idxBtw = getIdx(['btw', 'voorbelasting', 'belasting', 'btw bedrag', 'btwbedrag', 'totaal btw']);
+            const idxBtw = getIdx(['btw', 'voorbelasting']);
             const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl', 'netto']);
             
             for (let i = 1; i < data.values.length; i++) {
