@@ -99,7 +99,7 @@ async function setMode(mode) {
     const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
     setText('th-leverancier', isVerkoop ? 'Klant' : 'Leverancier');
     setText('th-bedrag', isVerkoop ? 'Totaal (incl)' : 'Factuurbedrag');
-    setText('dash-total-label', isVerkoop ? "Totaal Omzet (Huidige Maand)" : "Wachtrij Uitgaven");
+    setText('dash-total-label', isVerkoop ? "Totaal Omzet (Huidige Maand)" : "Totaal Uitgaven");
     setText('dash-vat-label', isVerkoop ? "Af te dragen BTW" : "BTW Balans (Huidige Maand)");
 
     ['upload-zone-container', 'folder-upload-container', 'dash-count-card'].forEach(id => {
@@ -126,6 +126,9 @@ async function setMode(mode) {
             const vatCard = document.getElementById('dash-vat')?.parentElement;
             if (vatCard) vatCard.querySelector('span.text-xs').innerText = 'Af te dragen BTW';
         });
+    } else {
+        // Voor inkoop, willen we ook de cloud data herladen.
+        updateRealBtwBalans();
     }
 }
 
