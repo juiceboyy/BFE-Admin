@@ -166,7 +166,10 @@ export async function getMonthlyTotals(sheetName) {
                 totaalOmzet += rowOmzet;
             }
         } else {
-            const idxBtw = getIdx(['btw', 'voorbelasting']);
+            const idxBtw = data.values[0].findIndex(h => {
+                const str = String(h || '').toLowerCase().trim();
+                return str === 'btw' || str.includes('voorbelasting') || str.includes('btw inkoop');
+            });
             const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl', 'netto']);
             
             for (let i = 1; i < data.values.length; i++) {
