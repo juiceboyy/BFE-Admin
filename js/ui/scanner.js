@@ -19,6 +19,21 @@ export function initScanner() {
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
     bindEvent('btn-refresh-dashboard', 'click', () => { invalidateDashboardCache(); setMode(currentMode); });
 
+    document.getElementById('batch-table-body')?.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-item-btn');
+        if (!deleteBtn) return; // Ignore clicks that aren't on a delete button
+
+        // Get the index from the data attribute
+        const indexToDelete = parseInt(deleteBtn.getAttribute('data-index'), 10);
+        if (isNaN(indexToDelete)) return;
+
+        // Remove the item from the global queue
+        batchQueue.splice(indexToDelete, 1);
+
+        // Re-render the table. This function will also call updateDashboard.
+        renderBatchTable();
+    });
+
     // --- Period Selector Setup ---
     // We zoeken de 2e knop in de header (voorheen "Nieuwe Btw-aangifte")
     const btnPeriod = document.querySelectorAll('header button')[1];
@@ -226,7 +241,7 @@ function renderBatchTable() {
     }
 
     const dateInfo = getTargetDateInfo(currentMode);
-    tbody.innerHTML = batchQueue.map(item => getBatchRowHTML(item, dateInfo, currentMode)).join('');
+    tbody.innerHTML = batchQueue.map((item, index) => getBatchRowHTML(item, dateInfo, currentMode, index)).join('');
     if (window.lucide) window.lucide.createIcons();
     updateDashboard(batchQueue, currentMode);
 }

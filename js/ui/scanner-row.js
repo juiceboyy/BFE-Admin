@@ -4,7 +4,7 @@
  */
 import { isDateValidForPeriod } from '../utils/date.js';
 
-export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop') {
+export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
     const disabledAttr = isDisabled ? 'disabled' : '';
     const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
@@ -67,6 +67,11 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop') {
                     ${item.status === 'saved' ? 'disabled' : ''}
                     title="${item.status === 'saved' ? 'Opgeslagen' : 'Opslaan'}">
                     <i data-lucide="${item.status === 'saved' ? 'check' : 'save'}" class="w-4 h-4"></i>
+                </button>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-center">
+                <button class="delete-item-btn p-1 text-gray-400 hover:text-red-600 transition-colors" data-index="${index}" title="Verwijder item">
+                    <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
                 </button>
             </td>
         </tr>`;
