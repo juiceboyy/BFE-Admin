@@ -153,7 +153,7 @@ export async function getMonthlyTotals(sheetName) {
                 totaalOmzet += rowOmzet;
             }
         } else {
-            const idxBtw = getIdx(['btw', 'voorbelasting', 'belasting']);
+            const idxBtw = getIdx(['btw', 'voorbelasting', 'belasting', 'btw bedrag', 'btwbedrag', 'totaal btw']);
             const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl', 'netto']);
             
             for (let i = 1; i < data.values.length; i++) {

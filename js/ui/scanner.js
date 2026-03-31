@@ -3,7 +3,7 @@ import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from
 import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
-import { updateDashboard, invalidateDashboardCache } from './dashboard.js';
+import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -187,6 +187,11 @@ export async function saveBatchItem(id) {
         item.status = 'saved';
         invalidateDashboardCache();
         renderBatchTable();
+
+        // Force a refresh of the monthly VAT balance from Sheets now that a new item is saved.
+        if (currentMode === 'inkoop') {
+            updateRealBtwBalans();
+        }
     } catch (error) {
         console.error("Fout bij opslaan:", error);
         setBtnState(false, 'alert-circle', true);

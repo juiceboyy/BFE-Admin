@@ -3,6 +3,9 @@
  * Beheert de real-time updates van het Session Dashboard.
  */
 
+import { getMonthlyTotals } from '../api/storage-queries.js';
+import { getTargetDateInfo } from '../utils/date.js';
+
 export function invalidateDashboardCache() {
     // Wordt gehandhaafd als lege export zodat imports in andere bestanden niet crashen
 }
@@ -44,5 +47,32 @@ export function updateDashboard(batchQueue, currentMode) {
     
     if (totalLabelEl) {
         totalLabelEl.innerText = 'Wachtrij Uitgaven';
+    }
+}
+
+export async function updateRealBtwBalans() {
+    const dashVat = document.getElementById('dash-vat');
+    if (!dashVat) return;
+
+    dashVat.innerText = 'Laden...';
+
+    try {
+        const dateInfoInkoop = getTargetDateInfo('inkoop');
+        const dateInfoVerkoop = getTargetDateInfo('verkoop');
+
+        const [inkoopTotals, verkoopTotals] = await Promise.all([
+            getMonthlyTotals(dateInfoInkoop.targetSheet),
+            getMonthlyTotals(dateInfoVerkoop.targetSheet)
+        ]);
+
+        const voorbelasting = inkoopTotals.totaalBtw;
+        const afTeDragen = verkoopTotals.totaalBtw;
+        const balans = afTeDragen - voorbelasting;
+
+        const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num || 0);
+        dashVat.innerText = formatEur(balans);
+    } catch (error) {
+        console.error('Error updating BTW balans:', error);
+        dashVat.innerText = 'Fout';
     }
 }
