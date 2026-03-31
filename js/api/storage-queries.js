@@ -96,6 +96,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 export async function getMonthlyTotals(sheetName) {
     if (!accessToken) throw new Error("Niet ingelogd bij Google.");
     try {
+        // The sheetName must be wrapped in single quotes to handle names with spaces.
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z?valueRenderOption=UNFORMATTED_VALUE`;
         const res = await fetchWithRetry(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
         
@@ -182,7 +183,7 @@ export async function getMonthlyTotals(sheetName) {
                 else if (row.length >= 7) totaalOmzet += parseEuro(row[6]);
             }
         }
-        if (isVerkoop) console.log('Calculated Verkoop Totals:', { totaalOmzet, totaalBtw });
+        console.log(`Calculated ${sheetName} Totals:`, { totaalOmzet, totaalBtw });
         return { totaalOmzet, totaalBtw };
     } catch (e) {
         console.error("Fout bij ophalen maandtotalen:", e);
