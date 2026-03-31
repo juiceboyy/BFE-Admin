@@ -54,7 +54,7 @@ export async function updateRealBtwBalans() {
         const totalEl = document.getElementById('dash-total');
         if (totalEl) {
             totalEl.innerText = formatEur(inkoopTotals.totaalOmzet || 0);
-            const labelEl = totalEl.parentElement.querySelector('.text-xs, .text-sm, label');
+            const labelEl = totalEl.parentElement.querySelector('.text-xs, .text-sm, label, span');
             if (labelEl) labelEl.innerText = 'Totaal Uitgaven (Opgeslagen)';
         }
     } catch (error) {
