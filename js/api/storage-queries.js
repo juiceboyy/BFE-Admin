@@ -99,7 +99,7 @@ export async function getMonthlyTotals(sheetName) {
     let totaalBtw = 0;
 
     try {
-        const response = await gapi.client.sheets.spreadsheets.values.get({
+        const response = await window.gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID, // Zorg dat deze goed gelinkt blijft
             range: `'${sheetName}'!A:Z`
         });
