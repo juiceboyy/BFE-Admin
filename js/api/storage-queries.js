@@ -98,13 +98,21 @@ export async function getMonthlyTotals(sheetName) {
     let totaalOmzet = 0;
     let totaalBtw = 0;
 
+    if (!accessToken) {
+        console.error("Niet ingelogd bij Google.");
+        return { totaalOmzet, totaalBtw };
+    }
+
     try {
-        const response = await window.gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID, // Zorg dat deze goed gelinkt blijft
-            range: `'${sheetName}'!A:Z`
+        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        const rows = response.result.values;
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!response.ok) return { totaalOmzet, totaalBtw };
+        
+        const data = await response.json();
+        const rows = data.values;
         if (!rows || rows.length === 0) {
             return { totaalOmzet, totaalBtw };
         }
