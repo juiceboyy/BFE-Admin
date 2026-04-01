@@ -97,33 +97,27 @@ export async function getMonthlyTotals(sheetName) {
     let totaalOmzet = 0;
     let totaalBtw = 0;
 
-    if (!accessToken) {
-        console.error("Niet ingelogd bij Google.");
+    if (!window.gapi || !window.gapi.client || !window.gapi.client.sheets) {
+        console.error("Google API niet beschikbaar.");
         return { totaalOmzet, totaalBtw };
     }
 
     try {
-        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
+        const response = await window.gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: window.SPREADSHEET_ID || SPREADSHEET_ID, // Zorg dat de ID bereikbaar is
+            range: `'${sheetName}'!A:Z`
         });
 
-        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
-        if (!response.ok) return { totaalOmzet, totaalBtw };
-        
-        const data = await response.json();
-        const rows = data.values;
+        const rows = response.result.values;
         if (!rows || rows.length === 0) {
             return { totaalOmzet, totaalBtw };
         }
 
-        // Maak de headers schoon en makkelijk doorzoekbaar
         const row0 = rows[0].map(h => String(h).toLowerCase().trim());
         const isVerkoop = sheetName.toLowerCase().includes('verkoop');
-
-        // Helper functie om kolommen te vinden
         const getIdx = (keywords) => row0.findIndex(h => keywords.some(kw => h.includes(kw)));
 
-        // 1. EXACTE KOLOM KOPPELINGEN
+        // 1. EXACTE KOLOM KOPPELINGEN (Die nu perfect werken)
         let idxBtwLaag = -1, idxBtwHoog = -1, idxBtwInkoop = -1;
         let idxOmzetLaag = -1, idxOmzetHoog = -1, idxOmzetNul = -1, idxInkoopExcl = -1;
 
@@ -134,15 +128,11 @@ export async function getMonthlyTotals(sheetName) {
             idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21']);
             idxOmzetNul = getIdx(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0']);
         } else {
-            // Inkoop zoekt expliciet naar BTW en EXCL/Vergoeding (zodat we geen inclusieve totalen pakken)
             idxBtwInkoop = row0.findIndex(h => h === 'btw' || h.includes('voorbelasting'));
             idxInkoopExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
-            
-            // Fallback: Als we geen Excl kolom vinden, pak dan pas 'totaal'
             if (idxInkoopExcl === -1) idxInkoopExcl = getIdx(['totaal', 'bedrag incl', 'incl']);
         }
 
-        // 2. BULLETPROOF EURO PARSER
         const parseEuro = (val) => {
             if (!val) return 0;
             let cleaned = String(val).replace(/[^0-9.,-]/g, '');
@@ -150,17 +140,19 @@ export async function getMonthlyTotals(sheetName) {
             return parseFloat(cleaned) || 0;
         };
 
-        // 3. DE BEREKENING
+        // 2. DE BEREKENING MET DE ABSOLUTE REM
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length === 0) continue;
 
-            // CRUCIAAL: Negeer de rij als er "Totalen" in staat (voorkomt dubbel tellen!)
-            const isTotalRow = row.slice(0, 5).some(cell => String(cell).toLowerCase().includes('totaal'));
-            if (isTotalRow) continue;
+            // DE OPLOSSING VOOR HET VERDUBBELEN:
+            // Zodra we in kolom A (Datum) het woord "Totaal" of "Totalen" zien, breek de loop onmiddellijk af!
+            const colA = String(row[0] || '').toLowerCase().trim();
+            if (colA.includes('totaal') || colA.includes('totalen')) {
+                break; 
+            }
 
             if (isVerkoop) {
-                // Telt alle losse BTW en Omzet kolommen netjes bij elkaar op
                 const btwL = idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
                 const btwH = idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
                 totaalBtw += (btwL + btwH);
@@ -170,7 +162,6 @@ export async function getMonthlyTotals(sheetName) {
                 const omzetN = idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
                 totaalOmzet += (omzetL + omzetH + omzetN);
             } else {
-                // Inkoop Logica
                 const btwI = idxBtwInkoop !== -1 ? parseEuro(row[idxBtwInkoop]) : 0;
                 totaalBtw += btwI;
 
@@ -179,11 +170,10 @@ export async function getMonthlyTotals(sheetName) {
             }
         }
 
-        // Afronden op 2 decimalen om vage afrondingsfouten (0.000004) te voorkomen
         totaalOmzet = Math.round(totaalOmzet * 100) / 100;
         totaalBtw = Math.round(totaalBtw * 100) / 100;
 
-        console.log(`--- DASHBOARD DATA: ${sheetName} ---`, { Omzet: totaalOmzet, BTW: totaalBtw });
+        console.log(`--- SUCCES: ${sheetName} ---`, { Omzet: totaalOmzet, BTW: totaalBtw });
         return { totaalOmzet, totaalBtw };
 
     } catch (error) {
