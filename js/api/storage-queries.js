@@ -97,18 +97,23 @@ export async function getMonthlyTotals(sheetName) {
     let totaalOmzet = 0;
     let totaalBtw = 0;
 
-    if (!window.gapi || !window.gapi.client || !window.gapi.client.sheets) {
-        console.error("Google API niet beschikbaar.");
+    // 1. De juiste check voor jouw app (kijkt naar accessToken)
+    if (typeof accessToken === 'undefined' || !accessToken) {
+        console.error("Niet ingelogd bij Google (geen accessToken).");
         return { totaalOmzet, totaalBtw };
     }
 
     try {
-        const response = await window.gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: window.SPREADSHEET_ID || SPREADSHEET_ID, // Zorg dat de ID bereikbaar is
-            range: `'${sheetName}'!A:Z`
+        // 2. De juiste verbinding die we eerder succesvol gebruikten
+        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        const rows = response.result.values;
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!response.ok) return { totaalOmzet, totaalBtw };
+        
+        const data = await response.json();
+        const rows = data.values;
         if (!rows || rows.length === 0) {
             return { totaalOmzet, totaalBtw };
         }
@@ -117,7 +122,7 @@ export async function getMonthlyTotals(sheetName) {
         const isVerkoop = sheetName.toLowerCase().includes('verkoop');
         const getIdx = (keywords) => row0.findIndex(h => keywords.some(kw => h.includes(kw)));
 
-        // 1. EXACTE KOLOM KOPPELINGEN (Die nu perfect werken)
+        // 3. EXACTE KOLOM KOPPELINGEN
         let idxBtwLaag = -1, idxBtwHoog = -1, idxBtwInkoop = -1;
         let idxOmzetLaag = -1, idxOmzetHoog = -1, idxOmzetNul = -1, idxInkoopExcl = -1;
 
@@ -140,13 +145,12 @@ export async function getMonthlyTotals(sheetName) {
             return parseFloat(cleaned) || 0;
         };
 
-        // 2. DE BEREKENING MET DE ABSOLUTE REM
+        // 4. DE BEREKENING MET DE REM OP TOTALEN
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length === 0) continue;
 
-            // DE OPLOSSING VOOR HET VERDUBBELEN:
-            // Zodra we in kolom A (Datum) het woord "Totaal" of "Totalen" zien, breek de loop onmiddellijk af!
+            // Zodra we in kolom A (Datum) het woord "Totaal" of "Totalen" zien, stop direct!
             const colA = String(row[0] || '').toLowerCase().trim();
             if (colA.includes('totaal') || colA.includes('totalen')) {
                 break; 
