@@ -1,6 +1,7 @@
 import { accessToken } from './auth.js';
+import { fetchWithRetry } from '../utils/network.js';
 
-const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
+export const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
 const DRIVE_FOLDER_ID = '1NBCQ89t1soAvZ315_UA-p-lF340qkraH';
 
 /**
@@ -13,7 +14,7 @@ export async function uploadToDrive(file, factuurNummer) {
 
     try {
         // Stap 1: Metadata aanmaken (lege huls)
-        const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+        const metadataResponse = await fetchWithRetry('https://www.googleapis.com/drive/v3/files', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -26,6 +27,7 @@ export async function uploadToDrive(file, factuurNummer) {
             })
         });
 
+        if (metadataResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!metadataResponse.ok) {
             const error = await metadataResponse.json();
             throw new Error(`Fout bij aanmaken bestand in Drive: ${error.error.message}`);
@@ -35,7 +37,7 @@ export async function uploadToDrive(file, factuurNummer) {
         const fileId = metadata.id;
 
         // Stap 2: Inhoud uploaden (Media)
-        const uploadResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        const uploadResponse = await fetchWithRetry(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -44,6 +46,7 @@ export async function uploadToDrive(file, factuurNummer) {
             body: file
         });
 
+        if (uploadResponse.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!uploadResponse.ok) {
             const error = await uploadResponse.json();
             throw new Error(`Fout bij uploaden inhoud naar Drive: ${error.error.message}`);
@@ -67,12 +70,13 @@ export async function insertRowInSheet(sheetName, data) {
 
     try {
         // Stap 1: Zoek de eerste lege rij of de rij met 'Totalen'
-        const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
+        const getRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
             }
         });
 
+        if (getRes.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!getRes.ok) {
             const error = await getRes.json();
             throw new Error(`Fout bij ophalen sheet data: ${error.error.message}`);
@@ -94,7 +98,7 @@ export async function insertRowInSheet(sheetName, data) {
         }
 
         // Stap 2: Schrijf de data naar die specifieke rij
-        const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A${targetRow}:G${targetRow}?valueInputOption=USER_ENTERED`, {
+        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A${targetRow}:Z${targetRow}?valueInputOption=USER_ENTERED`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -103,6 +107,7 @@ export async function insertRowInSheet(sheetName, data) {
             body: JSON.stringify({ values: [data] })
         });
 
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
         if (!response.ok) {
             const error = await response.json();
             throw new Error(`Fout bij schrijven naar Sheet: ${error.error.message}`);
@@ -116,104 +121,22 @@ export async function insertRowInSheet(sheetName, data) {
     }
 }
 
-export async function loadCloudMemory() {
+export async function getSheetHeaders(sheetName) {
+    if (!accessToken) return [];
     try {
-        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
+        const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z1`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
         });
+        if (res.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!res.ok) return [];
+        
         const json = await res.json();
-        const memory = {};
-        if (json.values && json.values.length > 1) {
-            // Loop starts at 1 to skip headers
-            for (let i = 1; i < json.values.length; i++) {
-                const row = json.values[i];
-                if (row && row[0]) {
-                    memory[row[0].toLowerCase().trim()] = {
-                        omschrijving: row[1] || '',
-                        btwTarief: row[2] || 0
-                    };
-                }
-            }
+        if (json.values && json.values[0]) {
+            return json.values[0].map(h => String(h || '').toLowerCase());
         }
-        return memory;
+        return [];
     } catch (e) {
-        console.error("Fout bij laden cloud memory:", e);
-        return {};
+        console.error("Fout bij ophalen headers:", e);
+        return [];
     }
-}
-
-export async function saveCloudMemory(leverancier, omschrijving, tarief) {
-    if (!accessToken) return;
-
-    try {
-        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ values: [[leverancier, omschrijving, tarief]] })
-        });
-    } catch (error) {
-        console.error('Fout bij opslaan cloud memory:', error);
-    }
-}
-
-export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
-    if (!accessToken) return `${targetYear}.001`;
-
-    const fetchMaxFromSheet = async (sheet) => {
-        try {
-            const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheet}'!B:B`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
-
-            if (!response.ok) return null;
-
-            const data = await response.json();
-            if (!data.values) return null;
-
-            let maxSeq = null;
-
-            for (const row of data.values) {
-                const val = row[0];
-                if (val && typeof val === 'string' && val.startsWith(`${targetYear}.`)) {
-                    const parts = val.split('.');
-                    if (parts.length === 2) {
-                        const seq = parseInt(parts[1], 10);
-                        if (!isNaN(seq)) {
-                            if (maxSeq === null || seq > maxSeq) {
-                                maxSeq = seq;
-                            }
-                        }
-                    }
-                }
-            }
-            return maxSeq;
-        } catch (error) {
-            console.error('Error fetching max seq:', error);
-            return null;
-        }
-    };
-
-    let maxSeq = await fetchMaxFromSheet(targetSheet);
-
-    if (maxSeq !== null) {
-        return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-    }
-
-    if (targetSheet.startsWith('Jan')) {
-        return `${targetYear}.001`;
-    }
-
-    if (prevSheet) {
-        maxSeq = await fetchMaxFromSheet(prevSheet);
-        if (maxSeq !== null) {
-            return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-        }
-    }
-
-    return `${targetYear}.001`;
 }

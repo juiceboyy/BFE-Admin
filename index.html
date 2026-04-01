@@ -33,182 +33,173 @@
             </div>
         </header>
 
-        <div id="app-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <nav class="flex space-x-6 mb-8 border-b border-gray-200" aria-label="Tabs">
+            <button id="tab-scanner"
+                class="py-2 px-1 border-b-2 border-black font-medium text-sm text-black transition-colors"
+                aria-current="page">
+                🧾 Bonnen &amp; Facturen
+            </button>
+            <button id="tab-fiscal"
+                class="py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors">
+                ⚖️ Fiscale Jaarafsluiting
+            </button>
+        </nav>
 
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-2">
-                <h2 class="text-xl font-medium mb-6">Nieuwe boeking</h2>
-                <form id="btw-form" class="space-y-5">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Type</label>
-                            <select id="type"
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                                <option value="inkomsten">Inkomsten (Omzet)</option>
-                                <option value="uitgaven">Uitgaven (Kosten)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Datum</label>
-                            <input type="date" id="datum" required
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Omschrijving</label>
-                        <input type="text" id="omschrijving" placeholder="Bijv. Optreden / Studiohuur / Apparatuur"
-                            required
-                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Bedrag (Excl. Btw)</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" id="bedrag" placeholder="0.00" required
-                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+        <div id="view-scanner">
+            <div id="app-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                <details class="bg-white shadow rounded-lg group lg:col-span-3">
+                    <summary
+                        class="cursor-pointer p-4 font-semibold text-gray-700 hover:bg-gray-50 rounded-lg outline-none select-none flex items-center justify-between">
+                        <span>➕ Handmatige boeking toevoegen</span>
+                        <span class="group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="p-4 border-t border-gray-100">
+                        <form id="btw-form" class="space-y-5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Type</label>
+                                    <select id="type"
+                                        class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                        <option value="inkomsten">Inkomsten (Omzet)</option>
+                                        <option value="uitgaven">Uitgaven (Kosten)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Datum</label>
+                                    <input type="date" id="datum" required
+                                        class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Btw-tarief</label>
-                            <select id="tarief"
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                                <option value="9">9% (Muziek/Optredens)</option>
-                                <option value="21">21% (Algemeen)</option>
-                                <option value="0">0%</option>
-                                <option value="verlegd">Verlegd</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button type="submit"
-                        class="w-full mt-2 bg-black text-white rounded-xl py-3 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
-                        Boeking Toevoegen
-                    </button>
-                </form>
-            </div>
-
-            <div class="glass-panel p-6 rounded-3xl flex flex-col justify-between">
-                <div>
-                    <h2 class="text-xl font-medium mb-6">Btw-samenvatting</h2>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Btw 21% (Omzet)</span>
-                            <span id="sum-btw-21" class="font-medium text-sm">€ 0,00</span>
-                        </div>
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Btw 9% (Omzet)</span>
-                            <span id="sum-btw-9" class="font-medium text-sm">€ 0,00</span>
-                        </div>
-                        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Voorbelasting (Kosten)</span>
-                            <span id="sum-voorbelasting" class="font-medium text-sm text-blue-600">- € 0,00</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center">
-                    <span class="font-medium text-sm text-gray-500">Totaal te betalen</span>
-                    <span id="sum-totaal" class="text-2xl font-semibold tracking-tight">€ 0,00</span>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-2">
-                <h2 class="text-xl font-medium mb-6">Bonnen & Facturen Scanner</h2>
-                
-                <!-- Upload Zone -->
-                <div class="relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors group cursor-pointer">
-                    <input type="file" id="receipt-upload" accept="image/*,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    <div class="flex flex-col items-center gap-2 pointer-events-none">
-                        <div class="p-3 bg-blue-50 text-blue-600 rounded-full group-hover:bg-blue-100 transition-colors">
-                            <i data-lucide="scan-line" class="w-6 h-6"></i>
-                        </div>
-                        <p class="text-sm font-medium text-gray-700">Sleep een bestand hierheen of klik om te uploaden</p>
-                        <p class="text-xs text-gray-400">Ondersteunt PDF, JPG, PNG</p>
-                    </div>
-                </div>
-
-                <!-- Edit Form (Hidden initially) -->
-                <form id="receipt-edit-form" class="hidden mt-8 space-y-5 border-t border-gray-100 pt-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Factuurnummer</label>
-                            <input type="text" id="scan-factuurnummer" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Datum</label>
-                            <input type="date" id="scan-datum" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Leverancier</label>
-                        <input type="text" id="scan-leverancier" required
-                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Omschrijving</label>
-                        <input type="text" id="scan-omschrijving" 
-                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Bedrag (Excl.)</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" id="scan-bedrag" placeholder="0.00"
-                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1.5">Omschrijving</label>
+                                <input type="text" id="omschrijving"
+                                    placeholder="Bijv. Optreden / Studiohuur / Apparatuur" required
+                                    class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Btw-tarief</label>
-                            <select id="scan-tarief"
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                                <option value="21">21%</option>
-                                <option value="9">9%</option>
-                                <option value="0">0%</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Btw-bedrag</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" id="scan-btw-bedrag" placeholder="0.00"
-                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Bedrag (Excl.
+                                        Btw)</label>
+                                    <div class="relative">
+                                        <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                        <input type="number" step="0.01" id="bedrag" placeholder="0.00" required
+                                            class="w-full bg-white/60 border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Btw-tarief</label>
+                                    <select id="tarief"
+                                        class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                        <option value="9">9% (Muziek/Optredens)</option>
+                                        <option value="21">21% (Algemeen)</option>
+                                        <option value="0">0%</option>
+                                        <option value="verlegd">Verlegd</option>
+                                    </select>
+                                </div>
                             </div>
+                            <button type="submit"
+                                class="w-full mt-2 bg-black text-white rounded-xl py-3 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors">
+                                Boeking Toevoegen
+                            </button>
+                        </form>
+                    </div>
+                </details>
+
+                <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
+                    <h2 class="text-xl font-medium mb-6">Bonnen & Facturen Scanner</h2>
+
+                    <!-- Mode Toggle (Inkoop / Verkoop) -->
+                    <div class="flex justify-center mb-6">
+                        <div class="bg-gray-100 p-1 rounded-lg inline-flex">
+                            <button id="mode-inkoop"
+                                class="px-6 py-2 rounded-md text-sm font-medium transition-all bg-white text-gray-900 shadow-sm">Inkoop</button>
+                            <button id="mode-verkoop"
+                                class="px-6 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-900">Verkoop</button>
                         </div>
                     </div>
 
-                    <button type="submit"
-                        class="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors flex justify-center items-center gap-2">
-                        <i data-lucide="check-circle" class="w-4 h-4"></i> Controleer & Opslaan
-                    </button>
-                </form>
-            </div>
+                    <!-- Session Dashboard -->
+                    <div id="session-dashboard" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div id="dash-count-card" class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col items-center justify-center">
+                            <span class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Items in wachtrij</span>
+                            <span id="dash-count" class="text-2xl font-bold text-gray-900">0</span>
+                        </div>
+                        <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col items-center justify-center">
+                            <span id="dash-total-label" class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Totaal Uitgaven</span>
+                            <span id="dash-total" class="text-2xl font-bold text-gray-900 transition-all">€ 0,00</span>
+                        </div>
+                        <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col items-center justify-center">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span id="dash-vat-label" class="text-xs font-medium text-gray-500 uppercase tracking-wider">BTW Balans</span>
+                                <button id="btn-refresh-dashboard" class="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer" title="Data verversen">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <span id="dash-vat" class="text-2xl font-bold text-gray-900 transition-all">€ 0,00</span>
+                        </div>
+                    </div>
 
-            <div class="glass-panel p-6 rounded-3xl lg:col-span-3">
-                <h2 class="text-xl font-medium mb-4">Huidig tijdvak</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-400 uppercase bg-gray-50/50">
-                            <tr>
-                                <th class="px-4 py-3 rounded-l-xl font-medium">Datum</th>
-                                <th class="px-4 py-3 font-medium">Omschrijving</th>
-                                <th class="px-4 py-3 font-medium">Type</th>
-                                <th class="px-4 py-3 font-medium">Tarief</th>
-                                <th class="px-4 py-3 text-right font-medium">Excl. Btw</th>
-                                <th class="px-4 py-3 text-right rounded-r-xl font-medium">Btw</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactions-list" class="divide-y divide-gray-50/50">
-                        </tbody>
-                    </table>
+                    <!-- Upload Zone -->
+                    <div id="upload-zone-container"
+                        class="relative border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors group cursor-pointer">
+                        <input type="file" id="receipt-upload" accept="image/*,application/pdf" multiple
+                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex flex-col items-center gap-2 pointer-events-none">
+                            <div
+                                class="p-3 bg-blue-50 text-blue-600 rounded-full group-hover:bg-blue-100 transition-colors">
+                                <i data-lucide="scan-line" class="w-6 h-6"></i>
+                            </div>
+                            <p class="text-sm font-medium text-gray-700">Sleep een bestand hierheen of klik om te
+                                uploaden</p>
+                            <p class="text-xs text-gray-400">Ondersteunt PDF, JPG, PNG</p>
+                        </div>
+                    </div>
+
+                    <!-- Folder Upload Option -->
+                    <div id="folder-upload-container" class="mt-4 flex justify-center">
+                        <label for="folder-upload"
+                            class="cursor-pointer flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition-colors">
+                            <i data-lucide="folder-up" class="w-4 h-4"></i>
+                            Of upload een hele map
+                        </label>
+                        <input type="file" id="folder-upload" webkitdirectory directory multiple class="hidden">
+                    </div>
+
+                    <!-- Batch Dashboard (Replaces Form) -->
+                    <div id="batch-dashboard" class="hidden w-full overflow-x-auto mt-8">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-4 py-3 whitespace-nowrap">Bestand</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">Datum</th>
+                                    <th id="th-leverancier" class="px-4 py-3 whitespace-nowrap">Leverancier</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">Omschrijving</th>
+                                    <th id="th-bedrag" class="px-4 py-3 whitespace-nowrap text-right">Bedrag(excl)</th>
+                                    <th class="px-4 py-3 whitespace-nowrap text-right">BTW</th>
+                                    <th class="px-4 py-3 whitespace-nowrap">Factuurnr</th>
+                                    <th class="px-4 py-3 whitespace-nowrap text-center">Actie</th>
+                                    <th class="px-4 py-3 whitespace-nowrap"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="batch-table-body" class="divide-y divide-gray-100">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</body>
-<script type="module" src="js/main.js"></script>
+        <div id="view-fiscal" class="hidden">
+            <h2 class="text-2xl font-bold mb-4">Fiscale Jaarafsluiting &amp; AI Adviseur</h2>
+            <p>Hier bouwen we binnenkort de automatische IB-aangifte module.</p>
+        </div>
 
+    </div>
+<script type="module" src="js/main.js"></script>
+<script type="module">
+    import { initNavigation } from './js/ui/navigation.js';
+    initNavigation();
+</script>
+</body>
 </html>
