@@ -94,23 +94,31 @@ export async function collectYearData(year, spreadsheetId) {
 
                     console.log(`Mapped indices for Verkoop (${rangeName}):`, { idxDatum, idxKlant, idxBtwLaag, idxBtwHoog, idxOmzetLaag, idxOmzetHoog, idxOmzetNul });
 
+                    let dbgVerwerkt = 0, dbgLeegDatum = 0, dbgTotaalRij = 0, dbgOmzetRunning = 0;
                     for (let i = 1; i < rangeData.values.length; i++) {
                         try {
                             const row = rangeData.values[i];
-                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
-                            
+                            if (!row || row.length === 0 || row[idxDatum] === undefined) { dbgLeegDatum++; continue; }
+
                             const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
-                            if (isTotalRow) continue;
+                            if (isTotalRow) { dbgTotaalRij++; console.log(`  ↳ Rij ${i+1} geskipt als totaalrij:`, row.slice(0, 5)); continue; }
+
+                            const omzetL = idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
+                            const omzetH = idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
+                            const omzetN = idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
 
                             result.btwAfgedragen.laag9 += idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
                             result.btwAfgedragen.hoog21 += idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
-                            result.omzet.laag9 += idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
-                            result.omzet.hoog21 += idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
-                            result.omzet.nul0 += idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
+                            result.omzet.laag9 += omzetL;
+                            result.omzet.hoog21 += omzetH;
+                            result.omzet.nul0 += omzetN;
+                            dbgOmzetRunning += omzetL + omzetH + omzetN;
+                            dbgVerwerkt++;
                         } catch (err) {
                             console.warn(`⚠️ Fout bij verwerken rij ${i} in ${rangeName} (Verkoop), rij overgeslagen:`, err);
                         }
                     }
+                    console.log(`📊 ${rangeName} — verwerkt: ${dbgVerwerkt} rijen | geskipt lege datum: ${dbgLeegDatum} | geskipt totaalrij: ${dbgTotaalRij} | omzet subtotaal: €${dbgOmzetRunning.toFixed(2)}`);
                 } else if (isInkoop) {
                     const idxLeverancier = getIdx(['leverancier', 'naam leverancier', 'klant']);
                     const idxBtw = getIdx(['btw', 'voorbelasting']);
