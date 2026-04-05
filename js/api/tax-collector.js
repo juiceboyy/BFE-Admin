@@ -111,7 +111,6 @@ export async function collectYearData(year, spreadsheetId) {
                         result.omzet.nul0           += omzetN;
                         result.btwAfgedragen.laag9  += btwL;
                         result.btwAfgedragen.hoog21 += btwH;
-                        console.log(`📊 ${rangeName} — Totalen-rij gelezen: omzetL=${omzetL} omzetH=${omzetH} omzetN=${omzetN} btwL=${btwL} btwH=${btwH}`);
                         totaalRijGevonden = true;
                         break;
                     }
@@ -120,8 +119,6 @@ export async function collectYearData(year, spreadsheetId) {
                     const idxLeverancier = getIdx(['leverancier', 'naam leverancier', 'klant']);
                     const idxBtw = getIdx(['btw', 'voorbelasting']);
                     const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
-
-                    console.log(`Mapped indices for Inkoop (${rangeName}):`, { idxDatum, idxLeverancier, idxBtw, idxExcl });
 
                     for (let i = 1; i < rangeData.values.length; i++) {
                         try {
