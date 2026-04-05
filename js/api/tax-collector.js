@@ -98,7 +98,10 @@ export async function collectYearData(year, spreadsheetId) {
                     for (let i = 1; i < rangeData.values.length; i++) {
                         try {
                             const row = rangeData.values[i];
-                            if (!row || row.length === 0 || row[idxDatum] === undefined) { dbgLeegDatum++; continue; }
+                            const hasFinancialData = [idxOmzetLaag, idxOmzetHoog, idxOmzetNul, idxBtwLaag, idxBtwHoog]
+                                .filter(idx => idx !== -1)
+                                .some(idx => row?.[idx] !== undefined && row[idx] !== '');
+                            if (!row || row.length === 0 || !hasFinancialData) { dbgLeegDatum++; continue; }
 
                             const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                             if (isTotalRow) { dbgTotaalRij++; console.log(`  ↳ Rij ${i+1} geskipt als totaalrij:`, row.slice(0, 5)); continue; }
@@ -129,7 +132,10 @@ export async function collectYearData(year, spreadsheetId) {
                     for (let i = 1; i < rangeData.values.length; i++) {
                         try {
                             const row = rangeData.values[i];
-                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
+                            const hasFinancialData = [idxBtw, idxExcl]
+                                .filter(idx => idx !== -1)
+                                .some(idx => row?.[idx] !== undefined && row[idx] !== '');
+                            if (!row || row.length === 0 || !hasFinancialData) continue;
 
                             const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                             if (isTotalRow) continue;
