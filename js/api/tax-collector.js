@@ -101,7 +101,11 @@ export async function collectYearData(year, spreadsheetId) {
                             const hasFinancialData = [idxOmzetLaag, idxOmzetHoog, idxOmzetNul, idxBtwLaag, idxBtwHoog]
                                 .filter(idx => idx !== -1)
                                 .some(idx => row?.[idx] !== undefined && row[idx] !== '');
-                            if (!row || row.length === 0 || !hasFinancialData) { dbgLeegDatum++; continue; }
+                            if (!row || row.length === 0 || !hasFinancialData) {
+                                dbgLeegDatum++;
+                                if (row && row.length > 0) console.log(`  ↳ Rij ${i+1} geen financiële data | H=${row[idxOmzetLaag]} I=${row[idxOmzetHoog]} J=${row[idxOmzetNul]} | volledige rij:`, row);
+                                continue;
+                            }
 
                             const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                             if (isTotalRow) { dbgTotaalRij++; console.log(`  ↳ Rij ${i+1} geskipt als totaalrij:`, row.slice(0, 5)); continue; }
