@@ -4,8 +4,12 @@ import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
 
-// Zelfde ID als gebruikt wordt in storage.js
-const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
+const SPREADSHEET_IDS = {
+    2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
+    2024: '1OFzhw4r6eDkKcOxXuzJ6MoKO1O5CiKmmZR83e33QEsM',
+    2025: '1WIY9la9KpdRuRItTi2qfjRmmmkNeoxQf7VMihRjw0TI',
+    2026: '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg',
+};
 
 export function initFiscalIntake() {
     const container = document.getElementById('view-fiscal');
@@ -263,7 +267,9 @@ function setupEventListeners(container) {
             if (window.lucide) window.lucide.createIcons();
 
             try {
-                const data = await collectYearData(year, SPREADSHEET_ID);
+                const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
+                if (!spreadsheetId) return alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
+                const data = await collectYearData(year, spreadsheetId);
                 fiscalState.setTopLevel('sheetData', data);
                 
                 const summary = document.getElementById('sync-summary');
