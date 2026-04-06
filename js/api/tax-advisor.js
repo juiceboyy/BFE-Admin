@@ -1,109 +1,113 @@
 /**
  * js/api/tax-advisor.js
- * AI Advisor Module om strategisch fiscaal advies op te halen via Gemini.
+ * AI Advisor Module — haalt strategisch fiscaal advies op via Claude (Anthropic).
+ * De Dutch finance domain rules worden als system prompt geïnjecteerd in de Netlify function.
  */
 
 import { fetchWithRetry } from '../utils/network.js';
+import { schattingIB, getRatesForYear } from '../utils/tax-calculator.js';
 
 export async function getFiscalAdvice(calculatedTaxData, fiscalState) {
     const kostenRatio = calculatedTaxData.omzet > 0
         ? ((calculatedTaxData.kosten / calculatedTaxData.omzet) * 100).toFixed(1)
-        : 0;
+        : '0';
 
     const btwSaldo = fiscalState.sheetData
         ? (fiscalState.sheetData.btwAfgedragen?.totaal || 0) - (fiscalState.sheetData.voorbelasting?.totaal || 0)
         : null;
 
     const afschrijvingenSamenvatting = calculatedTaxData.afschrijvingenLog.length > 0
-        ? calculatedTaxData.afschrijvingenLog.map(i => `${i.omschrijving}: afschrijving €${i.afschrijvingDitJaar.toFixed(2)}, boekwaarde eind €${i.boekwaardeEind.toFixed(2)}`).join('; ')
+        ? calculatedTaxData.afschrijvingenLog
+            .map(i => `${i.omschrijving}: afschrijving €${i.afschrijvingDitJaar.toFixed(2)}, boekwaarde eind €${i.boekwaardeEind.toFixed(2)}`)
+            .join('; ')
         : 'Geen inventaris opgegeven';
 
-    const prompt = `Je bent een proactieve, strategische Nederlandse belastingadviseur gespecialiseerd in ZZP/eenmanszaak aangiftes.
-Analyseer de volgende financiële data voor boekjaar ${calculatedTaxData.year} en geef concreet, persoonlijk advies.
+    const ibSchatting = schattingIB(calculatedTaxData.belastbareWinst, calculatedTaxData.year);
+    const taxRates = getRatesForYear(calculatedTaxData.year);
+
+    // Gestructureerd context-object — ook meegestuurd voor logging in de function
+    const context = {
+        fiscalYear: calculatedTaxData.year,
+        omzet: calculatedTaxData.omzet,
+        kosten: calculatedTaxData.kosten,
+        kostenRatio: parseFloat(kostenRatio),
+        totaleAfschrijving: calculatedTaxData.totaleAfschrijving,
+        investeringenDitJaar: calculatedTaxData.investeringenDitJaar,
+        bijtelling: calculatedTaxData.bijtelling,
+        fiscaleWinst: calculatedTaxData.fiscaleWinst,
+        zelfstandigenaftrek: calculatedTaxData.ondernemersaftrek,
+        mkbVrijstelling: calculatedTaxData.mkbWinstvrijstellingBedrag,
+        belastbareWinst: calculatedTaxData.belastbareWinst,
+        ibSchatting,
+        taxRates,
+        urencriteriumGehaald: fiscalState.ondernemer?.urencriteriumGehaald ?? false,
+        bankEindsaldo: fiscalState.bank?.eindSaldo || 0,
+        btwSaldo
+    };
+
+    // User message — bevat de data en de analyse-opdracht
+    // De system prompt met Dutch finance rules zit in de Netlify function
+    const userMessage = `Analyseer de volgende financiële data voor boekjaar ${context.fiscalYear} en geef concreet fiscaal advies.
 
 FINANCIËLE DATA:
-- Omzet (excl. BTW): €${calculatedTaxData.omzet.toFixed(2)}
-- Kosten (excl. afschrijvingen): €${calculatedTaxData.kosten.toFixed(2)}
-- Kostenratio: ${kostenRatio}% van de omzet
-- Totale afschrijvingen: €${calculatedTaxData.totaleAfschrijving.toFixed(2)}
-- Nieuwe investeringen dit jaar: €${calculatedTaxData.investeringenDitJaar.toFixed(2)}
-- Bijtelling auto: €${calculatedTaxData.bijtelling.toFixed(2)}
-- Fiscale Winst: €${calculatedTaxData.fiscaleWinst.toFixed(2)}
-- Ondernemersaftrek (zelfstandigenaftrek): €${calculatedTaxData.ondernemersaftrek.toFixed(2)}
-- MKB-Winstvrijstelling: €${calculatedTaxData.mkbWinstvrijstellingBedrag.toFixed(2)}
-- Belastbare Winst: €${calculatedTaxData.belastbareWinst.toFixed(2)}
-- Urencriterium (>1225 uur) gehaald: ${fiscalState.ondernemer.urencriteriumGehaald ? 'Ja' : 'Nee'}
-- Bank eindsaldo: €${(fiscalState.bank?.eindSaldo || 0).toFixed(2)}
-${btwSaldo !== null ? `- BTW af te dragen (saldo): €${btwSaldo.toFixed(2)}` : ''}
+- Omzet (excl. BTW): €${context.omzet.toFixed(2)}
+- Kosten (excl. afschrijvingen): €${context.kosten.toFixed(2)}
+- Kostenratio: ${context.kostenRatio}% van de omzet
+- Totale afschrijvingen: €${context.totaleAfschrijving.toFixed(2)}
+- Nieuwe investeringen dit jaar: €${context.investeringenDitJaar.toFixed(2)}
+- Bijtelling auto: €${context.bijtelling.toFixed(2)}
+- Fiscale Winst: €${context.fiscaleWinst.toFixed(2)}
+- Zelfstandigenaftrek toegepast: €${context.zelfstandigenaftrek.toFixed(2)}
+- MKB-Winstvrijstelling: €${context.mkbVrijstelling.toFixed(2)}
+- Belastbare Winst (Box 1): €${context.belastbareWinst.toFixed(2)}
+- Geschatte IB (Box 1): €${context.ibSchatting.toFixed(2)}
+- Urencriterium (>1.225 uur) gehaald: ${context.urencriteriumGehaald ? 'Ja' : 'Nee'}
+- Bank eindsaldo: €${context.bankEindsaldo.toFixed(2)}
+${context.btwSaldo !== null ? `- BTW af te dragen (saldo jaarbasis): €${context.btwSaldo.toFixed(2)}` : ''}
 - Inventaris & afschrijvingen: ${afschrijvingenSamenvatting}
 
-ANALYSE-DOELEN (controleer elk punt en geef alleen een kaart als het echt relevant is):
+ANALYSE-DOELEN (geef alleen een kaart als het echt relevant is):
 
-1. KIA (Kleinschaligheidsinvesteringsaftrek):
-   - De KIA geldt voor investeringen TUSSEN €2.801 en ca. €353.000 (boekjaar ${calculatedTaxData.year}).
-   - Als de nieuwe investeringen ONDER €2.801 liggen maar dichtbij (bijv. €1.500–€2.800): adviseer concreet om nog dit jaar te investeren om KIA te activeren (28% aftrek op het totaal).
-   - Als de investeringen al boven €2.801 liggen: bereken de verwachte KIA-aftrek (28%) en vermeld dit als positief info-feit.
-   - Als er helemaal niet is geïnvesteerd: geef een tip over wat voor investeringen in aanmerking komen.
+1. KIA: Beoordeel of de nieuwe investeringen (€${context.investeringenDitJaar.toFixed(2)}) in aanmerking komen voor KIA (drempel €2.801). Als ze er net onder zitten, adviseer concreet om bij te investeren. Als ze er al boven zitten, bereken de verwachte KIA-aftrek (28%).
 
-2. Kostenratio anomalie:
-   - Een kostenratio boven 60% is hoog voor een typische ZZP-dienstverlener en verdient aandacht.
-   - Een ratio onder 15% kan betekenen dat er aftrekbare kosten gemist worden.
-   - Geef alleen een kaart als de ratio opvallend hoog of laag is — met een concreet actiepunt.
+2. Kostenratio: Signaleer alleen als de ratio opvallend hoog (>60%) of laag (<15%) is — met een concreet actiepunt.
 
-3. Lijfrente / pensioensparen:
-   - Als de belastbare winst boven €30.000 ligt: wijs op de mogelijkheid om via een lijfrenteverzekering of bankspaarproduct de belastbare winst te verlagen. Bereken globaal hoeveel aftrek mogelijk is (jaarruimte-formule: 30% van de premiegrondslag, maximum ca. €34.550 voor ${calculatedTaxData.year}).
-   - Alleen relevant als winst substantieel is.
+3. Lijfrente/pensioen: Relevant als belastbare winst boven €30.000 ligt. Bereken globaal de maximale jaarruimte.
 
-4. BTW-risico (alleen als btwSaldo beschikbaar en opvallend):
-   - Als het BTW-saldo hoger is dan €5.000: waarschuw dat er mogelijk een suppletie of kwartaalbetaling openstaat. Adviseer dit te controleren.
+4. BTW-risico: Waarschuw als het BTW-saldo boven €5.000 ligt (mogelijke suppletie of openstaande betaling).
 
-5. Urencriterium:
-   - Als urencriterium NIET gehaald is maar de winst positief is: wijs erop dat de zelfstandigenaftrek (€${calculatedTaxData.ondernemersaftrek > 0 ? calculatedTaxData.ondernemersaftrek.toFixed(0) : '3.750'}) daardoor misloopt en wat dat concreet kost in extra belasting.
-
-OUTPUT REGELS:
-- Maximaal 5 kaarten. Laat kaarten weg als ze niet van toepassing zijn — liever 2 scherpe kaarten dan 5 vage.
-- Vermijd algemeenheden ("zorg voor een goede administratie"). Wees specifiek met bedragen als dat kan.
-- Geef je antwoord uitsluitend als een JSON-array, zonder markdown of inleidende tekst.
-
-JSON STRUCTUUR:
-[
-  {
-    "type": "warning|tip|info",
-    "title": "Korte, pakkende titel",
-    "description": "Inhoudelijke uitleg met concreet actiepunt en eventueel een berekend bedrag."
-  }
-]`;
+5. Urencriterium: Als niet gehaald, bereken wat de gemiste zelfstandigenaftrek concreet kost in extra IB.`;
 
     try {
-        // We maken gebruik van dezelfde brug-logica als de scanner, gericht op een AI proxy
         const response = await fetchWithRetry('/.netlify/functions/fiscalAdvisor', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ prompt })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: userMessage }],
+                context
+            })
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Server error: ${response.status}`);
+            throw new Error(errorData.message || `Server error: ${response.status}`);
         }
 
         const data = await response.json();
-        
-        // Parsen van de AI output en opschonen van eventuele markdown leftovers
-        let jsonText = data.text || data.reply || data.advice || "";
+
+        let jsonText = data.text || '';
+        // Strip eventuele markdown-restanten die Claude toch meestuurt
         jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
 
         return JSON.parse(jsonText);
 
     } catch (error) {
-        console.error("🚨 Fout in AI Advisor module:", error);
+        console.error('🚨 Fout in AI Advisor module:', error);
         return [
             {
-                type: "error",
-                title: "AI Adviseur tijdelijk niet beschikbaar",
-                description: "Er is een fout opgetreden bij het genereren van het fiscaal advies. Controleer de internetverbinding of proxy instellingen."
+                type: 'warning',
+                title: 'AI Adviseur tijdelijk niet beschikbaar',
+                description: `Er is een fout opgetreden bij het genereren van het fiscaal advies: ${error.message}`
             }
         ];
     }

@@ -23,7 +23,9 @@ npm install -g netlify-cli
 netlify dev   # serves index.html + functions at localhost:8888
 ```
 
-The only serverless function is `netlify/functions/scanReceipt.js` — it proxies receipt images to the Gemini Vision API. It requires `GEMINI_API_KEY` in environment (set in Netlify UI or a `.env` file for local dev).
+Serverless functions:
+- `netlify/functions/scanReceipt.js` — proxies receipt images to the Gemini Vision API. Requires `GEMINI_API_KEY`.
+- `netlify/functions/fiscalAdvisor.js` — proxies Dutch tax advice requests to the Anthropic Claude API. Requires `ANTHROPIC_API_KEY`. Injects Dutch finance domain rules as system prompt.
 
 ## Architecture
 
@@ -40,7 +42,7 @@ js/
 │   ├── storage-queries.js  # Google Sheets read operations (invoice numbers, memory)
 │   ├── gemini.js           # Gemini API wrapper (receipt OCR)
 │   ├── tax-collector.js    # Aggregates year data across all Inkoop/Verkoop sheets
-│   └── tax-advisor.js      # AI-powered tax advice via Gemini
+│   └── tax-advisor.js      # AI-powered tax advice via Claude (Anthropic)
 ├── ui/
 │   ├── scanner.js          # Receipt/invoice upload & batch processing UI
 │   ├── scanner-row.js      # Renders individual receipt rows in the review table
@@ -72,7 +74,7 @@ js/
 2. User enters additional data (inventory, assets, private use)
 3. `fiscal-state.js` holds the aggregated state (observer pattern notifies all listeners)
 4. `fiscal-report.js` reads state → `tax-calculator.js` computes depreciation, winst, belastingdruk
-5. `tax-advisor.js` sends summary to Gemini for AI recommendations
+5. `tax-advisor.js` sends summary to Claude (via `fiscalAdvisor` Netlify function) for AI recommendations
 
 ### Key Constants (in source files)
 
@@ -120,7 +122,7 @@ Apply in this order:
 1. Winst = Netto-omzet − Kosten (excl. BTW, excl. afschrijvingen)
 2. Afschrijvingen aftrekken (lineaire methode)
 3. Zelfstandigenaftrek (2024: €3.750; afbouw naar €900 in 2027)
-4. MKB-winstvrijstelling: **14%** van winst na zelfstandigenaftrek
+4. MKB-winstvrijstelling: **13,31%** van winst na zelfstandigenaftrek (was 14% in 2023)
 5. Belastbare winst = resultaat na stap 4
 6. IB tarief box 1 (2024): 36,97% t/m €75.518 | 49,50% daarboven
 
