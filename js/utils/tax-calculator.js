@@ -169,10 +169,21 @@ export function calculateTaxes(fiscalState) {
     });
 
     const eigenVermogenBegin = bankBegin + boekwaardeInventarisBegin;
-    const priveStortingen = parseFloat(fiscalState.prive?.stortingen) || 0;
-    const priveOnttrekkingen = parseFloat(fiscalState.prive?.onttrekkingenInGeld) || 0;
 
-    const eigenVermogenEind = eigenVermogenBegin + fiscaleWinst - priveOnttrekkingen + priveStortingen;
+    // Privé-mutaties — onderscheid cash vs. in natura
+    const priveStortingenInGeld    = parseFloat(fiscalState.prive?.stortingen) || 0;
+    const priveStortingenInNatura  = parseFloat(fiscalState.prive?.stortingenInNatura) || 0;
+    const priveOnttrekkingenInGeld = parseFloat(fiscalState.prive?.onttrekkingenInGeld) || 0;
+
+    // Bijtelling telt al mee in fiscaleWinst (+), maar is ook een onttrekking in natura (−)
+    // Anders wordt het EV ten onrechte met het bijtelling-bedrag overschat
+    const totaleOnttrekkingen = priveOnttrekkingenInGeld + bijtelling;
+    const totaleStortingen    = priveStortingenInGeld + priveStortingenInNatura;
+
+    const kortlopendeSchulden = parseFloat(fiscalState.balans?.kortlopendeSchulden) || 0;
+    const forStand            = parseFloat(fiscalState.balans?.forStand) || 0;
+
+    const eigenVermogenEind = eigenVermogenBegin + fiscaleWinst - totaleOnttrekkingen + totaleStortingen;
 
     // Output Contract
     return {
@@ -189,7 +200,11 @@ export function calculateTaxes(fiscalState) {
         belastbareWinst,
         balans: {
             eigenVermogenBegin,
-            eigenVermogenEind
+            eigenVermogenEind,
+            kortlopendeSchulden,
+            forStand,
+            totaleOnttrekkingen,
+            totaleStortingen
         },
         afschrijvingenLog
     };

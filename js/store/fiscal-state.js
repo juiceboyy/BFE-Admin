@@ -12,10 +12,15 @@ const initialState = {
     inventaris: [],
     prive: {
         stortingen: 0,
+        stortingenInNatura: 0,
         onttrekkingenInGeld: 0
     },
     ondernemer: {
         urencriteriumGehaald: true
+    },
+    balans: {
+        kortlopendeSchulden: 0,
+        forStand: 2143  // FOR afgeschaft 2023; bestaande stand Big Fish eind 2022
     }
 };
 

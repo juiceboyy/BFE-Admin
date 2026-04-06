@@ -148,23 +148,58 @@ function renderStructure(container) {
                     </label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div>
-                            <label class="${labelClass}">Privé-stortingen (Totaal)</label>
+                            <label class="${labelClass}">Privé-onttrekkingen in geld</label>
+                            <p class="text-xs text-gray-400 mb-1.5">Omzet die op privérekening binnenkwam</p>
+                             <div class="relative">
+                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="${labelClass}">Privé-stortingen in geld</label>
+                            <p class="text-xs text-gray-400 mb-1.5">Cash stortingen op zakelijke rekening (bijv. lease)</p>
                              <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                 <input type="number" step="0.01" data-section="prive" data-bind="stortingen" class="${inputClass} pl-8" value="${state.prive.stortingen}">
                             </div>
                         </div>
                         <div>
-                            <label class="${labelClass}">Privé-onttrekkingen (Totaal)</label>
+                            <label class="${labelClass}">Privé-stortingen in natura</label>
+                            <p class="text-xs text-gray-400 mb-1.5">Zakelijke kosten betaald via privérekening</p>
                              <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
+                                <input type="number" step="0.01" data-section="prive" data-bind="stortingenInNatura" class="${inputClass} pl-8" value="${state.prive.stortingenInNatura || 0}">
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
             
+            <!-- 6. Balans — Kortlopende Schulden & FOR -->
+            <section class="${sectionClass}">
+                <h3 class="${headerClass}">
+                    <i data-lucide="scale" class="w-5 h-5 text-blue-500"></i> 6. Balans — Schulden & FOR
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label class="${labelClass}">Kortlopende schulden (31 dec)</label>
+                        <p class="text-xs text-gray-400 mb-1.5">Creditcardschuld of overige schulden per jaareinde</p>
+                        <div class="relative">
+                            <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                            <input type="number" step="0.01" data-section="balans" data-bind="kortlopendeSchulden" class="${inputClass} pl-8" value="${state.balans?.kortlopendeSchulden || 0}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="${labelClass}">FOR-stand op balans</label>
+                        <p class="text-xs text-gray-400 mb-1.5">Fiscale Oudedagsreserve (afgeschaft 2023, bestaand saldo blijft staan)</p>
+                        <div class="relative">
+                            <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                            <input type="number" step="0.01" data-section="balans" data-bind="forStand" class="${inputClass} pl-8" value="${state.balans?.forStand ?? 2143}">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Submit CTA -->
             <div class="mt-10 flex justify-end">
                 <button id="btn-generate-report" class="bg-black text-white px-8 py-3.5 rounded-xl text-base font-medium shadow-md hover:bg-gray-800 transition-all flex items-center gap-2">

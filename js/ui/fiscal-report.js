@@ -81,15 +81,19 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             <!-- 2b. Balans -->
             <div class="bg-white shadow-sm rounded-xl p-6 border border-gray-100">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-100 pb-3">Balans (31 december)</h3>
-                <div class="space-y-5 text-sm">
+                <div class="space-y-4 text-sm">
                     <div>
-                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Activa (Bezit)</h4>
-                        <div class="flex justify-between mb-1.5"><span>Liquide Middelen (Bank eindsaldo)</span><span class="font-medium">${formatEur(state.bank.eindSaldo)}</span></div>
-                        <div class="flex justify-between"><span>Materiële Vaste Activa (Boekwaarde)</span><span class="font-medium">${formatEur(boekwaardeInventarisEind)}</span></div>
+                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Activa</h4>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Liquide middelen (bank eindsaldo)</span><span class="font-medium">${formatEur(state.bank.eindSaldo)}</span></div>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Materiële vaste activa (boekwaarde)</span><span class="font-medium">${formatEur(boekwaardeInventarisEind)}</span></div>
+                        <div class="flex justify-between font-semibold pt-2 border-t border-gray-100"><span>Totaal activa</span><span>${formatEur((state.bank.eindSaldo || 0) + boekwaardeInventarisEind)}</span></div>
                     </div>
                     <div class="border-t border-gray-100 pt-3">
-                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Passiva (Schuld & Vermogen)</h4>
-                        <div class="flex justify-between font-bold text-base"><span>Eigen Vermogen</span><span>${formatEur(calculatedData.balans.eigenVermogenEind)}</span></div>
+                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Passiva</h4>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Eigen vermogen</span><span class="font-medium">${formatEur(calculatedData.balans.eigenVermogenEind)}</span></div>
+                        ${calculatedData.balans.forStand > 0 ? `<div class="flex justify-between mb-1.5 text-gray-400 text-xs ml-3"><span>↳ w.v. FOR-stand (geen nieuwe opbouw)</span><span>${formatEur(calculatedData.balans.forStand)}</span></div>` : ''}
+                        ${calculatedData.balans.kortlopendeSchulden > 0 ? `<div class="flex justify-between mb-1.5"><span class="text-gray-600">Kortlopende schulden</span><span class="font-medium text-rose-600">${formatEur(calculatedData.balans.kortlopendeSchulden)}</span></div>` : ''}
+                        <div class="flex justify-between font-semibold pt-2 border-t border-gray-100"><span>Totaal passiva</span><span>${formatEur(calculatedData.balans.eigenVermogenEind + calculatedData.balans.kortlopendeSchulden)}</span></div>
                     </div>
                 </div>
             </div>
@@ -105,9 +109,9 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Winst uit onderneming</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.fiscaleWinst)}</span></div>
-                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-onttrekkingen</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(state.prive.onttrekkingenInGeld)}</span></div>
+                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-onttrekkingen (totaal)</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.balans.totaleOnttrekkingen)}</span></div>
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Zelfstandigenaftrek</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.ondernemersaftrek)}</span></div>
-                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-stortingen</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(state.prive.stortingen)}</span></div>
+                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-stortingen (totaal)</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.balans.totaleStortingen)}</span></div>
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">MKB-Winstvrijstelling</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.mkbWinstvrijstellingBedrag)}</span></div>
                 <div class="flex justify-between items-center p-4 bg-emerald-100/50 rounded-xl shadow-sm border border-emerald-200/60 mt-2 sm:mt-0 sm:col-span-2"><span class="font-bold text-emerald-900 text-base">Belastbare Winst (Box 1)</span><span class="font-mono text-xl font-black text-emerald-700">${formatEur(calculatedData.belastbareWinst)}</span></div>
             </div>
