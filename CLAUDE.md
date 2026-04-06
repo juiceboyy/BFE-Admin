@@ -173,3 +173,120 @@ Execute in this dependency order:
 - IB-reservering geboekt (eenmanszaak)
 - BTW-jaaroverzicht afgestemd op alle 4 kwartaalaangiftes
 - Eigen vermogen mutaties (privéonttrekkingen) verwerkt als EV-mutatie, niet als kosten
+
+## Business Profile — Big Fish Entertainment
+
+### Entity & Structure
+- **Owner:** Ronald van Holst
+- **Form:** Eenmanszaak (sole proprietor — IB box 1, not VPB)
+- **Activities:** Muziekoptredens, muziekproductie, muziekonderwijs
+- **Tax years in scope:** 2023, 2024 en verder
+- **Fiscal partner:** M.A. Stuger (gezamenlijke aangifte doorgaans voordeliger)
+- **Urencriterium:** Streefnorm ≥ 1.225 uur/jaar voor zelfstandigenaftrek
+- **Boekhouding:** Geen boekhoudprogramma — maandelijkse spreadsheets
+- **Bankstructuur:** Alle omzet komt binnen op privérekening. Zakelijke rekening 
+  (ING) wordt uitsluitend gebruikt voor leasebetalingen auto.
+
+### BTW-categorieën
+| Tarief | Toepassing |
+|--------|-----------|
+| 9% laag | Optredens als uitvoerend kunstenaar |
+| 21% hoog | Commerciële opdrachten, lessen aan leerlingen > 21 jaar, merchandise |
+| 0% | Diensten/leveringen buitenland, verleggingsregelingen |
+
+### Privé vs. Zakelijk — Boekhoudconventie
+Omdat alle inkomsten op de privérekening binnenkomen:
+- Volledige omzet = privéonttrekking in geld
+- Zakelijke kosten betaald via privérekening = overige privéstortingen (in natura)
+- Privéstortingen op zakelijke rekening (bijv. voor lease) = privéstorting in geld
+- Privéonttrekking netto = Omzet − zakelijke kosten via privé − privéstortingen 
+  op zakelijke rekening + bijtelling auto
+
+### Auto — Volkswagen ID.3
+- Zakelijke leaseauto (Mobility Service Nederland)
+- Kenteken: J-615-RT | Cataloguswaarde: **€42.881**
+- Eerste toelating: 2021 → bijtellingspercentage: **8% over volledige cataloguswaarde**
+- Jaarlijkse bijtelling: **€3.430,48** — telt als privéonttrekking in natura
+- Boekt als correctie op de resultatenrekening (verhoogt fiscale winst)
+- Alle autokosten (lease, laden, parkeren, onderhoud) zakelijk boeken
+
+### Afschrijvingen — Algemeen
+- Methode: **Lineair, 5 jaar**, drempel >€450 excl. BTW
+- Bedrijfsmiddelen onder €450: direct ten laste van resultaat (kleine aanschaffingen)
+- Geen willekeurige afschrijving toegepast
+- Geen investeringsaftrek (KIA) van toepassing tenzij totaal >€2.601
+
+### Inventarislijst — Boekwaardes per eind 2023
+| Bedrijfsmiddel | Aanschafjaar | Aanschafbedrag | Boekwaarde 31-12-2023 |
+|---------------|-------------|----------------|----------------------|
+| iPhone XR | 2019 | €699 | €0 (volledig afgeschreven) |
+| Mac Mini | 2020 | €876 | €303 |
+| Elektrische Gitaar | 2022 | €512 | €410 |
+| MacBook Air | 2022 | €665 | €532 |
+| MacBook Air | 2022 | €636 | €509 |
+| iPhone 14 | 2022 | €729 | €583 |
+| Mac Mini | 2023 | €602 | €602 |
+| Dyson Stofzuiger | 2023 | €477 | €477 |
+| **Totaal** | | **€5.196** | **€3.416** |
+
+### Kostenrubrieken (conform jaarrekening 2022-structuur)
+Splits altijd uit naar deze categorieën in resultatenrekening:
+- Uitbesteed werk (vervangende docenten, freelancers)
+- Afschrijvingen inventaris
+- Auto- en transportkosten
+- Huisvestingskosten (atelier/studiohuur)
+- Abonnementen/contributies
+- Administratiekosten
+- Kantoorkosten
+- Kleine aanschaffingen (<€450)
+- Muzieksoftware/licenties
+- Niet-aftrekbare BTW
+- Overnachtingen
+- Podiumkleding
+- Bankkosten
+- Telefoon/internet
+- Scholingskosten
+- Verblijfkosten
+- Muziekbenodigdheden
+
+### Balans — Vaste Conventies
+- Materiële vaste activa: boekwaarde na cumulatieve afschrijving
+- Liquide middelen: saldo zakelijke rekening (privérekening telt NIET mee)
+- Overige vorderingen: €0 (geen openstaande vorderingen)
+- Kortlopende schulden: creditcardschuld indien aanwezig per 31-12
+- Eigen vermogen = Activa − Schulden
+- Verloopoverzicht eigen vermogen: beginstand + winst − privéonttrekkingen 
+  + privéstortingen = eindstand
+
+### Fiscale Oudedagsreserve (FOR)
+- Afgeschaft per 1-1-2023 voor nieuwe opbouw
+- Bestaande stand eind 2022: **€2.143** — blijft op balans, geen nieuwe dotatie
+- Geen toevoeging of vrijval in 2023 of later, tenzij bewust afgewikkeld
+
+### IB-Berekening Volgorde (eenmanszaak)
+1. Brutowinst = Omzet (excl. BTW) − Kosten − Afschrijvingen
+2. Bijtelling auto optellen: +€3.430,48
+3. Zelfstandigenaftrek aftrekken (2024: €3.750; mits urencriterium gehaald)
+4. MKB-winstvrijstelling: **14%** van winst na stap 3
+5. Belastbare winst = resultaat na stap 4
+6. IB box 1: **36,97%** t/m €75.518 | **49,50%** daarboven
+
+### Vaste Antwoorden Aangiftevragen (eenmanszaak zonder bijzonderheden)
+De volgende vragen worden standaard met **Nee / €0** beantwoord:
+- Willekeurig afgeschreven: Nee
+- Waarderingsstelsel gewijzigd: Nee
+- Vrijgestelde winstbestanddelen: Nee
+- Onroerende zaken onttrokken/ingebracht: Nee
+- Herinvesteringsreserve: Nee
+- Desinvesteringsbijtelling: Nee
+- Investeringsaftrek (KIA): Nee (tenzij totaal >€2.601)
+- Kwijtscheldingswinst: Nee
+- Boekwinst/boekverlies op activa: Nee (tenzij bedrijfsmiddel verkocht)
+- Geactiveerde productie eigen bedrijf: €0
+- Overige buitengewone lasten: €0
+
+### Niet-Aftrekbare Posten
+- Privébestedingen (hypotheek, levensonderhoud) zijn privéonttrekkingen, 
+  geen bedrijfskosten
+- Broodfonds telt NIET als AOV en is niet aftrekbaar
+- Gemengde kosten (representatie) slechts beperkt aftrekbaar
