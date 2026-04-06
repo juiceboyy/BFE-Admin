@@ -49,6 +49,9 @@ function renderStructure(container) {
                     <button id="btn-sync-sheets" class="w-full sm:w-auto bg-black text-white px-6 py-2.5 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
                         <i data-lucide="cloud-download" class="w-4 h-4"></i> Haal data op uit Sheets
                     </button>
+                    <button id="btn-reset-state" class="w-full sm:w-auto bg-white border border-red-200 text-red-500 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2" title="Wis alle opgeslagen data voor dit boekjaar">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Formulier wissen
+                    </button>
                 </div>
                 <div id="sync-summary" class="hidden mt-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-sm text-emerald-800">
                     <!-- Wordt dynamisch gevuld -->
@@ -254,6 +257,16 @@ function setupEventListeners(container) {
             const id = parseInt(removeBtn.dataset.id, 10);
             fiscalState.removeInventarisItem(id);
             renderInventarisTable();
+        }
+
+        const resetBtn = target.closest('#btn-reset-state');
+        if (resetBtn) {
+            const year = fiscalState.getState().year;
+            if (confirm(`Alle opgeslagen gegevens voor boekjaar ${year} wissen? Dit kan niet ongedaan worden gemaakt.`)) {
+                fiscalState.reset();
+                renderStructure(container);
+                renderInventarisTable();
+            }
         }
 
         const syncBtn = target.closest('#btn-sync-sheets');
