@@ -4,12 +4,23 @@ const initialState = {
     year: new Date().getFullYear().toString(),
     sheetData: null,
     bank: { beginSaldo: 0, eindSaldo: 0 },
+    // VW ID.3 — kenteken J-615-RT, eerste toelating 2021 (bron: CLAUDE.md)
     auto: {
         zakelijkGebruik: true,
-        catalogusWaarde: 0,
+        catalogusWaarde: 42881,
         bijtellingsPercentage: 8
     },
-    inventaris: [],
+    // Inventaris per eind 2023 (bron: CLAUDE.md — boekwaardes zijn boekwaardeVorigJaar voor 2024-aangifte)
+    // iPhone XR (2019) weggelaten — volledig afgeschreven per 2023
+    inventaris: [
+        { id: 1, omschrijving: 'Mac Mini',          aankoopJaar: 2020, aankoopBedrag: 876,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 303  },
+        { id: 2, omschrijving: 'Elektrische Gitaar', aankoopJaar: 2022, aankoopBedrag: 512,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 410  },
+        { id: 3, omschrijving: 'MacBook Air',        aankoopJaar: 2022, aankoopBedrag: 665,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 532  },
+        { id: 4, omschrijving: 'MacBook Air',        aankoopJaar: 2022, aankoopBedrag: 636,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 509  },
+        { id: 5, omschrijving: 'iPhone 14',          aankoopJaar: 2022, aankoopBedrag: 729,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 583  },
+        { id: 6, omschrijving: 'Mac Mini',           aankoopJaar: 2023, aankoopBedrag: 602,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 602  },
+        { id: 7, omschrijving: 'Dyson Stofzuiger',   aankoopJaar: 2023, aankoopBedrag: 477,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 477  },
+    ],
     prive: {
         stortingen: 0,
         stortingenInNatura: 0,
@@ -28,7 +39,17 @@ class FiscalState {
     constructor(defaultState) {
         this.listeners = [];
         this._defaultState = defaultState;
-        this.state = this._load(defaultState.year) ?? JSON.parse(JSON.stringify(defaultState));
+        const saved = this._load(defaultState.year);
+        this.state = saved ?? JSON.parse(JSON.stringify(defaultState));
+
+        // Migratie: als inventaris leeg is maar er zijn defaults, vul dan in
+        if (this.state.inventaris.length === 0 && defaultState.inventaris.length > 0) {
+            this.state.inventaris = JSON.parse(JSON.stringify(defaultState.inventaris));
+        }
+        // Migratie: catalogusWaarde van auto als die nog op 0 staat
+        if (this.state.auto.catalogusWaarde === 0 && defaultState.auto.catalogusWaarde > 0) {
+            this.state.auto.catalogusWaarde = defaultState.auto.catalogusWaarde;
+        }
     }
 
     _storageKey(year) {
