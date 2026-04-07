@@ -3,6 +3,7 @@ import { collectYearData } from '../api/tax-collector.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
+import { fetchWithRetry } from '../utils/network.js';
 
 const SPREADSHEET_IDS = {
     2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
@@ -63,6 +64,22 @@ function renderStructure(container) {
                 <h3 class="${headerClass}">
                     <i data-lucide="landmark" class="w-5 h-5 text-blue-500"></i> 2. Bank (Zakelijke Rekening)
                 </h3>
+
+                <!-- Upload zone -->
+                <label id="bank-upload-label" class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors mb-5">
+                    <div id="bank-upload-idle" class="flex flex-col items-center gap-1 text-gray-400">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                        <span class="text-sm font-medium">Upload jaaropgave zakelijke rekening</span>
+                        <span class="text-xs">PDF of afbeelding — saldi worden automatisch ingevuld</span>
+                    </div>
+                    <div id="bank-upload-loading" class="hidden flex-col items-center gap-2 text-blue-500">
+                        <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+                        <span class="text-sm font-medium">Bankafschrift analyseren...</span>
+                    </div>
+                    <input id="bank-statement-upload" type="file" accept=".pdf,image/*" class="hidden">
+                </label>
+
+                <!-- Saldi velden (altijd zichtbaar, ook handmatig invulbaar) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label class="${labelClass}">Beginsaldo (1 jan)</label>
@@ -73,12 +90,15 @@ function renderStructure(container) {
                     </div>
                     <div>
                         <label class="${labelClass}">Eindsaldo (31 dec)</label>
-                         <div class="relative">
+                        <div class="relative">
                             <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                             <input type="number" step="0.01" data-section="bank" data-bind="eindSaldo" class="${inputClass} pl-8" value="${state.bank.eindSaldo}">
                         </div>
                     </div>
                 </div>
+                <p id="bank-scan-result" class="hidden mt-3 text-xs text-emerald-600 flex items-center gap-1">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> <span></span>
+                </p>
             </section>
 
             <!-- 3. Auto & Bijtelling -->
@@ -255,10 +275,73 @@ function renderInventarisTable() {
 }
 
 function setupEventListeners(container) {
+    // Bank statement upload
+    document.getElementById('bank-statement-upload')?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const idle = document.getElementById('bank-upload-idle');
+        const loading = document.getElementById('bank-upload-loading');
+        const result = document.getElementById('bank-scan-result');
+
+        idle.classList.add('hidden');
+        loading.classList.remove('hidden');
+        loading.classList.add('flex');
+        result.classList.add('hidden');
+
+        try {
+            const base64Data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+            });
+
+            const response = await fetchWithRetry('/.netlify/functions/scanBankStatement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    base64Data,
+                    mimeType: file.type,
+                    year: fiscalState.getState().year
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || `Server error ${response.status}`);
+            }
+
+            const { beginSaldo, eindSaldo } = await response.json();
+
+            if (beginSaldo != null) {
+                fiscalState.setNested('bank', 'beginSaldo', beginSaldo);
+                container.querySelector('[data-bind="beginSaldo"]').value = beginSaldo;
+            }
+            if (eindSaldo != null) {
+                fiscalState.setNested('bank', 'eindSaldo', eindSaldo);
+                container.querySelector('[data-bind="eindSaldo"]').value = eindSaldo;
+            }
+
+            result.classList.remove('hidden');
+            result.querySelector('span').textContent =
+                `Ingelezen: beginsaldo €${(beginSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}, eindsaldo €${(eindSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}. Controleer en pas aan indien nodig.`;
+            if (window.lucide) window.lucide.createIcons();
+
+        } catch (err) {
+            alert(`Kon bankafschrift niet inlezen: ${err.message}`);
+        } finally {
+            idle.classList.remove('hidden');
+            loading.classList.add('hidden');
+            loading.classList.remove('flex');
+            e.target.value = '';
+        }
+    });
+
     // Two-way Data Binding via Event Delegation
     container.addEventListener('change', (e) => {
         const target = e.target;
-        
+
         // Global State Inputs
         if (target.dataset.bind) {
             const section = target.dataset.section;
