@@ -139,14 +139,16 @@ function renderStructure(container) {
                         + Voeg item toe
                     </button>
                 </div>
-                <table class="w-full text-sm text-left border-collapse min-w-[600px]">
+                <table class="w-full text-sm text-left border-collapse min-w-[780px]">
                     <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-y border-gray-200">
                         <tr>
                             <th class="px-4 py-3 font-medium">Omschrijving</th>
                             <th class="px-4 py-3 font-medium w-24">Aanschaf(J)</th>
-                            <th class="px-4 py-3 font-medium w-32">Bedrag (€)</th>
-                            <th class="px-4 py-3 font-medium w-24">Jaren</th>
-                            <th class="px-4 py-3 font-medium w-32">Boekwaarde (€)</th>
+                            <th class="px-4 py-3 font-medium w-28">Bedrag (€)</th>
+                            <th class="px-4 py-3 font-medium w-20">Jaren</th>
+                            <th class="px-4 py-3 font-medium w-28">Boekw. begin</th>
+                            <th class="px-4 py-3 font-medium w-28 text-rose-400">Afschr. dit jaar</th>
+                            <th class="px-4 py-3 font-medium w-28 text-emerald-600">Boekw. eind</th>
                             <th class="px-4 py-3 font-medium w-12 text-center">Actie</th>
                         </tr>
                     </thead>
@@ -241,12 +243,22 @@ function renderInventarisTable() {
     const state = fiscalState.getState();
     const inputBase = "w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm py-1";
 
+    const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     if (state.inventaris.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Geen inventaris items gevonden. Voeg een item toe.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Geen inventaris items gevonden. Voeg een item toe.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = state.inventaris.map(item => `
+    tbody.innerHTML = state.inventaris.map(item => {
+        const aankoopBedrag     = parseFloat(item.aankoopBedrag) || 0;
+        const afschrijvingsDuur = parseFloat(item.afschrijvingsDuur) || 5;
+        const boekwaardeBegin   = parseFloat(item.boekwaardeVorigJaar) || 0;
+        const jaarlinkseAfschr  = aankoopBedrag / afschrijvingsDuur;
+        const afschrDitJaar     = Math.min(jaarlinkseAfschr, Math.max(0, boekwaardeBegin));
+        const boekwaardeEind    = Math.max(0, boekwaardeBegin - afschrDitJaar);
+
+        return `
         <tr class="hover:bg-gray-50 group transition-colors">
             <td class="px-4 py-2">
                 <input type="text" data-inv-id="${item.id}" data-inv-key="omschrijving" class="${inputBase}" value="${item.omschrijving}" placeholder="Bijv. MacBook Pro">
@@ -263,13 +275,15 @@ function renderInventarisTable() {
             <td class="px-4 py-2">
                 <input type="number" step="0.01" data-inv-id="${item.id}" data-inv-key="boekwaardeVorigJaar" class="${inputBase}" value="${item.boekwaardeVorigJaar}" placeholder="0.00">
             </td>
+            <td class="px-4 py-2 text-rose-500 text-right pr-6">− ${fmt(afschrDitJaar)}</td>
+            <td class="px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind === 0 ? 'text-gray-300' : 'text-emerald-700'}">€ ${fmt(boekwaardeEind)}</td>
             <td class="px-4 py-2 text-center">
                 <button data-action="remove-inv" data-id="${item.id}" class="text-gray-300 hover:text-red-500 transition-colors" title="Verwijderen">
                     <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 
     if (window.lucide) window.lucide.createIcons();
 }
@@ -359,6 +373,8 @@ function setupEventListeners(container) {
             const key = target.dataset.invKey;
             let val = target.type === 'number' ? parseFloat(target.value) || 0 : target.value;
             fiscalState.updateInventarisItem(id, key, val);
+            // Herbereken zichtbare afschr./eindwaarde kolommen direct na wijziging
+            renderInventarisTable();
         }
     });
 
