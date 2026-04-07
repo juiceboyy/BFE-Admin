@@ -1,4 +1,5 @@
 const STORAGE_PREFIX = 'bfe_fiscal_';
+const ACTIVE_YEAR_KEY = 'bfe_active_year';
 
 const initialState = {
     year: new Date().getFullYear().toString(),
@@ -39,8 +40,9 @@ class FiscalState {
     constructor(defaultState) {
         this.listeners = [];
         this._defaultState = defaultState;
-        const saved = this._load(defaultState.year);
-        this.state = saved ?? JSON.parse(JSON.stringify(defaultState));
+        const activeYear = localStorage.getItem(ACTIVE_YEAR_KEY) || defaultState.year;
+        const saved = this._load(activeYear);
+        this.state = saved ?? { ...JSON.parse(JSON.stringify(defaultState)), year: activeYear };
 
         // Migratie: als inventaris leeg is maar er zijn defaults, vul dan in
         if (this.state.inventaris.length === 0 && defaultState.inventaris.length > 0) {
@@ -67,6 +69,7 @@ class FiscalState {
 
     _save() {
         try {
+            localStorage.setItem(ACTIVE_YEAR_KEY, this.state.year);
             localStorage.setItem(this._storageKey(this.state.year), JSON.stringify(this.state));
         } catch (e) {
             console.warn('[FiscalState] Opslaan mislukt:', e);
