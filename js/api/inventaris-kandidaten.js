@@ -101,6 +101,15 @@ export async function getInventarisKandidaten(year, spreadsheetId) {
 
     const data = await response.json();
     let jsonText = data.text || '';
-    jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // Strip markdown code fences
+    jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    // Extraheer de JSON-array — alles van eerste '[' t/m laatste ']'
+    const start = jsonText.indexOf('[');
+    const end   = jsonText.lastIndexOf(']');
+    if (start === -1 || end === -1 || end < start) return [];
+    jsonText = jsonText.slice(start, end + 1);
+
     return JSON.parse(jsonText);
 }

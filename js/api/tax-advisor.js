@@ -96,8 +96,11 @@ ANALYSE-DOELEN (geef alleen een kaart als het echt relevant is):
         const data = await response.json();
 
         let jsonText = data.text || '';
-        // Strip eventuele markdown-restanten die Claude toch meestuurt
-        jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+        jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+        const start = jsonText.indexOf('[');
+        const end   = jsonText.lastIndexOf(']');
+        if (start !== -1 && end > start) jsonText = jsonText.slice(start, end + 1);
 
         return JSON.parse(jsonText);
 
