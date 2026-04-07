@@ -298,6 +298,34 @@ function renderInventarisTable() {
     if (window.lucide) window.lucide.createIcons();
 }
 
+function updateInventarisRijBerekening(id) {
+    const item = fiscalState.getState().inventaris.find(i => i.id === id);
+    if (!item) return;
+
+    const aankoopBedrag     = parseFloat(item.aankoopBedrag) || 0;
+    const afschrijvingsDuur = parseFloat(item.afschrijvingsDuur) || 5;
+    const boekwaardeBegin   = parseFloat(item.boekwaardeVorigJaar) || 0;
+    const jaarlinkseAfschr  = aankoopBedrag / afschrijvingsDuur;
+    const afschrDitJaar     = Math.min(jaarlinkseAfschr, Math.max(0, boekwaardeBegin));
+    const boekwaardeEind    = Math.max(0, boekwaardeBegin - afschrDitJaar);
+
+    const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // Vind de rij via een input met data-inv-id op dit id
+    const anyInput = document.querySelector(`[data-inv-id="${id}"]`);
+    if (!anyInput) return;
+    const row = anyInput.closest('tr');
+    if (!row) return;
+
+    const cells = row.querySelectorAll('td');
+    // Col 5 = Afschr. dit jaar, Col 6 = Boekw. eind
+    if (cells[5]) cells[5].textContent = `− ${fmt(afschrDitJaar)}`;
+    if (cells[6]) {
+        cells[6].textContent = `€ ${fmt(boekwaardeEind)}`;
+        cells[6].className = `px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind === 0 ? 'text-gray-300' : 'text-emerald-700'}`;
+    }
+}
+
 function setupEventListeners(container) {
     // Bank statement upload
     document.getElementById('bank-statement-upload')?.addEventListener('change', async (e) => {
@@ -383,8 +411,8 @@ function setupEventListeners(container) {
             const key = target.dataset.invKey;
             let val = target.type === 'number' ? parseFloat(target.value) || 0 : target.value;
             fiscalState.updateInventarisItem(id, key, val);
-            // Herbereken zichtbare afschr./eindwaarde kolommen direct na wijziging
-            renderInventarisTable();
+            // Herbereken alleen de berekende kolommen voor deze rij (geen volledige re-render)
+            updateInventarisRijBerekening(id);
         }
     });
 
