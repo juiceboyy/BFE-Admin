@@ -327,72 +327,73 @@ function updateInventarisRijBerekening(id) {
 }
 
 function setupEventListeners(container) {
-    // Bank statement upload
-    document.getElementById('bank-statement-upload')?.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const idle = document.getElementById('bank-upload-idle');
-        const loading = document.getElementById('bank-upload-loading');
-        const result = document.getElementById('bank-scan-result');
-
-        idle.classList.add('hidden');
-        loading.classList.remove('hidden');
-        loading.classList.add('flex');
-        result.classList.add('hidden');
-
-        try {
-            const base64Data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-            });
-
-            const response = await fetchWithRetry('/.netlify/functions/scanBankStatement', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    base64Data,
-                    mimeType: file.type,
-                    year: fiscalState.getState().year
-                })
-            });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || `Server error ${response.status}`);
-            }
-
-            const { beginSaldo, eindSaldo } = await response.json();
-
-            if (beginSaldo != null) {
-                fiscalState.setNested('bank', 'beginSaldo', beginSaldo);
-                container.querySelector('[data-bind="beginSaldo"]').value = beginSaldo;
-            }
-            if (eindSaldo != null) {
-                fiscalState.setNested('bank', 'eindSaldo', eindSaldo);
-                container.querySelector('[data-bind="eindSaldo"]').value = eindSaldo;
-            }
-
-            result.classList.remove('hidden');
-            result.querySelector('span').textContent =
-                `Ingelezen: beginsaldo €${(beginSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}, eindsaldo €${(eindSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}. Controleer en pas aan indien nodig.`;
-            if (window.lucide) window.lucide.createIcons();
-
-        } catch (err) {
-            alert(`Kon bankafschrift niet inlezen: ${err.message}`);
-        } finally {
-            idle.classList.remove('hidden');
-            loading.classList.add('hidden');
-            loading.classList.remove('flex');
-            e.target.value = '';
-        }
-    });
-
-    // Two-way Data Binding via Event Delegation
-    container.addEventListener('change', (e) => {
+    // Two-way Data Binding via Event Delegation (inclusief bank upload)
+    container.addEventListener('change', async (e) => {
         const target = e.target;
+
+        // Bank statement upload — delegated zodat het na renderStructure blijft werken
+        if (target.id === 'bank-statement-upload') {
+            const file = target.files?.[0];
+            if (!file) return;
+
+            const idle    = document.getElementById('bank-upload-idle');
+            const loading = document.getElementById('bank-upload-loading');
+            const result  = document.getElementById('bank-scan-result');
+
+            idle.classList.add('hidden');
+            loading.classList.remove('hidden');
+            loading.classList.add('flex');
+            result.classList.add('hidden');
+
+            try {
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                });
+
+                const response = await fetchWithRetry('/.netlify/functions/scanBankStatement', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        base64Data,
+                        mimeType: file.type,
+                        year: fiscalState.getState().year
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || `Server error ${response.status}`);
+                }
+
+                const { beginSaldo, eindSaldo } = await response.json();
+
+                if (beginSaldo != null) {
+                    fiscalState.setNested('bank', 'beginSaldo', beginSaldo);
+                    container.querySelector('[data-bind="beginSaldo"]').value = beginSaldo;
+                }
+                if (eindSaldo != null) {
+                    fiscalState.setNested('bank', 'eindSaldo', eindSaldo);
+                    container.querySelector('[data-bind="eindSaldo"]').value = eindSaldo;
+                }
+
+                result.classList.remove('hidden');
+                result.querySelector('span').textContent =
+                    `Ingelezen: beginsaldo €${(beginSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}, eindsaldo €${(eindSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}. Controleer en pas aan indien nodig.`;
+                if (window.lucide) window.lucide.createIcons();
+
+            } catch (err) {
+                alert(`Kon bankafschrift niet inlezen: ${err.message}`);
+            } finally {
+                idle.classList.remove('hidden');
+                loading.classList.add('hidden');
+                loading.classList.remove('flex');
+                target.value = '';
+            }
+            return;
+        }
 
         // Global State Inputs
         if (target.dataset.bind) {
