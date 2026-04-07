@@ -4,6 +4,7 @@ import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
 import { fetchWithRetry } from '../utils/network.js';
+import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 
 const SPREADSHEET_IDS = {
     2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
@@ -135,9 +136,14 @@ function renderStructure(container) {
                     <h3 class="${headerClass} !mb-0">
                         <i data-lucide="monitor" class="w-5 h-5 text-blue-500"></i> 4. Inventaris & Afschrijvingen
                     </h3>
-                    <button id="btn-add-inventaris" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 py-1.5 px-3 rounded-lg font-medium transition-colors">
-                        + Voeg item toe
-                    </button>
+                    <div class="flex gap-2">
+                        <button id="btn-zoek-kandidaten" class="text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 py-1.5 px-3 rounded-lg font-medium transition-colors flex items-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Zoek nieuwe investeringen
+                        </button>
+                        <button id="btn-add-inventaris" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 py-1.5 px-3 rounded-lg font-medium transition-colors">
+                            + Handmatig toevoegen
+                        </button>
+                    </div>
                 </div>
                 <table class="w-full text-sm text-left border-collapse min-w-[780px]">
                     <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-y border-gray-200">
@@ -156,6 +162,10 @@ function renderStructure(container) {
                         <!-- Geïnjecteerd via JS -->
                     </tbody>
                 </table>
+                <div id="inventaris-kandidaten" class="hidden mt-5 space-y-3">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gevonden investeringen — klik om toe te voegen aan inventaris</p>
+                    <div id="kandidaten-lijst" class="space-y-2"></div>
+                </div>
             </section>
 
             <!-- 5. Privé & Fiscaal -->
@@ -391,6 +401,100 @@ function setupEventListeners(container) {
             const id = parseInt(removeBtn.dataset.id, 10);
             fiscalState.removeInventarisItem(id);
             renderInventarisTable();
+        }
+
+        // Kandidaat toevoegen aan inventaris
+        const addKandidaatBtn = target.closest('[data-action="add-kandidaat"]');
+        if (addKandidaatBtn) {
+            const kaart = addKandidaatBtn.closest('[data-kandidaat]');
+            const item = JSON.parse(decodeURIComponent(kaart.dataset.kandidaat));
+            const year = parseInt(fiscalState.getState().year, 10);
+            fiscalState.addInventarisItem({
+                omschrijving:      item.omschrijving,
+                aankoopJaar:       year,
+                aankoopBedrag:     item.aankoopBedrag,
+                afschrijvingsDuur: item.afschrijvingsDuur,
+                boekwaardeVorigJaar: item.aankoopBedrag  // nieuw in dit jaar: beginwaarde = aankoopbedrag
+            });
+            renderInventarisTable();
+            kaart.remove();
+            // Verberg sectie als er geen kandidaten meer zijn
+            if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
+                document.getElementById('inventaris-kandidaten').classList.add('hidden');
+            }
+        }
+
+        // Kandidaat afwijzen
+        const skipKandidaatBtn = target.closest('[data-action="skip-kandidaat"]');
+        if (skipKandidaatBtn) {
+            skipKandidaatBtn.closest('[data-kandidaat]').remove();
+            if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
+                document.getElementById('inventaris-kandidaten').classList.add('hidden');
+            }
+        }
+
+        // Zoek kandidaten in spreadsheet
+        const zoekBtn = target.closest('#btn-zoek-kandidaten');
+        if (zoekBtn) {
+            const state = fiscalState.getState();
+            const year = state.year;
+            const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
+
+            if (!spreadsheetId) return alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
+
+            const originalHtml = zoekBtn.innerHTML;
+            zoekBtn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Analyseren...';
+            zoekBtn.disabled = true;
+            if (window.lucide) window.lucide.createIcons();
+
+            try {
+                const kandidaten = await getInventarisKandidaten(year, spreadsheetId);
+
+                const kandidatenWrapper = document.getElementById('inventaris-kandidaten');
+                const kandidatenLijst   = document.getElementById('kandidaten-lijst');
+
+                if (kandidaten.length === 0) {
+                    kandidatenLijst.innerHTML = `<p class="text-sm text-gray-400 italic">Geen activeerbare investeringen gevonden boven €450 in ${year}.</p>`;
+                    kandidatenWrapper.classList.remove('hidden');
+                } else {
+                    // Filter items die al in de inventaris staan (zelfde omschrijving + aankoopbedrag)
+                    const bestaand = state.inventaris;
+                    const nieuw = kandidaten.filter(k =>
+                        !bestaand.some(b =>
+                            b.omschrijving.toLowerCase() === k.omschrijving.toLowerCase() &&
+                            Math.abs(b.aankoopBedrag - k.aankoopBedrag) < 1
+                        )
+                    );
+
+                    if (nieuw.length === 0) {
+                        kandidatenLijst.innerHTML = `<p class="text-sm text-gray-400 italic">Alle gevonden investeringen staan al in de inventaris.</p>`;
+                    } else {
+                        const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        kandidatenLijst.innerHTML = nieuw.map(k => `
+                            <div data-kandidaat="${encodeURIComponent(JSON.stringify(k))}"
+                                 class="flex items-start justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-sm text-gray-800">${k.omschrijving}</p>
+                                    <p class="text-xs text-gray-500 mt-0.5">${k.leverancier}${k.datum ? ' · ' + k.datum : ''} · €${fmt(k.aankoopBedrag)} · ${k.afschrijvingsDuur} jaar afschrijving</p>
+                                    <p class="text-xs text-blue-600 mt-1 italic">${k.reden}</p>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button data-action="add-kandidaat" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">Toevoegen</button>
+                                    <button data-action="skip-kandidaat" class="text-xs bg-white hover:bg-gray-100 text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors">Overslaan</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                    kandidatenWrapper.classList.remove('hidden');
+                }
+
+            } catch (err) {
+                alert(`Fout bij zoeken naar kandidaten: ${err.message}`);
+            } finally {
+                zoekBtn.innerHTML = originalHtml;
+                zoekBtn.disabled = false;
+                if (window.lucide) window.lucide.createIcons();
+            }
         }
 
         const resetBtn = target.closest('#btn-reset-state');
