@@ -485,21 +485,24 @@ function setupEventListeners(container) {
                     kandidatenLijst.innerHTML = `<p class="text-sm text-gray-400 italic">Geen activeerbare investeringen gevonden boven €450 in ${year}.</p>`;
                     kandidatenWrapper.classList.remove('hidden');
                 } else {
-                    // Filter items die al in de inventaris staan (zelfde omschrijving + aankoopbedrag)
+                    // Markeer items die al in de inventaris staan op basis van omschrijving + aankoopbedrag (±€1)
                     const bestaand = state.inventaris;
-                    const nieuw = kandidaten.filter(k =>
-                        !bestaand.some(b =>
+                    const beoordeeld = kandidaten.map(k => ({
+                        ...k,
+                        alBestaand: bestaand.some(b =>
                             b.omschrijving.toLowerCase() === k.omschrijving.toLowerCase() &&
                             Math.abs(b.aankoopBedrag - k.aankoopBedrag) < 1
                         )
-                    );
+                    }));
 
-                    if (nieuw.length === 0) {
-                        kandidatenLijst.innerHTML = `<p class="text-sm text-gray-400 italic">Alle gevonden investeringen staan al in de inventaris.</p>`;
-                    } else {
-                        const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        kandidatenLijst.innerHTML = nieuw.map(k => `
-                            <div data-kandidaat="${encodeURIComponent(JSON.stringify(k))}"
+                    const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    kandidatenLijst.innerHTML = beoordeeld.map(k => k.alBestaand
+                        ? `<div class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl opacity-50">
+                                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                                <span class="text-sm text-gray-400 line-through">${k.omschrijving}</span>
+                                <span class="text-xs text-gray-400 ml-auto">€${fmt(k.aankoopBedrag)} — al in inventaris</span>
+                           </div>`
+                        : `<div data-kandidaat="${encodeURIComponent(JSON.stringify(k))}"
                                  class="flex items-start justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
                                 <div class="flex-1 min-w-0">
                                     <p class="font-semibold text-sm text-gray-800">${k.omschrijving}</p>
@@ -512,7 +515,6 @@ function setupEventListeners(container) {
                                 </div>
                             </div>
                         `).join('');
-                    }
                     kandidatenWrapper.classList.remove('hidden');
                 }
 
