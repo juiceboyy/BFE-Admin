@@ -113,11 +113,13 @@ export const handler = async (event) => {
     // Injecteer jaar-specifieke tarieven in het system prompt zodat Claude
     // altijd de juiste getallen gebruikt, ongeacht het boekjaar.
     const rates = context?.taxRates;
+    // Infinity serialiseert naar null in JSON — behandel null/Infinity beide als "daarboven"
+    const isLaatsteSchijf = (grens) => grens === null || grens === undefined || !isFinite(grens);
     const box1Omschrijving = rates?.box1
         ? rates.box1.map((s, i) => {
-            const vorige = i === 0 ? 0 : rates.box1[i - 1].grens;
-            const grensLabel = s.grens === Infinity ? 'daarboven' : `t/m €${s.grens.toLocaleString('nl-NL')}`;
-            const vanLabel = i === 0 ? '' : `€${vorige.toLocaleString('nl-NL')}–`;
+            const vorige = i === 0 ? 0 : (rates.box1[i - 1].grens ?? 0);
+            const grensLabel = isLaatsteSchijf(s.grens) ? 'daarboven' : `t/m €${s.grens.toLocaleString('nl-NL')}`;
+            const vanLabel = i === 0 ? '' : `€${Number(vorige).toLocaleString('nl-NL')}–`;
             return `${vanLabel}${grensLabel}: ${(s.tarief * 100).toFixed(2)}%`;
           }).join(' | ')
         : '36,97% t/m €75.518 | 49,50% daarboven';
