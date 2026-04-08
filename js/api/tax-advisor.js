@@ -26,16 +26,26 @@ export async function sendFollowUp(question) {
 
     chatHistory.push({ role: 'user', parts: [{ text: question }] });
 
+    // Sliding window: stuur nooit meer dan 6 berichten naar de API om timeouts te voorkomen.
+    // De eerste 2 (initieel prompt + initieel antwoord) bieden de fiscale context.
+    // De laatste 4 vormen het actieve gesprek.
+    const payloadMessages = chatHistory.length > 6
+        ? [...chatHistory.slice(0, 2), ...chatHistory.slice(-4)]
+        : chatHistory;
+
     try {
         const response = await fetch('/.netlify/functions/fiscalAdvisor', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: chatHistory, context: savedContext })
+            body: JSON.stringify({ messages: payloadMessages, context: savedContext })
         });
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
-            throw new Error(err.message || `Server error ${response.status}`);
+            const msg = response.status === 504
+                ? 'De AI had te veel tijd nodig om na te denken (Timeout). Probeer je vraag iets korter te stellen.'
+                : err.message || `Server error ${response.status}`;
+            throw new Error(msg);
         }
 
         const data  = await response.json();
