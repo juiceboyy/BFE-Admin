@@ -23,9 +23,10 @@ const initialState = {
         { id: 7, omschrijving: 'Dyson Stofzuiger',   aankoopJaar: 2023, aankoopBedrag: 477,  afschrijvingsDuur: 5, boekwaardeVorigJaar: 477  },
     ],
     prive: {
-        stortingen: 0,
-        stortingenInNatura: 0,
-        onttrekkingenInGeld: 0
+        onttrekkingenInGeld:   0,
+        onttrekkingenInNatura: 0,
+        stortingenInGeld:      0,
+        stortingenInNatura:    0
     },
     ondernemer: {
         urencriteriumGehaald: true
@@ -52,6 +53,15 @@ class FiscalState {
         if (this.state.auto.catalogusWaarde === 0 && defaultState.auto.catalogusWaarde > 0) {
             this.state.auto.catalogusWaarde = defaultState.auto.catalogusWaarde;
         }
+        // Migratie: prive.stortingen → prive.stortingenInGeld (hernoemd)
+        if (this.state.prive && 'stortingen' in this.state.prive) {
+            this.state.prive.stortingenInGeld = this.state.prive.stortingen;
+            delete this.state.prive.stortingen;
+        }
+        // Migratie: ontbrekende privé-velden aanvullen
+        if (!('onttrekkingenInNatura' in (this.state.prive ?? {}))) this.state.prive.onttrekkingenInNatura = 0;
+        if (!('stortingenInGeld'      in (this.state.prive ?? {}))) this.state.prive.stortingenInGeld      = 0;
+        if (!('stortingenInNatura'    in (this.state.prive ?? {}))) this.state.prive.stortingenInNatura    = 0;
     }
 
     _storageKey(year) {

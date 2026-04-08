@@ -170,14 +170,15 @@ export function calculateTaxes(fiscalState) {
 
     const eigenVermogenBegin = bankBegin + boekwaardeInventarisBegin;
 
-    // Privé-mutaties — onderscheid cash vs. in natura
-    const priveStortingenInGeld    = parseFloat(fiscalState.prive?.stortingen) || 0;
-    const priveStortingenInNatura  = parseFloat(fiscalState.prive?.stortingenInNatura) || 0;
-    const priveOnttrekkingenInGeld = parseFloat(fiscalState.prive?.onttrekkingenInGeld) || 0;
+    // Privé-mutaties — vier officiële Belastingdienst-categorieën
+    const priveOnttrekkingenInGeld   = parseFloat(fiscalState.prive?.onttrekkingenInGeld)   || 0;
+    const priveOnttrekkingenInNatura = parseFloat(fiscalState.prive?.onttrekkingenInNatura) || 0;
+    const priveStortingenInGeld      = parseFloat(fiscalState.prive?.stortingenInGeld)      || 0;
+    const priveStortingenInNatura    = parseFloat(fiscalState.prive?.stortingenInNatura)    || 0;
 
     // Bijtelling telt al mee in fiscaleWinst (+), maar is ook een onttrekking in natura (−)
     // Anders wordt het EV ten onrechte met het bijtelling-bedrag overschat
-    const totaleOnttrekkingen = priveOnttrekkingenInGeld + bijtelling;
+    const totaleOnttrekkingen = priveOnttrekkingenInGeld + priveOnttrekkingenInNatura + bijtelling;
     const totaleStortingen    = priveStortingenInGeld + priveStortingenInNatura;
 
     const kortlopendeSchulden = parseFloat(fiscalState.balans?.kortlopendeSchulden) || 0;

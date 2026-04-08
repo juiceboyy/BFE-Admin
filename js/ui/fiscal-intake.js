@@ -171,36 +171,62 @@ function renderStructure(container) {
             <!-- 5. Privé & Fiscaal -->
             <section class="${sectionClass}">
                 <h3 class="${headerClass}">
-                    <i data-lucide="user" class="w-5 h-5 text-blue-500"></i> 5. Privé & Fiscaal
+                    <i data-lucide="user" class="w-5 h-5 text-blue-500"></i> 5. Privé — Stortingen & Onttrekkingen
                 </h3>
                 <div class="space-y-6">
                     <label class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer">
                         <input type="checkbox" data-section="ondernemer" data-bind="urencriteriumGehaald" class="w-4 h-4 text-blue-600 rounded" ${state.ondernemer.urencriteriumGehaald ? 'checked' : ''}>
                         <span class="text-sm font-medium text-gray-700">Urencriterium gehaald (> 1225 uur)</span>
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div>
-                            <label class="${labelClass}">Privé-onttrekkingen in geld</label>
-                            <p class="text-xs text-gray-400 mb-1.5">Omzet die op privérekening binnenkwam</p>
-                             <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
+
+                    <!-- Onttrekkingen -->
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Onttrekkingen (uit onderneming naar privé)</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="${labelClass} !mb-0">Onttrekkingen in geld</label>
+                                    <span class="text-xs bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full">auto-ingevuld</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-1.5">Omzet incl. BTW op privérekening ontvangen</p>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                    <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="${labelClass}">Onttrekkingen in natura</label>
+                                <p class="text-xs text-gray-400 mb-1.5">Privégebruik bedrijfsmiddelen (excl. auto — die staat bij bijtelling)</p>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                    <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInNatura" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInNatura || 0}">
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="${labelClass}">Privé-stortingen in geld</label>
-                            <p class="text-xs text-gray-400 mb-1.5">Cash stortingen op zakelijke rekening (bijv. lease)</p>
-                             <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" data-section="prive" data-bind="stortingen" class="${inputClass} pl-8" value="${state.prive.stortingen}">
+                    </div>
+
+                    <!-- Stortingen -->
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Stortingen (uit privé naar onderneming)</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                                <label class="${labelClass}">Stortingen in geld</label>
+                                <p class="text-xs text-gray-400 mb-1.5">Cash stortingen op zakelijke rekening (bijv. leasebetaling)</p>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                    <input type="number" step="0.01" data-section="prive" data-bind="stortingenInGeld" class="${inputClass} pl-8" value="${state.prive.stortingenInGeld || 0}">
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label class="${labelClass}">Privé-stortingen in natura</label>
-                            <p class="text-xs text-gray-400 mb-1.5">Zakelijke kosten betaald via privérekening</p>
-                             <div class="relative">
-                                <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                                <input type="number" step="0.01" data-section="prive" data-bind="stortingenInNatura" class="${inputClass} pl-8" value="${state.prive.stortingenInNatura || 0}">
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="${labelClass} !mb-0">Stortingen in natura</label>
+                                    <span class="text-xs bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full">auto-ingevuld</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-1.5">Zakelijke kosten betaald via privérekening (inkoop incl. BTW)</p>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
+                                    <input type="number" step="0.01" data-section="prive" data-bind="stortingenInNatura" class="${inputClass} pl-8" value="${state.prive.stortingenInNatura || 0}">
+                                </div>
                             </div>
                         </div>
                     </div>
