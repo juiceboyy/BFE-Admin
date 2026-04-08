@@ -45,8 +45,7 @@ export const handler = async (event) => {
                 ]
             }],
             generationConfig: {
-                temperature: 0,
-                responseMimeType: 'application/json'
+                temperature: 0
             }
         };
 
@@ -57,13 +56,24 @@ export const handler = async (event) => {
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            return { statusCode: 500, body: JSON.stringify({ error: err?.error?.message || 'Gemini API fout.' }) };
+            const err = await response.json().catch(() => ({}));
+            const msg = err?.error?.message || `Gemini API fout (${response.status})`;
+            return { statusCode: 500, body: JSON.stringify({ error: msg }) };
         }
 
         const data = await response.json();
         let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        // Strip markdown code fences
+        text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+        // Extract first JSON object from the response
+        const start = text.indexOf('{');
+        const end   = text.lastIndexOf('}');
+        if (start !== -1 && end > start) text = text.slice(start, end + 1);
+
+        // Validate parseable before returning
+        JSON.parse(text);
 
         return {
             statusCode: 200,

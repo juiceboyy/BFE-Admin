@@ -4,7 +4,6 @@ import { getYearlyTotals } from '../api/storage-queries.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
-import { fetchWithRetry } from '../utils/network.js';
 import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 
 const SPREADSHEET_IDS = {
@@ -354,7 +353,8 @@ function setupEventListeners(container) {
                     reader.onerror = reject;
                 });
 
-                const response = await fetchWithRetry('/.netlify/functions/scanBankStatement', {
+                // Gebruik fetch direct (geen retry) zodat de response body leesbaar blijft bij errors
+                const response = await fetch('/.netlify/functions/scanBankStatement', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -365,7 +365,7 @@ function setupEventListeners(container) {
                 });
 
                 if (!response.ok) {
-                    const err = await response.json();
+                    const err = await response.json().catch(() => ({}));
                     throw new Error(err.error || `Server error ${response.status}`);
                 }
 
