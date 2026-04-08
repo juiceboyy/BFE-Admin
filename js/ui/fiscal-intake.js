@@ -13,6 +13,115 @@ const SPREADSHEET_IDS = {
     2026: '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg',
 };
 
+// ---------------------------------------------------------------------------
+// CSV Parser — Privé-stortingen in geld
+//
+// Verwacht bankafschrift (zakelijke rekening) als CSV van ING, Rabobank, KNAB,
+// of elk ander formaat dat voldoet aan:
+//   • delimiter: ';' of ','
+//   • een kolom die de tegenrekening (privé-IBAN) bevat
+//     (kolomnaam bevat 'tegenrekening', 'tegenpartijrekening', 'contra' etc.)
+//   • een bedrag-kolom ('bedrag', 'amount')
+//   • optioneel een richting-kolom ('af bij', 'bij/af', 'creditdebet', 'd/c')
+//     → alleen "Bij" / "C" / "Credit" telt als inkomend op de zakelijke rekening
+//
+// Bedragen zonder richting-kolom worden als positief (inkomend) beschouwd
+// wanneer het contra-IBAN overeenkomt.
+// ---------------------------------------------------------------------------
+
+function _parseCsvRows(text, delimiter) {
+    const rows = [];
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        const cols = [];
+        let cur = '';
+        let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+                else inQ = !inQ;
+            } else if (ch === delimiter && !inQ) {
+                cols.push(cur.trim());
+                cur = '';
+            } else {
+                cur += ch;
+            }
+        }
+        cols.push(cur.trim());
+        rows.push(cols);
+    }
+    return rows;
+}
+
+function _parseEuroAmount(val) {
+    let s = String(val ?? '').trim().replace(/[€\s]/g, '');
+    if (!s) return 0;
+    const hasComma = s.includes(',');
+    const hasDot   = s.includes('.');
+    if (hasComma && hasDot) {
+        // Dutch 1.234,56 vs English 1,234.56 — whichever separator comes last is the decimal
+        s = s.lastIndexOf(',') > s.lastIndexOf('.')
+            ? s.replace(/\./g, '').replace(',', '.')   // Dutch
+            : s.replace(/,/g, '');                      // English
+    } else if (hasComma) {
+        const parts = s.split(',');
+        // 1234,56 → decimal  |  1,234 → thousands
+        s = (parts.length === 2 && parts[1].length <= 2) ? s.replace(',', '.') : s.replace(/,/g, '');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : Math.abs(n);
+}
+
+function parsePriveStortingenCSV(csvText, privateIban) {
+    const normIban = privateIban.replace(/\s/g, '').toUpperCase();
+    if (!normIban) return null;
+
+    const firstLine = csvText.split('\n')[0] || '';
+    const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
+
+    const rows = _parseCsvRows(csvText, delimiter);
+    if (rows.length < 2) return null;
+
+    // Normalize header names to lowercase alphanumeric for matching
+    const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const findCol = (...kws) => headers.findIndex(h => kws.some(kw => h.includes(kw)));
+
+    const idxContra = findCol('tegenrekening', 'tegenpartijrekening', 'contraaccount', 'contrarekeningnummer', 'rekeningnummertegenpartij');
+    const idxBedrag = findCol('bedrag', 'amount');
+    const idxDir    = findCol('afbij', 'bijaf', 'creditdebet', 'debitcredit');
+    // Fallback: search description columns if no contra column found
+    const idxOmschr = findCol('omschrijving', 'mededelingen', 'description', 'betalingskenmerk');
+
+    let totaal = 0;
+    let count  = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 2) continue;
+
+        // Match private IBAN in contra-account or description
+        const contraRaw = idxContra >= 0 ? row[idxContra] || '' : '';
+        const omschrRaw = idxOmschr >= 0 ? row[idxOmschr] || '' : '';
+        const contraNorm = contraRaw.replace(/\s/g, '').toUpperCase();
+        const omschrNorm = omschrRaw.replace(/\s/g, '').toUpperCase();
+
+        if (!contraNorm.includes(normIban) && !omschrNorm.includes(normIban)) continue;
+
+        // Verify direction: must be incoming on the business account
+        if (idxDir >= 0) {
+            const dir = (row[idxDir] || '').toLowerCase().replace(/\s/g, '');
+            const isCredit = dir === 'bij' || dir === 'c' || dir === 'credit' || dir === 'cr';
+            if (!isCredit) continue;
+        }
+
+        const amount = idxBedrag >= 0 ? _parseEuroAmount(row[idxBedrag]) : 0;
+        if (amount > 0) { totaal += amount; count++; }
+    }
+
+    return { totaal: Math.round(totaal * 100) / 100, count };
+}
+
 export function initFiscalIntake() {
     const container = document.getElementById('view-fiscal');
     if (!container) return;
@@ -212,6 +321,22 @@ function renderStructure(container) {
                             <div>
                                 <label class="${labelClass}">Stortingen in geld</label>
                                 <p class="text-xs text-gray-400 mb-1.5">Cash stortingen op zakelijke rekening (bijv. leasebetaling)</p>
+
+                                <!-- CSV import tool -->
+                                <div class="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-2">
+                                    <p class="text-xs font-semibold text-blue-700">Automatisch ophalen uit CSV</p>
+                                    <input type="text" id="prive-iban-input"
+                                           value="${localStorage.getItem('bfe_private_iban') || ''}"
+                                           placeholder="NL12 INGB 0123 4567 89"
+                                           class="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-400/20 tracking-wider placeholder-gray-300">
+                                    <label class="flex items-center gap-2 cursor-pointer text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                        <i data-lucide="upload-cloud" class="w-3.5 h-3.5 shrink-0"></i>
+                                        <span>Upload zakelijk bankafschrift (.csv)</span>
+                                        <input type="file" id="csv-stortingen-upload" accept=".csv" class="hidden">
+                                    </label>
+                                    <p id="csv-stortingen-result" class="hidden text-xs font-medium"></p>
+                                </div>
+
                                 <div class="relative">
                                     <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                     <input type="number" step="0.01" data-section="prive" data-bind="stortingenInGeld" class="${inputClass} pl-8" value="${state.prive.stortingenInGeld || 0}">
@@ -417,6 +542,72 @@ function setupEventListeners(container) {
                 idle.classList.remove('hidden');
                 loading.classList.add('hidden');
                 loading.classList.remove('flex');
+                target.value = '';
+            }
+            return;
+        }
+
+        // Privé IBAN opslaan (jaar-onafhankelijk)
+        if (target.id === 'prive-iban-input') {
+            localStorage.setItem('bfe_private_iban', target.value.trim());
+            return;
+        }
+
+        // CSV stortingen parser
+        if (target.id === 'csv-stortingen-upload') {
+            const file = target.files?.[0];
+            if (!file) return;
+
+            const resultEl = document.getElementById('csv-stortingen-result');
+            resultEl.className = 'text-xs font-medium text-gray-400';
+            resultEl.textContent = 'Bezig met analyseren...';
+            resultEl.classList.remove('hidden');
+
+            try {
+                const csvText = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsText(file, 'UTF-8');
+                    reader.onload  = () => resolve(reader.result);
+                    reader.onerror = reject;
+                });
+
+                const iban = (document.getElementById('prive-iban-input')?.value || '').trim();
+                if (!iban) {
+                    resultEl.className = 'text-xs font-medium text-amber-600';
+                    resultEl.textContent = 'Vul eerst je privé IBAN in hierboven.';
+                    target.value = '';
+                    return;
+                }
+
+                const parsed = parsePriveStortingenCSV(csvText, iban);
+
+                if (!parsed) {
+                    resultEl.className = 'text-xs font-medium text-red-500';
+                    resultEl.textContent = 'CSV kon niet worden ingelezen. Controleer het formaat.';
+                    target.value = '';
+                    return;
+                }
+
+                if (parsed.count === 0) {
+                    resultEl.className = 'text-xs font-medium text-amber-600';
+                    resultEl.textContent = `Geen bijschrijvingen gevonden van ${iban}. Controleer het IBAN.`;
+                    target.value = '';
+                    return;
+                }
+
+                // State + DOM bijwerken
+                fiscalState.setNested('prive', 'stortingenInGeld', parsed.totaal);
+                const amountInput = container.querySelector('[data-section="prive"][data-bind="stortingenInGeld"]');
+                if (amountInput) amountInput.value = parsed.totaal;
+
+                const fmt = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+                resultEl.className = 'text-xs font-medium text-emerald-600';
+                resultEl.textContent = `${fmt(parsed.totaal)} gevonden uit ${parsed.count} transactie${parsed.count !== 1 ? 's' : ''} ↳ ingevuld`;
+
+            } catch (err) {
+                resultEl.className = 'text-xs font-medium text-red-500';
+                resultEl.textContent = `Fout: ${err.message}`;
+            } finally {
                 target.value = '';
             }
             return;
