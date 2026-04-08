@@ -185,3 +185,42 @@ export async function getMonthlyTotals(sheetName) {
         return { totaalOmzet: 0, totaalBtw: 0 };
     }
 }
+
+export async function getYearlyTotals(year) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+    let omzetEx  = 0;
+    let btwVerkoop = 0;
+    let inkoopEx = 0;
+    let btwInkoop  = 0;
+
+    for (const month of months) {
+        const verkoop = await getMonthlyTotals(`${month} Verkoop`);
+        const inkoop  = await getMonthlyTotals(`${month} Inkoop`);
+
+        omzetEx    += verkoop.totaalOmzet;
+        btwVerkoop += verkoop.totaalBtw;
+        inkoopEx   += inkoop.totaalOmzet;
+        btwInkoop  += inkoop.totaalBtw;
+    }
+
+    // Privé-administratie correcties:
+    // Alle omzet komt binnen op privérekening → volledige omzet incl. BTW is privéonttrekking in geld
+    const priveOnttrekkingenGeld = omzetEx + btwVerkoop;
+    // Zakelijke kosten betaald via privérekening → inkoop incl. BTW is privéstorting in natura
+    const priveStortingenNatura  = inkoopEx + btwInkoop;
+
+    const r = (val) => Math.round(val * 100) / 100;
+
+    return {
+        year,
+        omzetEx:               r(omzetEx),
+        btwVerkoop:            r(btwVerkoop),
+        inkoopEx:              r(inkoopEx),
+        btwInkoop:             r(btwInkoop),
+        btwBalans:             r(btwVerkoop - btwInkoop),
+        winst:                 r(omzetEx - inkoopEx),
+        priveOnttrekkingenGeld: r(priveOnttrekkingenGeld),
+        priveStortingenNatura:  r(priveStortingenNatura),
+    };
+}

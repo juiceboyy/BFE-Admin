@@ -1,5 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { collectYearData } from '../api/tax-collector.js';
+import { getYearlyTotals } from '../api/storage-queries.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
@@ -542,33 +543,60 @@ function setupEventListeners(container) {
         if (syncBtn) {
             const year = fiscalState.getState().year;
             if (!year) return alert("Vul eerst een boekjaar in.");
-            
+
             const originalHtml = syncBtn.innerHTML;
-            syncBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Ophalen...';
+            const setSpinner = (label) => {
+                syncBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${label}`;
+                if (window.lucide) window.lucide.createIcons();
+            };
             syncBtn.disabled = true;
-            if (window.lucide) window.lucide.createIcons();
+            setSpinner('Ophalen jaarafsluiting...');
 
             try {
                 const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
                 if (!spreadsheetId) return alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
+
+                // Stap 1: geaggregeerde jaar-totalen (12 × 2 maandtabs)
+                setSpinner('Maandtabs ophalen (1/2)...');
+                const totals = await getYearlyTotals(year);
+
+                // Stap 2: jaar-niveau data voor de fiscale berekening
+                setSpinner('Jaarrekening ophalen (2/2)...');
                 const data = await collectYearData(year, spreadsheetId);
+
+                // State bijwerken
                 fiscalState.setTopLevel('sheetData', data);
-                
+                fiscalState.setNested('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
+                fiscalState.setNested('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
+
+                // DOM inputs bijwerken (data-section / data-bind, geen vaste IDs)
+                const setInput = (section, bind, value) => {
+                    const el = container.querySelector(`[data-section="${section}"][data-bind="${bind}"]`);
+                    if (el) el.value = value;
+                };
+                setInput('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
+                setInput('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
+
+                // Samenvatting tonen
                 const summary = document.getElementById('sync-summary');
-                const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-                
+                const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
+
                 summary.innerHTML = `
                     <div class="font-medium flex items-center gap-2 mb-2">
-                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Data succesvol gesynchroniseerd voor ${year}
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Data gesynchroniseerd voor ${year}
                     </div>
                     <ul class="list-disc list-inside space-y-1 ml-1 text-emerald-700">
-                        <li>Totale Omzet: <span class="font-semibold">${formatEur(data.omzet.totaal)}</span></li>
-                        <li>Totale Kosten (excl. BTW): <span class="font-semibold">${formatEur(data.kosten.totaal)}</span></li>
-                        <li>BTW Afgedragen (Saldo): <span class="font-semibold">${formatEur(data.btwAfgedragen.totaal - data.voorbelasting.totaal)}</span></li>
+                        <li>Netto-omzet: <span class="font-semibold">${fmt(totals.omzetEx)}</span></li>
+                        <li>Kosten excl. BTW: <span class="font-semibold">${fmt(totals.inkoopEx)}</span></li>
+                        <li>Winst (bruto): <span class="font-semibold">${fmt(totals.winst)}</span></li>
+                        <li>BTW-balans (te betalen): <span class="font-semibold">${fmt(totals.btwBalans)}</span></li>
+                        <li>Privé-onttrekkingen in geld: <span class="font-semibold">${fmt(totals.priveOnttrekkingenGeld)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
+                        <li>Privé-stortingen in natura: <span class="font-semibold">${fmt(totals.priveStortingenNatura)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
                     </ul>
                 `;
                 summary.classList.remove('hidden');
-                
+                if (window.lucide) window.lucide.createIcons();
+
             } catch (error) {
                 alert(`Fout bij ophalen van data: ${error.message}`);
                 console.error(error);
