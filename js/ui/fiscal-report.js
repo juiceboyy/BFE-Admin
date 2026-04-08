@@ -1,4 +1,5 @@
 import { fiscalState } from '../store/fiscal-state.js';
+import { sendFollowUp } from '../api/tax-advisor.js';
 
 /**
  * Renders the final Fiscal Report and Cheat Sheet into the provided container.
@@ -56,8 +57,29 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <i data-lucide="bot" class="w-5 h-5 text-blue-500"></i> AI Fiscaal Adviseur
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 ${(aiAdvice && aiAdvice.length > 0) ? aiAdvice.map(getAdviceCard).join('') : '<p class="text-sm text-gray-500 italic">Geen specifiek advies gegenereerd.</p>'}
+            </div>
+
+            <!-- Chat -->
+            <div class="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-2">
+                    <i data-lucide="message-circle" class="w-4 h-4 text-blue-500"></i>
+                    <span class="text-sm font-medium text-gray-700">Stel een vervolgvraag</span>
+                </div>
+                <div id="chat-messages" class="p-4 space-y-3 overflow-y-auto" style="max-height:360px">
+                    <p class="text-xs text-gray-400 text-center italic">Je kunt hier vervolgvragen stellen over je aangifte of de adviezen hierboven.</p>
+                </div>
+                <div class="border-t border-gray-100 p-3 flex gap-2 bg-white">
+                    <input id="chat-input"
+                           type="text"
+                           placeholder="Stel een vervolgvraag aan je adviseur..."
+                           class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition-all">
+                    <button id="chat-send"
+                            class="bg-black text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -120,4 +142,71 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
 
     containerElement.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
+
+    _initChat(containerElement);
+}
+
+function _renderMarkdown(text) {
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>');
+}
+
+function _appendBubble(container, text, role) {
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.className = `flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`;
+    div.innerHTML = isUser
+        ? `<div class="bg-black text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[80%]">${_renderMarkdown(text)}</div>`
+        : `<div class="bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[80%]">${_renderMarkdown(text)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+}
+
+function _initChat(containerElement) {
+    const messages = containerElement.querySelector('#chat-messages');
+    const input    = containerElement.querySelector('#chat-input');
+    const sendBtn  = containerElement.querySelector('#chat-send');
+    if (!messages || !input || !sendBtn) return;
+
+    async function handleSend() {
+        const question = input.value.trim();
+        if (!question) return;
+
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        _appendBubble(messages, question, 'user');
+
+        // Typing indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'flex gap-2 justify-start';
+        indicator.innerHTML = `<div class="bg-gray-100 text-gray-400 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm flex gap-1 items-center">
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+        </div>`;
+        messages.appendChild(indicator);
+        messages.scrollTop = messages.scrollHeight;
+
+        try {
+            const answer = await sendFollowUp(question);
+            indicator.remove();
+            _appendBubble(messages, answer, 'model');
+        } catch (err) {
+            indicator.remove();
+            _appendBubble(messages, `Er is een fout opgetreden: ${err.message}`, 'error');
+        } finally {
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', handleSend);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
 }

@@ -1,11 +1,54 @@
 /**
  * js/api/tax-advisor.js
- * AI Advisor Module — haalt strategisch fiscaal advies op via Claude (Anthropic).
+ * AI Advisor Module — haalt strategisch fiscaal advies op via Gemini.
  * De Dutch finance domain rules worden als system prompt geïnjecteerd in de Netlify function.
+ * Ondersteunt multi-turn gesprek via chatHistory.
  */
 
 import { fetchWithRetry } from '../utils/network.js';
 import { schattingIB, getRatesForYear } from '../utils/tax-calculator.js';
+
+// Module-level chat state — blijft actief zolang het rapport open is
+let chatHistory  = [];
+let savedContext = null;
+
+export function clearChatHistory() {
+    chatHistory  = [];
+    savedContext = null;
+}
+
+/**
+ * Stuur een vervolgvraag in het lopende gesprek.
+ * Geeft de ruwe tekst-response terug (geen JSON-parsing).
+ */
+export async function sendFollowUp(question) {
+    if (!savedContext) throw new Error('Geen actief gesprek. Genereer eerst een rapport.');
+
+    chatHistory.push({ role: 'user', parts: [{ text: question }] });
+
+    try {
+        const response = await fetch('/.netlify/functions/fiscalAdvisor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: chatHistory, context: savedContext })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || `Server error ${response.status}`);
+        }
+
+        const data  = await response.json();
+        const text  = (data.text || '').trim();
+        chatHistory.push({ role: 'model', parts: [{ text }] });
+        return text;
+
+    } catch (err) {
+        // Verwijder de laatste user-message zodat de gebruiker opnieuw kan proberen
+        chatHistory.pop();
+        throw err;
+    }
+}
 
 export async function getFiscalAdvice(calculatedTaxData, fiscalState) {
     const kostenRatio = calculatedTaxData.omzet > 0
@@ -78,34 +121,39 @@ ANALYSE-DOELEN (geef alleen een kaart als het echt relevant is):
 
 5. Urencriterium: Als niet gehaald, bereken wat de gemiste zelfstandigenaftrek concreet kost in extra IB.`;
 
+    // Start altijd met een schone lei bij een nieuw rapport
+    clearChatHistory();
+    savedContext = context;
+    chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+
     try {
         const response = await fetchWithRetry('/.netlify/functions/fiscalAdvisor', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [{ role: 'user', content: userMessage }],
-                context
-            })
+            body: JSON.stringify({ messages: chatHistory, context })
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.message || `Server error: ${response.status}`);
         }
 
-        const data = await response.json();
+        const data     = await response.json();
+        const rawText  = (data.text || '').trim();
 
-        let jsonText = data.text || '';
-        jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        // Sla de initiële response op in de history voor vervolgvragen
+        chatHistory.push({ role: 'model', parts: [{ text: rawText }] });
 
-        const start = jsonText.indexOf('[');
-        const end   = jsonText.lastIndexOf(']');
+        let jsonText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const start  = jsonText.indexOf('[');
+        const end    = jsonText.lastIndexOf(']');
         if (start !== -1 && end > start) jsonText = jsonText.slice(start, end + 1);
 
         return JSON.parse(jsonText);
 
     } catch (error) {
         console.error('🚨 Fout in AI Advisor module:', error);
+        clearChatHistory(); // Niet verder chatten na een mislukte initiële aanvraag
         return [
             {
                 type: 'warning',

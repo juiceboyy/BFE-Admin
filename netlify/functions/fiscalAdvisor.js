@@ -141,8 +141,11 @@ export const handler = async (event) => {
         };
     }
 
-    // Gemini verwacht één user-turn; combineer systeem + berichten in de content
-    const userMessage = messages.map(m => m.content).join('\n\n');
+    // Multi-turn: als messages 'parts' hebben zijn ze al in Gemini-formaat (chatHistory).
+    // Legacy fallback: berichten met 'content' samenvoegen tot één user-turn.
+    const contents = (messages[0]?.parts)
+        ? messages
+        : [{ role: 'user', parts: [{ text: messages.map(m => m.content || '').join('\n\n') }] }];
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
@@ -152,7 +155,7 @@ export const handler = async (event) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+                contents,
                 generationConfig: { temperature: 0.3 }
             })
         });

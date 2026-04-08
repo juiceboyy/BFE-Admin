@@ -2,7 +2,7 @@ import { fiscalState } from '../store/fiscal-state.js';
 import { collectYearData } from '../api/tax-collector.js';
 import { getYearlyTotals } from '../api/storage-queries.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
-import { getFiscalAdvice } from '../api/tax-advisor.js';
+import { getFiscalAdvice, clearChatHistory } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
 import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 
@@ -620,8 +620,12 @@ function setupEventListeners(container) {
             let val = target.type === 'checkbox' ? target.checked : target.value;
             if (target.type === 'number') val = parseFloat(val) || 0;
 
-            if (section) fiscalState.setNested(section, key, val);
-            else fiscalState.setTopLevel(key, val);
+            if (section) {
+                fiscalState.setNested(section, key, val);
+            } else {
+                if (key === 'year') clearChatHistory();
+                fiscalState.setTopLevel(key, val);
+            }
         }
 
         // Dynamic Inventaris Table
