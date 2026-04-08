@@ -1,6 +1,6 @@
 /**
  * netlify/functions/fiscalAdvisor.js
- * Proxies Dutch tax advice requests to the Anthropic Claude API.
+ * Proxies Dutch tax advice requests to the Gemini API.
  * Dutch finance domain knowledge is injected as a structured system prompt.
  *
  * Expected POST body: { messages: Array, context: Object }
@@ -131,37 +131,35 @@ export const handler = async (event) => {
 
     const systemPrompt = SYSTEM_PROMPT + dynamicRatesSection;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.trim() : '';
+    const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
     if (!apiKey) {
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: true, message: 'Server configuratiefout: ANTHROPIC_API_KEY ontbreekt.' })
+            body: JSON.stringify({ error: true, message: 'Server configuratiefout: GEMINI_API_KEY ontbreekt.' })
         };
     }
 
+    // Gemini verwacht één user-turn; combineer systeem + berichten in de content
+    const userMessage = messages.map(m => m.content).join('\n\n');
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+
     try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
-                max_tokens: 1024,
-                system: systemPrompt,
-                messages
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+                generationConfig: { temperature: 0.3 }
             })
         });
 
-        // Log Anthropic request ID for debugging
-        const requestId = response.headers.get('request-id') || response.headers.get('x-request-id') || 'n/a';
-        console.log(`[fiscalAdvisor] Anthropic request-id: ${requestId}, boekjaar: ${context?.fiscalYear || 'onbekend'}`);
+        console.log(`[fiscalAdvisor] Gemini status: ${response.status}, boekjaar: ${context?.fiscalYear || 'onbekend'}`);
 
         if (!response.ok) {
-            const errorData = await response.json();
-            const message = errorData?.error?.message || `Anthropic API fout: ${response.status}`;
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData?.error?.message || `Gemini API fout: ${response.status}`;
             console.error(`[fiscalAdvisor] API fout (${response.status}):`, message);
             return {
                 statusCode: response.status,
@@ -170,7 +168,10 @@ export const handler = async (event) => {
         }
 
         const data = await response.json();
-        const text = data?.content?.[0]?.text || '[]';
+        let text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+
+        // Strip markdown code fences indien aanwezig
+        text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
 
         return {
             statusCode: 200,
