@@ -72,18 +72,7 @@ Boekhoudconventie:
 ## Gedragsregels
 - Gebruik altijd de bedrijfsspecifieke context hierboven — geen generiek ZZP-advies
 - Geef concreet, berekend advies met echte bedragen — geen vage algemeenheden
-- Maximaal 5 adviespunten; laat kaarten weg als ze niet van toepassing zijn
-- Antwoord uitsluitend in het Nederlands
-- Retourneer UITSLUITEND een geldige JSON-array zonder markdown-blokken of inleidende tekst
-
-## Output Structuur
-[
-  {
-    "type": "warning|tip|info",
-    "title": "Korte, pakkende titel (max 8 woorden)",
-    "description": "Inhoudelijke uitleg met concreet actiepunt en eventueel berekend bedrag."
-  }
-]`;
+- Antwoord uitsluitend in het Nederlands`;
 
 export const handler = async (event) => {
     if (event.httpMethod !== 'POST') {
@@ -131,7 +120,11 @@ export const handler = async (event) => {
 - KIA-drempel: €${rates.kiaDrempel.toLocaleString('nl-NL')}
 - IB Box 1: ${box1Omschrijving}` : '';
 
-    const systemPrompt = SYSTEM_PROMPT + dynamicRatesSection;
+    const outputFormatInstruction = messages.length === 1
+        ? `\n\n## Output Structuur\nGeef maximaal 5 adviespunten. Retourneer UITSLUITEND een geldige JSON-array zonder markdown-blokken of inleidende tekst. Formaat:\n[{ "type": "warning|tip|info", "title": "Korte titel (max 8 woorden)", "description": "Uitleg met concreet actiepunt en berekend bedrag." }]`
+        : `\n\n## Output Structuur\nJe bent nu in een direct chatgesprek met de ondernemer. Geef antwoord in natuurlijke, vlotte en behulpzame tekst. Gebruik gerust Markdown (bold, lists) voor leesbaarheid. Gebruik ABSOLUUT GEEN JSON.`;
+
+    const systemPrompt = SYSTEM_PROMPT + dynamicRatesSection + outputFormatInstruction;
 
     const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : '';
     if (!apiKey) {
