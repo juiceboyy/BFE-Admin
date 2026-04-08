@@ -187,7 +187,7 @@ export async function getMonthlyTotals(sheetName) {
 }
 
 export async function getYearlyTotals(year) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'June', 'July', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
     let omzetEx  = 0;
     let btwVerkoop = 0;
