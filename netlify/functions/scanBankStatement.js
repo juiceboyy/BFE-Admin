@@ -35,7 +35,7 @@ export const handler = async (event) => {
 
         if (base64Data.includes(',')) base64Data = base64Data.split(',')[1];
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
         const payload = {
             contents: [{
