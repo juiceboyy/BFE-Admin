@@ -476,8 +476,6 @@ function renderInventarisTable() {
     const huidigJaar = parseInt(fiscalState.getState().year, 10);
     let totaleAfschrijving = 0;
 
-    console.log('--- START AFSCHRIJVING BEREKENING ---');
-    console.log(`Fiscaal jaar: ${huidigJaar} | Aantal items: ${state.inventaris.length}`);
 
     tbody.innerHTML = state.inventaris.map(item => {
         const aanschafJaar = parseInt(item.aankoopJaar || item.datum, 10);
@@ -497,8 +495,6 @@ function renderInventarisTable() {
         }
 
         totaleAfschrijving += afschrijvingDitJaar;
-
-        console.log(`Item: ${item.omschrijving || 'Onbekend'} | Bedrag dit jaar: ${afschrijvingDitJaar}`);
 
         let boekwaardeEind = boekwaardeBegin - afschrijvingDitJaar;
 
@@ -527,11 +523,7 @@ function renderInventarisTable() {
         </tr>`;
     }).join('');
 
-    console.log('TOTAAL Berekend: ', totaleAfschrijving);
-
     fiscalState.setTopLevel('afschrijvingen', totaleAfschrijving);
-
-    console.log("STATE CHECK (Wat zit er in fiscalState?): ", fiscalState.get('afschrijvingen'));
 
     if (window.lucide) window.lucide.createIcons();
 }
