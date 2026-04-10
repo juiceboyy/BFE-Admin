@@ -227,6 +227,81 @@ export async function getMonthlyTotals(sheetName) {
     }
 }
 
+/**
+ * Haalt alle inventaris-items op uit het Inventaris-tabblad van het Trend-spreadsheet.
+ * Verwacht kolommen A:E = omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde.
+ * @returns {Promise<Array<{omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde}>>}
+ */
+export async function fetchInventarisFromSheet() {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:F`;
+    const response = await fetchWithRetry(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    const parseAmount = (val) => {
+        if (!val) return 0;
+        const cleaned = String(val).replace(/[^0-9.,-]/g, '').replace(',', '.');
+        return parseFloat(cleaned) || 0;
+    };
+
+    // Sla de headerrij over en filter lege rijen
+    return rows.slice(1)
+        .filter(row => row && row[0])
+        .map((row, idx) => ({
+            id: idx + 1,
+            omschrijving:      row[0] || '',
+            datum:             row[1] || '',
+            aanschafwaarde:    parseAmount(row[2]),
+            afschrijvingsJaren: parseInt(row[3], 10) || 5,
+            restwaarde:        parseAmount(row[4]),
+        }));
+}
+
+/**
+ * Voegt een inventaris-item toe aan het Inventaris-tabblad van het Trend-spreadsheet.
+ * @param {{omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde}} item
+ */
+export async function addInventarisItemToSheet(item) {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    const row = [[
+        item.omschrijving,
+        item.datum,
+        item.aanschafwaarde,
+        item.afschrijvingsJaren,
+        item.restwaarde
+    ]];
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:E:append?valueInputOption=USER_ENTERED`;
+    const response = await fetchWithRetry(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: row })
+    });
+
+    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+}
+
 export async function getYearlyTotals(year) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
 

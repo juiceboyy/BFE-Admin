@@ -1,6 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { collectYearData } from '../api/tax-collector.js';
-import { getYearlyTotals } from '../api/storage-queries.js';
+import { getYearlyTotals, fetchInventarisFromSheet, addInventarisItemToSheet } from '../api/storage-queries.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice, clearChatHistory } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
@@ -128,6 +128,39 @@ export function initFiscalIntake() {
 
     renderStructure(container);
     setupEventListeners(container);
+    _loadInventarisFromSheet();
+}
+
+async function _loadInventarisFromSheet() {
+    const tbody = document.getElementById('inventaris-tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="8" class="px-4 py-6 text-center text-gray-400 text-sm">
+                <div class="flex items-center justify-center gap-2">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    Inventaris inladen vanuit BFEadmin...
+                </div>
+            </td>
+        </tr>`;
+    if (window.lucide) window.lucide.createIcons();
+
+    try {
+        const items = await fetchInventarisFromSheet();
+        // Vertaal sheet-velden naar lokale state-velden
+        const mapped = items.map(item => ({
+            id: item.id,
+            omschrijving:       item.omschrijving,
+            aankoopJaar:        item.datum,
+            aankoopBedrag:      item.aanschafwaarde,
+            afschrijvingsDuur:  item.afschrijvingsJaren,
+            boekwaardeVorigJaar: item.restwaarde,
+        }));
+        fiscalState.setTopLevel('inventaris', mapped);
+    } catch (err) {
+        console.error('Kon inventaris niet laden vanuit sheet:', err);
+    }
     renderInventarisTable();
 }
 
@@ -271,6 +304,35 @@ function renderStructure(container) {
                         <!-- Geïnjecteerd via JS -->
                     </tbody>
                 </table>
+                <!-- Inline toevoeg-formulier (verborgen tot "Handmatig toevoegen" wordt geklikt) -->
+                <div id="inventaris-add-form" class="hidden mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                    <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Nieuw item toevoegen</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <div class="col-span-2 sm:col-span-2">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Omschrijving</label>
+                            <input type="text" id="inv-new-omschrijving" placeholder="Bijv. MacBook Pro" class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400/20">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Aanschafjaar</label>
+                            <input type="number" id="inv-new-datum" value="${state.year}" class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400/20">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Bedrag excl. BTW (€)</label>
+                            <input type="number" step="0.01" id="inv-new-aanschafwaarde" placeholder="0.00" class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400/20">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Afschr. jaren</label>
+                            <input type="number" id="inv-new-afschrijvingsjaren" value="5" class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400/20">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 justify-end">
+                        <button id="btn-cancel-inventaris" class="text-sm bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors">Annuleren</button>
+                        <button id="btn-save-inventaris-item" class="text-sm bg-black text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Opslaan in Sheet
+                        </button>
+                    </div>
+                </div>
+
                 <div id="inventaris-kandidaten" class="hidden mt-5 space-y-3">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gevonden investeringen — klik om toe te voegen aan inventaris</p>
                     <div id="kandidaten-lijst" class="space-y-2"></div>
@@ -643,8 +705,75 @@ function setupEventListeners(container) {
         const target = e.target;
         
         if (target.id === 'btn-add-inventaris') {
-            fiscalState.addInventarisItem({});
-            renderInventarisTable();
+            const form = document.getElementById('inventaris-add-form');
+            if (form) {
+                form.classList.toggle('hidden');
+                if (!form.classList.contains('hidden')) {
+                    document.getElementById('inv-new-omschrijving')?.focus();
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            }
+        }
+
+        if (target.id === 'btn-cancel-inventaris') {
+            const form = document.getElementById('inventaris-add-form');
+            if (form) {
+                form.classList.add('hidden');
+                document.getElementById('inv-new-omschrijving').value = '';
+                document.getElementById('inv-new-aanschafwaarde').value = '';
+                document.getElementById('inv-new-afschrijvingsjaren').value = '5';
+            }
+        }
+
+        if (target.closest('#btn-save-inventaris-item')) {
+            const saveBtn = document.getElementById('btn-save-inventaris-item');
+            const omschrijving  = document.getElementById('inv-new-omschrijving')?.value.trim();
+            const datum         = document.getElementById('inv-new-datum')?.value.trim();
+            const aanschafwaarde = parseFloat(document.getElementById('inv-new-aanschafwaarde')?.value) || 0;
+            const afschrijvingsJaren = parseInt(document.getElementById('inv-new-afschrijvingsjaren')?.value, 10) || 5;
+
+            if (!omschrijving) {
+                alert('Vul een omschrijving in.');
+                return;
+            }
+            if (aanschafwaarde <= 0) {
+                alert('Vul een geldig aanschafbedrag in.');
+                return;
+            }
+
+            const newItem = { omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde: aanschafwaarde };
+
+            const originalHtml = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Bezig met opslaan...';
+            saveBtn.disabled = true;
+            if (window.lucide) window.lucide.createIcons();
+
+            try {
+                await addInventarisItemToSheet(newItem);
+
+                // Lokale state bijwerken na succesvolle opslag
+                fiscalState.addInventarisItem({
+                    omschrijving,
+                    aankoopJaar:        datum,
+                    aankoopBedrag:      aanschafwaarde,
+                    afschrijvingsDuur:  afschrijvingsJaren,
+                    boekwaardeVorigJaar: aanschafwaarde,
+                });
+                renderInventarisTable();
+
+                // Formulier sluiten en leegmaken
+                document.getElementById('inventaris-add-form').classList.add('hidden');
+                document.getElementById('inv-new-omschrijving').value = '';
+                document.getElementById('inv-new-aanschafwaarde').value = '';
+                document.getElementById('inv-new-afschrijvingsjaren').value = '5';
+
+            } catch (err) {
+                alert(`Fout bij opslaan in sheet: ${err.message}`);
+            } finally {
+                saveBtn.innerHTML = originalHtml;
+                saveBtn.disabled = false;
+                if (window.lucide) window.lucide.createIcons();
+            }
         }
 
         const removeBtn = target.closest('[data-action="remove-inv"]');
