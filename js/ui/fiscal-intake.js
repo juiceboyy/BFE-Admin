@@ -149,12 +149,12 @@ export async function loadInventarisAfterAuth() {
     try {
         const items = await fetchInventarisFromSheet();
         // Vertaal sheet-velden naar lokale state-velden
-        const mapped = items.map(item => ({
-            id: item.id,
-            omschrijving:       item.omschrijving,
-            aankoopJaar:        item.datum,
-            aankoopBedrag:      item.aanschafwaarde,
-            afschrijvingsDuur:  item.afschrijvingsJaren,
+        const mapped = items.map((item, idx) => ({
+            id:                  parseInt(item.id, 10) || (idx + 1),
+            omschrijving:        item.omschrijving,
+            aankoopJaar:         item.datum,
+            aankoopBedrag:       item.aanschafwaarde,
+            afschrijvingsDuur:   item.afschrijvingsJaren,
             boekwaardeVorigJaar: item.restwaarde,
         }));
         fiscalState.setTopLevel('inventaris', mapped);

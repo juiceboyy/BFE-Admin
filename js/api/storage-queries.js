@@ -229,8 +229,8 @@ export async function getMonthlyTotals(sheetName) {
 
 /**
  * Haalt alle inventaris-items op uit het Inventaris-tabblad van het Trend-spreadsheet.
- * Verwacht kolommen A:E = omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde.
- * @returns {Promise<Array<{omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde}>>}
+ * Verwacht kolommen A:F = ID, datum/aanschafjaar, omschrijving, aanschafwaarde, afschrijvingsJaren, restwaarde.
+ * @returns {Promise<Array<{id, datum, omschrijving, aanschafwaarde, afschrijvingsJaren, restwaarde}>>}
  */
 export async function fetchInventarisFromSheet() {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
@@ -249,22 +249,33 @@ export async function fetchInventarisFromSheet() {
     const data = await response.json();
     const rows = data.values || [];
 
+    // Handles Dutch formatting: "1.234,56" → 1234.56, "1234,56" → 1234.56, "1234.56" → 1234.56
     const parseAmount = (val) => {
         if (!val) return 0;
-        const cleaned = String(val).replace(/[^0-9.,-]/g, '').replace(',', '.');
-        return parseFloat(cleaned) || 0;
+        let s = String(val).trim().replace(/[€\s]/g, '');
+        const lastComma = s.lastIndexOf(',');
+        const lastDot   = s.lastIndexOf('.');
+        if (lastComma > lastDot) {
+            // Dutch: thousands dot, decimal comma  →  "1.234,56"
+            s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+            // English or no separator: remove thousand commas
+            s = s.replace(/,/g, '');
+        }
+        return parseFloat(s) || 0;
     };
 
     // Sla de headerrij over en filter lege rijen
+    // Kolomvolgorde: A=ID, B=Datum/Aanschafjaar, C=Omschrijving, D=Aanschafwaarde, E=Afschrijvingsjaren, F=Restwaarde
     return rows.slice(1)
-        .filter(row => row && row[0])
-        .map((row, idx) => ({
-            id: idx + 1,
-            omschrijving:      row[0] || '',
+        .filter(row => row && row[2])   // rij is geldig als C (omschrijving) gevuld is
+        .map(row => ({
+            id:                row[0] || '',
             datum:             row[1] || '',
-            aanschafwaarde:    parseAmount(row[2]),
-            afschrijvingsJaren: parseInt(row[3], 10) || 5,
-            restwaarde:        parseAmount(row[4]),
+            omschrijving:      row[2] || '',
+            aanschafwaarde:    parseAmount(row[3]),
+            afschrijvingsJaren: parseInt(row[4], 10) || 5,
+            restwaarde:        parseAmount(row[5]),
         }));
 }
 
