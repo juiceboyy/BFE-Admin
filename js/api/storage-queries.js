@@ -2,6 +2,47 @@ import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
 import { SPREADSHEET_ID } from './storage.js';
 
+const TREND_SPREADSHEET_ID = '1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI';
+
+/**
+ * Voegt een rij toe aan het centrale Trend-archief spreadsheet.
+ * @param {string|number} year - Het boekjaar
+ * @param {Object} trendData - { omzet, kosten, afschrijvingen, bijtelling, fiscaleWinst, winstmarge, priveOnttrekkingen }
+ */
+export async function appendToTrendSheet(year, trendData) {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    const row = [[
+        year,
+        trendData.omzet,
+        trendData.kosten,
+        trendData.afschrijvingen,
+        trendData.bijtelling,
+        trendData.fiscaleWinst,
+        trendData.winstmarge,
+        trendData.priveOnttrekkingen
+    ]];
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Trends!A:H:append?valueInputOption=USER_ENTERED`;
+
+    const response = await fetchWithRetry(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: row })
+    });
+
+    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+}
+
 export async function loadCloudMemory() {
     try {
         const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {

@@ -1,5 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { sendFollowUp } from '../api/tax-advisor.js';
+import { appendToTrendSheet } from '../api/storage-queries.js';
 
 /**
  * Renders the final Fiscal Report and Cheat Sheet into the provided container.
@@ -128,7 +129,7 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
                 <h3 class="text-xl font-bold text-blue-900">IB-Aangifte Spiekbriefje</h3>
             </div>
             <p class="text-sm text-blue-700/80 mb-8">Neem deze exact berekende bedragen letterlijk over in het portaal van de Belastingdienst.</p>
-            
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Winst uit onderneming</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.fiscaleWinst)}</span></div>
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-onttrekkingen (totaal)</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.balans.totaleOnttrekkingen)}</span></div>
@@ -138,12 +139,22 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
                 <div class="flex justify-between items-center p-4 bg-emerald-100/50 rounded-xl shadow-sm border border-emerald-200/60 mt-2 sm:mt-0 sm:col-span-2"><span class="font-bold text-emerald-900 text-base">Belastbare Winst (Box 1)</span><span class="font-mono text-xl font-black text-emerald-700">${formatEur(calculatedData.belastbareWinst)}</span></div>
             </div>
         </div>
+
+        <!-- 4. Export naar Trend-archief -->
+        <div class="mt-8 flex justify-center">
+            <button id="btn-export-trends"
+                    class="px-6 py-3 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2 shadow-sm">
+                <i data-lucide="archive" class="w-4 h-4"></i>
+                <span>💾 Sla definitief op in Trend-archief</span>
+            </button>
+        </div>
     `;
 
     containerElement.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
 
     _initChat(containerElement);
+    _initExportButton(containerElement, calculatedData);
 }
 
 function _renderMarkdown(text) {
@@ -209,4 +220,51 @@ function _initChat(containerElement) {
 
     sendBtn.addEventListener('click', handleSend);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+}
+
+function _initExportButton(containerElement, calculatedData) {
+    const btn = containerElement.querySelector('#btn-export-trends');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const spanEl = btn.querySelector('span');
+        spanEl.textContent = 'Bezig met opslaan...';
+
+        const winstmarge = calculatedData.omzet > 0
+            ? ((calculatedData.fiscaleWinst / calculatedData.omzet) * 100).toFixed(1).replace('.', ',') + '%'
+            : '0,0%';
+
+        const trendData = {
+            omzet:               calculatedData.omzet,
+            kosten:              calculatedData.kosten,
+            afschrijvingen:      calculatedData.totaleAfschrijving,
+            bijtelling:          calculatedData.bijtelling,
+            fiscaleWinst:        calculatedData.fiscaleWinst,
+            winstmarge,
+            priveOnttrekkingen:  calculatedData.balans.totaleOnttrekkingen
+        };
+
+        try {
+            await appendToTrendSheet(calculatedData.year, trendData);
+            btn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i><span>✅ Opgeslagen in BFEadmin!</span>`;
+            btn.classList.replace('bg-black', 'bg-emerald-700');
+            btn.classList.replace('hover:bg-gray-800', 'hover:bg-emerald-700');
+            if (window.lucide) window.lucide.createIcons();
+        } catch (err) {
+            console.error('Export naar Trend-archief mislukt:', err);
+            btn.disabled = false;
+            spanEl.textContent = `❌ Fout: ${err.message}`;
+            btn.classList.replace('bg-black', 'bg-rose-600');
+            btn.classList.replace('hover:bg-gray-800', 'hover:bg-rose-700');
+            // Reset na 5 seconden zodat gebruiker opnieuw kan proberen
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.classList.replace('bg-rose-600', 'bg-black');
+                btn.classList.replace('hover:bg-rose-700', 'hover:bg-gray-800');
+                btn.innerHTML = `<i data-lucide="archive" class="w-4 h-4"></i><span>💾 Sla definitief op in Trend-archief</span>`;
+                if (window.lucide) window.lucide.createIcons();
+            }, 5000);
+        }
+    });
 }
