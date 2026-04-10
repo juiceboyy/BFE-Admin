@@ -99,21 +99,25 @@ export function calculateTaxes(fiscalState) {
         const aankoopBedrag = parseFloat(item.aankoopBedrag) || 0;
         const aankoopJaar = parseInt(item.aankoopJaar, 10);
         const afschrijvingsDuur = parseFloat(item.afschrijvingsDuur) || 5;
-        let boekwaardeBegin = parseFloat(item.boekwaardeVorigJaar) || 0;
-        const restwaarde = 0; // Default residual value
+        const restwaarde = parseFloat(item.restwaarde) || 0;
 
-        // Als het item dit jaar is gekocht, is de beginwaarde gelijk aan het aankoopbedrag
+        // Lineaire afschrijving per jaar
+        const lineaireAfschrijving = afschrijvingsDuur > 0 ? (aankoopBedrag - restwaarde) / afschrijvingsDuur : 0;
+
+        // Time-based boekwaarde begin — mirrors renderInventarisTable logic so both stay in sync
+        const jarenVooraf = Math.max(0, year - aankoopJaar);
+        let boekwaardeBegin = aankoopBedrag - (jarenVooraf * lineaireAfschrijving);
+        if (boekwaardeBegin < restwaarde) boekwaardeBegin = restwaarde;
+
         if (aankoopJaar === year) {
-            boekwaardeBegin = aankoopBedrag;
             investeringenDitJaar += aankoopBedrag;
         }
 
-        // Lineaire afschrijving berekenen
-        const lineaireAfschrijving = (aankoopBedrag - restwaarde) / afschrijvingsDuur;
-        
         // Zorg dat de boekwaarde nooit onder de restwaarde zakt
         const maxMogelijkeAfschrijving = Math.max(0, boekwaardeBegin - restwaarde);
-        const afschrijvingDitJaar = Math.min(lineaireAfschrijving, maxMogelijkeAfschrijving);
+        const afschrijvingDitJaar = year >= aankoopJaar
+            ? Math.min(lineaireAfschrijving, maxMogelijkeAfschrijving)
+            : 0;
         
         totaleAfschrijving += afschrijvingDitJaar;
 
