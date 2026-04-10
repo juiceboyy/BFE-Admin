@@ -82,6 +82,12 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
                     </button>
                 </div>
             </div>
+            <div class="mt-3 flex justify-end">
+                <button id="btn-copy-ai-prompt"
+                        class="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
+                    📋 Kopieer data voor externe AI (Gemini / ChatGPT)
+                </button>
+            </div>
         </div>
 
         <!-- 2. Financieel Jaarverslag -->
@@ -154,6 +160,7 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
     if (window.lucide) window.lucide.createIcons();
 
     _initChat(containerElement);
+    _initCopyPromptButton(containerElement, calculatedData);
     _initExportButton(containerElement, calculatedData);
 }
 
@@ -220,6 +227,38 @@ function _initChat(containerElement) {
 
     sendBtn.addEventListener('click', handleSend);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+}
+
+function _copyPromptToClipboard(calculatedData) {
+    const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num || 0);
+    return `Acteer als de fiscaal adviseur voor mijn eenmanszaak (Big Fish Entertainment).
+Hier zijn mijn definitieve berekende cijfers voor het jaar ${calculatedData.year}:
+
+- Omzet (excl. BTW): ${fmt(calculatedData.omzet)}
+- Zakelijke Kosten (excl. afschrijvingen): ${fmt(calculatedData.kosten)}
+- Afschrijvingen: ${fmt(calculatedData.totaleAfschrijving)}
+- Bijtelling Auto (VW ID.3): ${fmt(calculatedData.bijtelling)}
+- Fiscale Winst (Box 1): ${fmt(calculatedData.fiscaleWinst)}
+- Privé-onttrekkingen: ${fmt(calculatedData.balans.totaleOnttrekkingen)}
+
+Houd deze cijfers in je geheugen. Ik ga je hier nu een aantal vragen over stellen met betrekking tot mijn belastingen en bedrijfsstrategie.`;
+}
+
+function _initCopyPromptButton(containerElement, calculatedData) {
+    const btn = containerElement.querySelector('#btn-copy-ai-prompt');
+    if (!btn) return;
+
+    const originalLabel = btn.textContent;
+
+    btn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(_copyPromptToClipboard(calculatedData));
+            btn.textContent = '✅ Prompt gekopieerd! Plak dit in je AI.';
+            setTimeout(() => { btn.textContent = originalLabel; }, 3000);
+        } catch {
+            alert('Klembord niet toegankelijk. Controleer de browsermachtigingen.');
+        }
+    });
 }
 
 function _initExportButton(containerElement, calculatedData) {
