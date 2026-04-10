@@ -839,22 +839,40 @@ function setupEventListeners(container) {
 
         // Kandidaat toevoegen aan inventaris
         const addKandidaatBtn = target.closest('[data-action="add-kandidaat"]');
-        if (addKandidaatBtn) {
+        if (addKandidaatBtn && !addKandidaatBtn.disabled) {
             const kaart = addKandidaatBtn.closest('[data-kandidaat]');
-            const item = JSON.parse(decodeURIComponent(kaart.dataset.kandidaat));
+            const kandidaat = JSON.parse(decodeURIComponent(kaart.dataset.kandidaat));
             const year = parseInt(fiscalState.getState().year, 10);
-            fiscalState.addInventarisItem({
-                omschrijving:      item.omschrijving,
-                aankoopJaar:       year,
-                aankoopBedrag:     item.aankoopBedrag,
-                afschrijvingsDuur: item.afschrijvingsDuur,
-                restwaarde: 0
-            });
-            renderInventarisTable();
-            kaart.remove();
-            // Verberg sectie als er geen kandidaten meer zijn
-            if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
-                document.getElementById('inventaris-kandidaten').classList.add('hidden');
+
+            const newItem = {
+                id:               Date.now(),
+                omschrijving:     kandidaat.omschrijving,
+                aankoopJaar:      year,
+                aankoopBedrag:    kandidaat.aankoopBedrag,
+                afschrijvingsDuur: kandidaat.afschrijvingsDuur || 5,
+                restwaarde:       0,
+            };
+
+            const originalHtml = addKandidaatBtn.innerHTML;
+            addKandidaatBtn.textContent = 'Toevoegen...';
+            addKandidaatBtn.disabled = true;
+
+            try {
+                await addInventarisItemToSheet(newItem);
+                // Use setTopLevel to preserve the generated ID in local state
+                const current = fiscalState.getState().inventaris;
+                fiscalState.setTopLevel('inventaris', [...current, newItem]);
+                renderInventarisTable();
+                kaart.remove();
+                if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
+                    document.getElementById('inventaris-kandidaten').classList.add('hidden');
+                }
+            } catch (err) {
+                console.error('Fout bij opslaan kandidaat in sheet:', err);
+                alert(`Kon kandidaat niet toevoegen aan Google Sheets: ${err.message}`);
+                addKandidaatBtn.innerHTML = originalHtml;
+                addKandidaatBtn.disabled = false;
+                if (window.lucide) window.lucide.createIcons();
             }
         }
 

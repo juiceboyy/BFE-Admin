@@ -286,15 +286,18 @@ export async function fetchInventarisFromSheet() {
 export async function addInventarisItemToSheet(item) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
+    // Column order must match fetchInventarisFromSheet: A=ID, B=datum, C=omschrijving, D=aanschafwaarde, E=afschrijvingsJaren, F=restwaarde
+    // Accept both UI naming conventions (aankoopJaar/aankoopBedrag/afschrijvingsDuur) and legacy names (datum/aanschafwaarde/afschrijvingsJaren).
     const row = [[
-        item.omschrijving,
-        item.datum,
-        item.aanschafwaarde,
-        item.afschrijvingsJaren,
-        item.restwaarde
+        item.id             || '',
+        item.aankoopJaar    || item.datum              || '',
+        item.omschrijving   || '',
+        item.aankoopBedrag  || item.aanschafwaarde     || 0,
+        item.afschrijvingsDuur || item.afschrijvingsJaren || 5,
+        item.restwaarde     || 0,
     ]];
 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:E:append?valueInputOption=USER_ENTERED`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:F:append?valueInputOption=USER_ENTERED`;
     const response = await fetchWithRetry(url, {
         method: 'POST',
         headers: {
