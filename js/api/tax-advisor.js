@@ -26,11 +26,13 @@ export async function sendFollowUp(question) {
 
     chatHistory.push({ role: 'user', parts: [{ text: question }] });
 
-    // Sliding window: stuur nooit meer dan 6 berichten naar de API om timeouts te voorkomen.
-    // De eerste 2 (initieel prompt + initieel antwoord) bieden de fiscale context.
-    // De laatste 4 vormen het actieve gesprek.
-    const payloadMessages = chatHistory.length > 6
-        ? [...chatHistory.slice(0, 2), ...chatHistory.slice(-4)]
+    // Sliding window: stuur nooit meer dan 5 berichten naar de API om timeouts te voorkomen.
+    // Index 0: initieel data-dump van de gebruiker — altijd meesturen als context.
+    // Index 1: de AI's initiële JSON-kaarten — bewust OVERGESLAGEN (groot payload, geen gesprekswaarde).
+    // Laatste 4: actief gesprek (index 0 en 1 gefilterd om duplicaten en de zware JSON te vermijden).
+    const recentMessages = chatHistory.slice(-4);
+    const payloadMessages = chatHistory.length > 2
+        ? [chatHistory[0], ...recentMessages.filter(m => m !== chatHistory[0] && m !== chatHistory[1])]
         : chatHistory;
 
     try {
