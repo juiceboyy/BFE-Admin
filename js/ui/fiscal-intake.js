@@ -473,9 +473,10 @@ function renderInventarisTable() {
         return;
     }
 
-    tbody.innerHTML = state.inventaris.map(item => {
-        const huidigJaar = parseInt(fiscalState.getState().year, 10);
+    const huidigJaar = parseInt(fiscalState.getState().year, 10);
+    let totaleAfschrijving = 0;
 
+    tbody.innerHTML = state.inventaris.map(item => {
         const aanschafJaar = parseInt(item.aankoopJaar || item.datum, 10);
         const bedrag = parseFloat(item.aankoopBedrag || item.aanschafwaarde || 0);
         const jaren = parseInt(item.afschrijvingsDuur || item.afschrijvingsJaren || 5, 10);
@@ -491,6 +492,8 @@ function renderInventarisTable() {
         if (huidigJaar >= aanschafJaar && boekwaardeBegin > restwaarde) {
             afschrijvingDitJaar = Math.min(afschrijvingPerJaar, boekwaardeBegin - restwaarde);
         }
+
+        totaleAfschrijving += afschrijvingDitJaar;
 
         let boekwaardeEind = boekwaardeBegin - afschrijvingDitJaar;
 
@@ -518,6 +521,8 @@ function renderInventarisTable() {
             </td>
         </tr>`;
     }).join('');
+
+    fiscalState.setTopLevel('afschrijvingen', totaleAfschrijving);
 
     if (window.lucide) window.lucide.createIcons();
 }
