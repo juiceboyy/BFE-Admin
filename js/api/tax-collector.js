@@ -85,43 +85,48 @@ export async function collectYearData(year, spreadsheetId) {
                 if (idxDatum === -1) idxDatum = 0; // Fallback
                 
                 if (isVerkoop) {
-                    const idxKlant = getIdx(['klant', 'relatie', 'naam', 'debiteur']);
                     const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
                     const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
                     const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9']);
                     const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21']);
                     const idxOmzetNul = getIdx(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0']);
 
-                    console.log(`Mapped indices for Verkoop (${rangeName}):`, { idxDatum, idxKlant, idxBtwLaag, idxBtwHoog, idxOmzetLaag, idxOmzetHoog, idxOmzetNul });
-
+                    // Lees de Totalen-rij direct — die bevat de SUM-formules van het sheet zelf
+                    // en is altijd correct, ongeacht parseer-issues in individuele rijen.
+                    let totaalRijGevonden = false;
                     for (let i = 1; i < rangeData.values.length; i++) {
-                        try {
-                            const row = rangeData.values[i];
-                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
-                            
-                            const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
-                            if (isTotalRow) continue;
+                        const row = rangeData.values[i];
+                        if (!row || row.length === 0) continue;
+                        const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
+                        if (!isTotalRow) continue;
 
-                            result.btwAfgedragen.laag9 += idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
-                            result.btwAfgedragen.hoog21 += idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
-                            result.omzet.laag9 += idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
-                            result.omzet.hoog21 += idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
-                            result.omzet.nul0 += idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
-                        } catch (err) {
-                            console.warn(`⚠️ Fout bij verwerken rij ${i} in ${rangeName} (Verkoop), rij overgeslagen:`, err);
-                        }
+                        const omzetL = idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
+                        const omzetH = idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
+                        const omzetN = idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
+                        const btwL   = idxBtwLaag  !== -1 ? parseEuro(row[idxBtwLaag])   : 0;
+                        const btwH   = idxBtwHoog  !== -1 ? parseEuro(row[idxBtwHoog])   : 0;
+
+                        result.omzet.laag9          += omzetL;
+                        result.omzet.hoog21         += omzetH;
+                        result.omzet.nul0           += omzetN;
+                        result.btwAfgedragen.laag9  += btwL;
+                        result.btwAfgedragen.hoog21 += btwH;
+                        totaalRijGevonden = true;
+                        break;
                     }
+                    if (!totaalRijGevonden) console.warn(`⚠️ Geen Totalen-rij gevonden in ${rangeName}`);
                 } else if (isInkoop) {
                     const idxLeverancier = getIdx(['leverancier', 'naam leverancier', 'klant']);
                     const idxBtw = getIdx(['btw', 'voorbelasting']);
                     const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
 
-                    console.log(`Mapped indices for Inkoop (${rangeName}):`, { idxDatum, idxLeverancier, idxBtw, idxExcl });
-
                     for (let i = 1; i < rangeData.values.length; i++) {
                         try {
                             const row = rangeData.values[i];
-                            if (!row || row.length === 0 || row[idxDatum] === undefined) continue;
+                            const hasFinancialData = [idxBtw, idxExcl]
+                                .filter(idx => idx !== -1)
+                                .some(idx => row?.[idx] !== undefined && row[idx] !== '');
+                            if (!row || row.length === 0 || !hasFinancialData) continue;
 
                             const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
                             if (isTotalRow) continue;

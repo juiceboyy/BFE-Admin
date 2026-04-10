@@ -6,6 +6,15 @@ body {
     color: #1d1d1f;
 }
 
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}
+
 .glass-panel {
     background: rgba(255, 255, 255, 0.65);
     backdrop-filter: blur(20px);

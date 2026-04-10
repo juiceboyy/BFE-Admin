@@ -2,6 +2,47 @@ import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
 import { SPREADSHEET_ID } from './storage.js';
 
+const TREND_SPREADSHEET_ID = '1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI';
+
+/**
+ * Voegt een rij toe aan het centrale Trend-archief spreadsheet.
+ * @param {string|number} year - Het boekjaar
+ * @param {Object} trendData - { omzet, kosten, afschrijvingen, bijtelling, fiscaleWinst, winstmarge, priveOnttrekkingen }
+ */
+export async function appendToTrendSheet(year, trendData) {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    const row = [[
+        year,
+        trendData.omzet,
+        trendData.kosten,
+        trendData.afschrijvingen,
+        trendData.bijtelling,
+        trendData.fiscaleWinst,
+        trendData.winstmarge,
+        trendData.priveOnttrekkingen
+    ]];
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Trends!A:H:append?valueInputOption=USER_ENTERED`;
+
+    const response = await fetchWithRetry(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: row })
+    });
+
+    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+}
+
 export async function loadCloudMemory() {
     try {
         const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
@@ -184,4 +225,43 @@ export async function getMonthlyTotals(sheetName) {
         console.error(`Fout bij ophalen van ${sheetName}:`, error);
         return { totaalOmzet: 0, totaalBtw: 0 };
     }
+}
+
+export async function getYearlyTotals(year) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+    let omzetEx  = 0;
+    let btwVerkoop = 0;
+    let inkoopEx = 0;
+    let btwInkoop  = 0;
+
+    for (const month of months) {
+        const verkoop = await getMonthlyTotals(`${month} Verkoop`);
+        const inkoop  = await getMonthlyTotals(`${month} Inkoop`);
+
+        omzetEx    += verkoop.totaalOmzet;
+        btwVerkoop += verkoop.totaalBtw;
+        inkoopEx   += inkoop.totaalOmzet;
+        btwInkoop  += inkoop.totaalBtw;
+    }
+
+    // Privé-administratie correcties:
+    // Alle omzet komt binnen op privérekening → volledige omzet incl. BTW is privéonttrekking in geld
+    const priveOnttrekkingenGeld = omzetEx + btwVerkoop;
+    // Zakelijke kosten betaald via privérekening → inkoop incl. BTW is privéstorting in natura
+    const priveStortingenNatura  = inkoopEx + btwInkoop;
+
+    const r = (val) => Math.round(val * 100) / 100;
+
+    return {
+        year,
+        omzetEx:               r(omzetEx),
+        btwVerkoop:            r(btwVerkoop),
+        inkoopEx:              r(inkoopEx),
+        btwInkoop:             r(btwInkoop),
+        btwBalans:             r(btwVerkoop - btwInkoop),
+        winst:                 r(omzetEx - inkoopEx),
+        priveOnttrekkingenGeld: r(priveOnttrekkingenGeld),
+        priveStortingenNatura:  r(priveStortingenNatura),
+    };
 }

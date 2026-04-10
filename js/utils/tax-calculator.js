@@ -3,12 +3,84 @@
  * Pure logic module voor het berekenen van de inkomstenbelasting en fiscale winst.
  */
 
-// Constanten voor het belastingjaar (bijv. 2024 configuratie)
-const TAX_CONSTANTS = {
-    zelfstandigenaftrek: 3750,
-    mkbWinstvrijstelling: 0.1331, // 13.31%
-    kiaDrempel: 2800 // Wordt gebruikt in de AI advies module
+/**
+ * Belastingtarieven per jaar.
+ * Zelfstandigenaftrek en MKB-winstvrijstelling worden jaarlijks bijgesteld door de Belastingdienst.
+ * box1 = progressieve schijven: [ { grens: bovenlimiet, tarief: fractie }, ... ]
+ * Laatste schijf altijd met grens: Infinity.
+ *
+ * Bronnen: Belastingplan 2024/2025, Prinsjesdag-stukken.
+ * Tarieven 2026 zijn indicatief — verifieer voor indiening bij belastingdienst.nl.
+ */
+const TAX_RATES_BY_YEAR = {
+    2023: {
+        zelfstandigenaftrek: 5030,
+        mkbWinstvrijstelling: 0.14,
+        kiaDrempel: 2801,
+        box1: [
+            { grens: 73031, tarief: 0.3693 },
+            { grens: Infinity, tarief: 0.495 }
+        ]
+    },
+    2024: {
+        zelfstandigenaftrek: 3750,
+        mkbWinstvrijstelling: 0.1331,
+        kiaDrempel: 2801,
+        box1: [
+            { grens: 75518, tarief: 0.3697 },
+            { grens: Infinity, tarief: 0.495 }
+        ]
+    },
+    2025: {
+        zelfstandigenaftrek: 2470,
+        mkbWinstvrijstelling: 0.127,
+        kiaDrempel: 2801,
+        box1: [
+            { grens: 38441, tarief: 0.3582 },
+            { grens: 76817, tarief: 0.3748 },
+            { grens: Infinity, tarief: 0.495 }
+        ]
+    },
+    // 2026: indicatief — verifieer bij Belastingplan 2026
+    2026: {
+        zelfstandigenaftrek: 1200,
+        mkbWinstvrijstelling: 0.127,
+        kiaDrempel: 2801,
+        box1: [
+            { grens: 38441, tarief: 0.3582 },
+            { grens: 76817, tarief: 0.3748 },
+            { grens: Infinity, tarief: 0.495 }
+        ]
+    }
 };
+
+/**
+ * Geeft de tarieven voor een specifiek jaar terug.
+ * Valt terug op het meest recente bekende jaar als het gevraagde jaar niet bestaat.
+ */
+export function getRatesForYear(year) {
+    const y = parseInt(year, 10);
+    if (TAX_RATES_BY_YEAR[y]) return TAX_RATES_BY_YEAR[y];
+    const known = Object.keys(TAX_RATES_BY_YEAR).map(Number).sort((a, b) => b - a);
+    return TAX_RATES_BY_YEAR[known[0]];
+}
+
+/**
+ * Berekent de geschatte IB op basis van belastbare winst en progressieve Box 1 schijven.
+ */
+export function schattingIB(belastbareWinst, year) {
+    if (belastbareWinst <= 0) return 0;
+    const rates = getRatesForYear(year);
+    let ib = 0;
+    let vorige = 0;
+    for (const schijf of rates.box1) {
+        const schijfInkomen = Math.min(belastbareWinst, schijf.grens) - vorige;
+        if (schijfInkomen <= 0) break;
+        ib += schijfInkomen * schijf.tarief;
+        vorige = schijf.grens;
+    }
+    return ib;
+}
 
 /**
  * Berekent alle fiscale tussenstappen en eindtotalen op basis van de applicatie state.
@@ -17,6 +89,7 @@ const TAX_CONSTANTS = {
  */
 export function calculateTaxes(fiscalState) {
     const year = parseInt(fiscalState.year || new Date().getFullYear(), 10);
+    const rates = getRatesForYear(year);
 
     // 1. Afschrijvingen (Depreciation)
     let totaleAfschrijving = 0;
@@ -69,7 +142,7 @@ export function calculateTaxes(fiscalState) {
     // 4. Ondernemersaftrek
     let ondernemersaftrek = 0;
     if (fiscalState.ondernemer?.urencriteriumGehaald && fiscaleWinst > 0) {
-        ondernemersaftrek = Math.min(TAX_CONSTANTS.zelfstandigenaftrek, fiscaleWinst);
+        ondernemersaftrek = Math.min(rates.zelfstandigenaftrek, fiscaleWinst);
     }
 
     const winstNaOndernemersaftrek = fiscaleWinst - ondernemersaftrek;
@@ -77,7 +150,7 @@ export function calculateTaxes(fiscalState) {
     // 5. MKB-Winstvrijstelling
     let mkbWinstvrijstellingBedrag = 0;
     if (winstNaOndernemersaftrek > 0) {
-        mkbWinstvrijstellingBedrag = winstNaOndernemersaftrek * TAX_CONSTANTS.mkbWinstvrijstelling;
+        mkbWinstvrijstellingBedrag = winstNaOndernemersaftrek * rates.mkbWinstvrijstelling;
     }
 
     // 6. Belastbare Winst (Taxable Profit)
@@ -96,10 +169,22 @@ export function calculateTaxes(fiscalState) {
     });
 
     const eigenVermogenBegin = bankBegin + boekwaardeInventarisBegin;
-    const priveStortingen = parseFloat(fiscalState.prive?.stortingen) || 0;
-    const priveOnttrekkingen = parseFloat(fiscalState.prive?.onttrekkingenInGeld) || 0;
 
-    const eigenVermogenEind = eigenVermogenBegin + fiscaleWinst - priveOnttrekkingen + priveStortingen;
+    // Privé-mutaties — vier officiële Belastingdienst-categorieën
+    const priveOnttrekkingenInGeld   = parseFloat(fiscalState.prive?.onttrekkingenInGeld)   || 0;
+    const priveOnttrekkingenInNatura = parseFloat(fiscalState.prive?.onttrekkingenInNatura) || 0;
+    const priveStortingenInGeld      = parseFloat(fiscalState.prive?.stortingenInGeld)      || 0;
+    const priveStortingenInNatura    = parseFloat(fiscalState.prive?.stortingenInNatura)    || 0;
+
+    // Bijtelling telt al mee in fiscaleWinst (+), maar is ook een onttrekking in natura (−)
+    // Anders wordt het EV ten onrechte met het bijtelling-bedrag overschat
+    const totaleOnttrekkingen = priveOnttrekkingenInGeld + priveOnttrekkingenInNatura + bijtelling;
+    const totaleStortingen    = priveStortingenInGeld + priveStortingenInNatura;
+
+    const kortlopendeSchulden = parseFloat(fiscalState.balans?.kortlopendeSchulden) || 0;
+    const forStand            = parseFloat(fiscalState.balans?.forStand) || 0;
+
+    const eigenVermogenEind = eigenVermogenBegin + fiscaleWinst - totaleOnttrekkingen + totaleStortingen;
 
     // Output Contract
     return {
@@ -116,7 +201,11 @@ export function calculateTaxes(fiscalState) {
         belastbareWinst,
         balans: {
             eigenVermogenBegin,
-            eigenVermogenEind
+            eigenVermogenEind,
+            kortlopendeSchulden,
+            forStand,
+            totaleOnttrekkingen,
+            totaleStortingen
         },
         afschrijvingenLog
     };

@@ -1,4 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
+import { sendFollowUp } from '../api/tax-advisor.js';
+import { appendToTrendSheet } from '../api/storage-queries.js';
 
 /**
  * Renders the final Fiscal Report and Cheat Sheet into the provided container.
@@ -56,8 +58,35 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <i data-lucide="bot" class="w-5 h-5 text-blue-500"></i> AI Fiscaal Adviseur
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 ${(aiAdvice && aiAdvice.length > 0) ? aiAdvice.map(getAdviceCard).join('') : '<p class="text-sm text-gray-500 italic">Geen specifiek advies gegenereerd.</p>'}
+            </div>
+
+            <!-- Chat -->
+            <div class="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-2">
+                    <i data-lucide="message-circle" class="w-4 h-4 text-blue-500"></i>
+                    <span class="text-sm font-medium text-gray-700">Stel een vervolgvraag</span>
+                </div>
+                <div id="chat-messages" class="p-4 space-y-3 overflow-y-auto" style="max-height:360px">
+                    <p class="text-xs text-gray-400 text-center italic">Je kunt hier vervolgvragen stellen over je aangifte of de adviezen hierboven.</p>
+                </div>
+                <div class="border-t border-gray-100 p-3 flex gap-2 bg-white">
+                    <input id="chat-input"
+                           type="text"
+                           placeholder="Stel een vervolgvraag aan je adviseur..."
+                           class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition-all">
+                    <button id="chat-send"
+                            class="bg-black text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 flex justify-end">
+                <button id="btn-copy-ai-prompt"
+                        class="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
+                    📋 Kopieer data voor externe AI (Gemini / ChatGPT)
+                </button>
             </div>
         </div>
 
@@ -81,15 +110,19 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             <!-- 2b. Balans -->
             <div class="bg-white shadow-sm rounded-xl p-6 border border-gray-100">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-100 pb-3">Balans (31 december)</h3>
-                <div class="space-y-5 text-sm">
+                <div class="space-y-4 text-sm">
                     <div>
-                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Activa (Bezit)</h4>
-                        <div class="flex justify-between mb-1.5"><span>Liquide Middelen (Bank eindsaldo)</span><span class="font-medium">${formatEur(state.bank.eindSaldo)}</span></div>
-                        <div class="flex justify-between"><span>Materiële Vaste Activa (Boekwaarde)</span><span class="font-medium">${formatEur(boekwaardeInventarisEind)}</span></div>
+                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Activa</h4>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Liquide middelen (bank eindsaldo)</span><span class="font-medium">${formatEur(state.bank.eindSaldo)}</span></div>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Materiële vaste activa (boekwaarde)</span><span class="font-medium">${formatEur(boekwaardeInventarisEind)}</span></div>
+                        <div class="flex justify-between font-semibold pt-2 border-t border-gray-100"><span>Totaal activa</span><span>${formatEur((state.bank.eindSaldo || 0) + boekwaardeInventarisEind)}</span></div>
                     </div>
                     <div class="border-t border-gray-100 pt-3">
-                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Passiva (Schuld & Vermogen)</h4>
-                        <div class="flex justify-between font-bold text-base"><span>Eigen Vermogen</span><span>${formatEur(calculatedData.balans.eigenVermogenEind)}</span></div>
+                        <h4 class="font-medium text-gray-400 uppercase text-xs tracking-wider mb-2">Passiva</h4>
+                        <div class="flex justify-between mb-1.5"><span class="text-gray-600">Eigen vermogen</span><span class="font-medium">${formatEur(calculatedData.balans.eigenVermogenEind)}</span></div>
+                        ${calculatedData.balans.forStand > 0 ? `<div class="flex justify-between mb-1.5 text-gray-400 text-xs ml-3"><span>↳ w.v. FOR-stand (geen nieuwe opbouw)</span><span>${formatEur(calculatedData.balans.forStand)}</span></div>` : ''}
+                        ${calculatedData.balans.kortlopendeSchulden > 0 ? `<div class="flex justify-between mb-1.5"><span class="text-gray-600">Kortlopende schulden</span><span class="font-medium text-rose-600">${formatEur(calculatedData.balans.kortlopendeSchulden)}</span></div>` : ''}
+                        <div class="flex justify-between font-semibold pt-2 border-t border-gray-100"><span>Totaal passiva</span><span>${formatEur(calculatedData.balans.eigenVermogenEind + calculatedData.balans.kortlopendeSchulden)}</span></div>
                     </div>
                 </div>
             </div>
@@ -102,18 +135,181 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
                 <h3 class="text-xl font-bold text-blue-900">IB-Aangifte Spiekbriefje</h3>
             </div>
             <p class="text-sm text-blue-700/80 mb-8">Neem deze exact berekende bedragen letterlijk over in het portaal van de Belastingdienst.</p>
-            
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Winst uit onderneming</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.fiscaleWinst)}</span></div>
-                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-onttrekkingen</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(state.prive.onttrekkingenInGeld)}</span></div>
+                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-onttrekkingen (totaal)</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.balans.totaleOnttrekkingen)}</span></div>
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Zelfstandigenaftrek</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.ondernemersaftrek)}</span></div>
-                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-stortingen</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(state.prive.stortingen)}</span></div>
+                <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">Privé-stortingen (totaal)</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.balans.totaleStortingen)}</span></div>
                 <div class="flex justify-between items-center p-3.5 bg-white/80 rounded-xl shadow-sm"><span class="font-medium text-gray-600">MKB-Winstvrijstelling</span><span class="font-mono text-base font-bold text-gray-900">${formatEur(calculatedData.mkbWinstvrijstellingBedrag)}</span></div>
                 <div class="flex justify-between items-center p-4 bg-emerald-100/50 rounded-xl shadow-sm border border-emerald-200/60 mt-2 sm:mt-0 sm:col-span-2"><span class="font-bold text-emerald-900 text-base">Belastbare Winst (Box 1)</span><span class="font-mono text-xl font-black text-emerald-700">${formatEur(calculatedData.belastbareWinst)}</span></div>
             </div>
+        </div>
+
+        <!-- 4. Export naar Trend-archief -->
+        <div class="mt-8 flex justify-center">
+            <button id="btn-export-trends"
+                    class="px-6 py-3 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2 shadow-sm">
+                <i data-lucide="archive" class="w-4 h-4"></i>
+                <span>💾 Sla definitief op in Trend-archief</span>
+            </button>
         </div>
     `;
 
     containerElement.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
+
+    _initChat(containerElement);
+    _initCopyPromptButton(containerElement, calculatedData, aiAdvice);
+    _initExportButton(containerElement, calculatedData);
+}
+
+function _renderMarkdown(text) {
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>');
+}
+
+function _appendBubble(container, text, role) {
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.className = `flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`;
+    div.innerHTML = isUser
+        ? `<div class="bg-black text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[80%]">${_renderMarkdown(text)}</div>`
+        : `<div class="bg-gray-100 text-gray-800 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[80%]">${_renderMarkdown(text)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+}
+
+function _initChat(containerElement) {
+    const messages = containerElement.querySelector('#chat-messages');
+    const input    = containerElement.querySelector('#chat-input');
+    const sendBtn  = containerElement.querySelector('#chat-send');
+    if (!messages || !input || !sendBtn) return;
+
+    async function handleSend() {
+        const question = input.value.trim();
+        if (!question) return;
+
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        _appendBubble(messages, question, 'user');
+
+        // Typing indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'flex gap-2 justify-start';
+        indicator.innerHTML = `<div class="bg-gray-100 text-gray-400 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm flex gap-1 items-center">
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+        </div>`;
+        messages.appendChild(indicator);
+        messages.scrollTop = messages.scrollHeight;
+
+        try {
+            const answer = await sendFollowUp(question);
+            indicator.remove();
+            _appendBubble(messages, answer, 'model');
+        } catch (err) {
+            indicator.remove();
+            _appendBubble(messages, `Er is een fout opgetreden: ${err.message}`, 'error');
+        } finally {
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', handleSend);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+}
+
+function _copyPromptToClipboard(calculatedData, aiAdvice) {
+    const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num || 0);
+
+    const adviceSection = (aiAdvice && aiAdvice.length > 0)
+        ? `\n\nMijn AI-adviseur heeft de volgende adviespunten gegenereerd:\n` +
+          aiAdvice.map((a, i) => `${i + 1}. [${a.type.toUpperCase()}] ${a.title}: ${a.description}`).join('\n')
+        : '';
+
+    return `Acteer als de fiscaal adviseur voor mijn eenmanszaak (Big Fish Entertainment).
+Hier zijn mijn definitieve berekende cijfers voor het jaar ${calculatedData.year}:
+
+- Omzet (excl. BTW): ${fmt(calculatedData.omzet)}
+- Zakelijke Kosten (excl. afschrijvingen): ${fmt(calculatedData.kosten)}
+- Afschrijvingen: ${fmt(calculatedData.totaleAfschrijving)}
+- Bijtelling Auto (VW ID.3): ${fmt(calculatedData.bijtelling)}
+- Fiscale Winst (Box 1): ${fmt(calculatedData.fiscaleWinst)}
+- Privé-onttrekkingen: ${fmt(calculatedData.balans.totaleOnttrekkingen)}${adviceSection}
+
+Houd deze cijfers in je geheugen. Ik ga je hier nu een aantal vragen over stellen met betrekking tot mijn belastingen en bedrijfsstrategie.`;
+}
+
+function _initCopyPromptButton(containerElement, calculatedData, aiAdvice) {
+    const btn = containerElement.querySelector('#btn-copy-ai-prompt');
+    if (!btn) return;
+
+    const originalLabel = btn.textContent;
+
+    btn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(_copyPromptToClipboard(calculatedData, aiAdvice));
+            btn.textContent = '✅ Prompt gekopieerd! Plak dit in je AI.';
+            setTimeout(() => { btn.textContent = originalLabel; }, 3000);
+        } catch {
+            alert('Klembord niet toegankelijk. Controleer de browsermachtigingen.');
+        }
+    });
+}
+
+function _initExportButton(containerElement, calculatedData) {
+    const btn = containerElement.querySelector('#btn-export-trends');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const spanEl = btn.querySelector('span');
+        spanEl.textContent = 'Bezig met opslaan...';
+
+        const winstmarge = calculatedData.omzet > 0
+            ? ((calculatedData.fiscaleWinst / calculatedData.omzet) * 100).toFixed(1).replace('.', ',') + '%'
+            : '0,0%';
+
+        const trendData = {
+            omzet:               calculatedData.omzet,
+            kosten:              calculatedData.kosten,
+            afschrijvingen:      calculatedData.totaleAfschrijving,
+            bijtelling:          calculatedData.bijtelling,
+            fiscaleWinst:        calculatedData.fiscaleWinst,
+            winstmarge,
+            priveOnttrekkingen:  calculatedData.balans.totaleOnttrekkingen
+        };
+
+        try {
+            await appendToTrendSheet(calculatedData.year, trendData);
+            btn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i><span>✅ Opgeslagen in BFEadmin!</span>`;
+            btn.classList.replace('bg-black', 'bg-emerald-700');
+            btn.classList.replace('hover:bg-gray-800', 'hover:bg-emerald-700');
+            if (window.lucide) window.lucide.createIcons();
+        } catch (err) {
+            console.error('Export naar Trend-archief mislukt:', err);
+            btn.disabled = false;
+            spanEl.textContent = `❌ Fout: ${err.message}`;
+            btn.classList.replace('bg-black', 'bg-rose-600');
+            btn.classList.replace('hover:bg-gray-800', 'hover:bg-rose-700');
+            // Reset na 5 seconden zodat gebruiker opnieuw kan proberen
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.classList.replace('bg-rose-600', 'bg-black');
+                btn.classList.replace('hover:bg-rose-700', 'hover:bg-gray-800');
+                btn.innerHTML = `<i data-lucide="archive" class="w-4 h-4"></i><span>💾 Sla definitief op in Trend-archief</span>`;
+                if (window.lucide) window.lucide.createIcons();
+            }, 5000);
+        }
+    });
 }
