@@ -122,7 +122,7 @@ export const handler = async (event) => {
 
     const outputFormatInstruction = messages.length === 1
         ? `\n\n## Output Structuur\nGeef maximaal 5 adviespunten. Retourneer UITSLUITEND een geldige JSON-array zonder markdown-blokken of inleidende tekst. Formaat:\n[{ "type": "warning|tip|info", "title": "Korte titel (max 8 woorden)", "description": "Uitleg met concreet actiepunt en berekend bedrag." }]`
-        : `\n\n## Output Structuur\nJe bent nu in een direct chatgesprek met de ondernemer. Geef antwoord in natuurlijke, vlotte en behulpzame tekst. Gebruik gerust Markdown (bold, lists) voor leesbaarheid. Gebruik ABSOLUUT GEEN JSON.`;
+        : `\n\n## Output Structuur\nJe bent nu in een direct chatgesprek met de ondernemer. Geef antwoord in natuurlijke, vlotte en behulpzame tekst. Gebruik gerust Markdown (bold, lists) voor leesbaarheid. Gebruik ABSOLUUT GEEN JSON.\nWees EXTREEM bondig. Geef je antwoord in maximaal 3 tot 4 zinnen. Gebruik waar mogelijk opsommingstekens. Schrijf geen lange inleidingen of conclusies.`;
 
     const systemPrompt = SYSTEM_PROMPT + dynamicRatesSection + outputFormatInstruction;
 
@@ -149,7 +149,7 @@ export const handler = async (event) => {
             body: JSON.stringify({
                 systemInstruction: { parts: [{ text: systemPrompt }] },
                 contents,
-                generationConfig: { temperature: 0.3 }
+                generationConfig: { temperature: 0.3, maxOutputTokens: 250 }
             })
         });
 
