@@ -160,7 +160,7 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
     if (window.lucide) window.lucide.createIcons();
 
     _initChat(containerElement);
-    _initCopyPromptButton(containerElement, calculatedData);
+    _initCopyPromptButton(containerElement, calculatedData, aiAdvice);
     _initExportButton(containerElement, calculatedData);
 }
 
@@ -229,8 +229,14 @@ function _initChat(containerElement) {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
 }
 
-function _copyPromptToClipboard(calculatedData) {
+function _copyPromptToClipboard(calculatedData, aiAdvice) {
     const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num || 0);
+
+    const adviceSection = (aiAdvice && aiAdvice.length > 0)
+        ? `\n\nMijn AI-adviseur heeft de volgende adviespunten gegenereerd:\n` +
+          aiAdvice.map((a, i) => `${i + 1}. [${a.type.toUpperCase()}] ${a.title}: ${a.description}`).join('\n')
+        : '';
+
     return `Acteer als de fiscaal adviseur voor mijn eenmanszaak (Big Fish Entertainment).
 Hier zijn mijn definitieve berekende cijfers voor het jaar ${calculatedData.year}:
 
@@ -239,12 +245,12 @@ Hier zijn mijn definitieve berekende cijfers voor het jaar ${calculatedData.year
 - Afschrijvingen: ${fmt(calculatedData.totaleAfschrijving)}
 - Bijtelling Auto (VW ID.3): ${fmt(calculatedData.bijtelling)}
 - Fiscale Winst (Box 1): ${fmt(calculatedData.fiscaleWinst)}
-- Privé-onttrekkingen: ${fmt(calculatedData.balans.totaleOnttrekkingen)}
+- Privé-onttrekkingen: ${fmt(calculatedData.balans.totaleOnttrekkingen)}${adviceSection}
 
 Houd deze cijfers in je geheugen. Ik ga je hier nu een aantal vragen over stellen met betrekking tot mijn belastingen en bedrijfsstrategie.`;
 }
 
-function _initCopyPromptButton(containerElement, calculatedData) {
+function _initCopyPromptButton(containerElement, calculatedData, aiAdvice) {
     const btn = containerElement.querySelector('#btn-copy-ai-prompt');
     if (!btn) return;
 
@@ -252,7 +258,7 @@ function _initCopyPromptButton(containerElement, calculatedData) {
 
     btn.addEventListener('click', async () => {
         try {
-            await navigator.clipboard.writeText(_copyPromptToClipboard(calculatedData));
+            await navigator.clipboard.writeText(_copyPromptToClipboard(calculatedData, aiAdvice));
             btn.textContent = '✅ Prompt gekopieerd! Plak dit in je AI.';
             setTimeout(() => { btn.textContent = originalLabel; }, 3000);
         } catch {
