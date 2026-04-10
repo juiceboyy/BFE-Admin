@@ -149,7 +149,7 @@ export const handler = async (event) => {
             body: JSON.stringify({
                 systemInstruction: { parts: [{ text: systemPrompt }] },
                 contents,
-                generationConfig: { temperature: 0.3, maxOutputTokens: 250 }
+                generationConfig: { temperature: 0.3, maxOutputTokens: messages.length === 1 ? 800 : 250 }
             })
         });
 
