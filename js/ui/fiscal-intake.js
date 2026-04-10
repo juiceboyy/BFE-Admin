@@ -128,10 +128,10 @@ export function initFiscalIntake() {
 
     renderStructure(container);
     setupEventListeners(container);
-    _loadInventarisFromSheet();
+    renderInventarisTable();
 }
 
-async function _loadInventarisFromSheet() {
+export async function loadInventarisAfterAuth() {
     const tbody = document.getElementById('inventaris-tbody');
     if (!tbody) return;
 

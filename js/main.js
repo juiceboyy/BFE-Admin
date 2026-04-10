@@ -1,7 +1,7 @@
 import { initAuth } from './api/auth.js';
 import { initBtwModule } from './ui/btw.js';
 import { initScanner } from './ui/scanner.js';
-import { initFiscalIntake } from './ui/fiscal-intake.js';
+import { initFiscalIntake, loadInventarisAfterAuth } from './ui/fiscal-intake.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 initAuth(async () => {
     // Forceer een directe verversing van het dashboard na inloggen
     invalidateDashboardCache();
+    loadInventarisAfterAuth();
     
     const inkoopBtn = document.getElementById('mode-inkoop');
     const verkoopBtn = document.getElementById('mode-verkoop');
