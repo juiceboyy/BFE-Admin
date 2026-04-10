@@ -150,12 +150,12 @@ export async function loadInventarisAfterAuth() {
         const items = await fetchInventarisFromSheet();
         // Vertaal sheet-velden naar lokale state-velden
         const mapped = items.map((item, idx) => ({
-            id:                  parseInt(item.id, 10) || (idx + 1),
-            omschrijving:        item.omschrijving,
-            aankoopJaar:         item.datum,
-            aankoopBedrag:       item.aanschafwaarde,
-            afschrijvingsDuur:   item.afschrijvingsJaren,
-            boekwaardeVorigJaar: item.restwaarde,
+            id:               parseInt(item.id, 10) || (idx + 1),
+            omschrijving:     item.omschrijving,
+            aankoopJaar:      item.datum,
+            aankoopBedrag:    item.aanschafwaarde,
+            afschrijvingsDuur: item.afschrijvingsJaren,
+            restwaarde:       item.restwaarde,
         }));
         fiscalState.setTopLevel('inventaris', mapped);
     } catch (err) {
@@ -474,12 +474,25 @@ function renderInventarisTable() {
     }
 
     tbody.innerHTML = state.inventaris.map(item => {
-        const aankoopBedrag     = parseFloat(item.aankoopBedrag) || 0;
-        const afschrijvingsDuur = parseFloat(item.afschrijvingsDuur) || 5;
-        const boekwaardeBegin   = parseFloat(item.boekwaardeVorigJaar) || 0;
-        const jaarlinkseAfschr  = aankoopBedrag / afschrijvingsDuur;
-        const afschrDitJaar     = Math.min(jaarlinkseAfschr, Math.max(0, boekwaardeBegin));
-        const boekwaardeEind    = Math.max(0, boekwaardeBegin - afschrDitJaar);
+        const huidigJaar = parseInt(fiscalState.getState().year, 10);
+
+        const aanschafJaar = parseInt(item.aankoopJaar || item.datum, 10);
+        const bedrag = parseFloat(item.aankoopBedrag || item.aanschafwaarde || 0);
+        const jaren = parseInt(item.afschrijvingsDuur || item.afschrijvingsJaren || 5, 10);
+        const restwaarde = parseFloat(item.restwaarde || 0);
+
+        const afschrijvingPerJaar = jaren > 0 ? (bedrag - restwaarde) / jaren : 0;
+        const jarenVooraf = Math.max(0, huidigJaar - aanschafJaar);
+
+        let boekwaardeBegin = bedrag - (jarenVooraf * afschrijvingPerJaar);
+        if (boekwaardeBegin < restwaarde) boekwaardeBegin = restwaarde;
+
+        let afschrijvingDitJaar = 0;
+        if (huidigJaar >= aanschafJaar && boekwaardeBegin > restwaarde) {
+            afschrijvingDitJaar = Math.min(afschrijvingPerJaar, boekwaardeBegin - restwaarde);
+        }
+
+        let boekwaardeEind = boekwaardeBegin - afschrijvingDitJaar;
 
         return `
         <tr class="hover:bg-gray-50 group transition-colors">
@@ -495,11 +508,9 @@ function renderInventarisTable() {
             <td class="px-4 py-2">
                 <input type="number" data-inv-id="${item.id}" data-inv-key="afschrijvingsDuur" class="${inputBase}" value="${item.afschrijvingsDuur}">
             </td>
-            <td class="px-4 py-2">
-                <input type="number" step="0.01" data-inv-id="${item.id}" data-inv-key="boekwaardeVorigJaar" class="${inputBase}" value="${item.boekwaardeVorigJaar}" placeholder="0.00">
-            </td>
-            <td class="px-4 py-2 text-rose-500 text-right pr-6">− ${fmt(afschrDitJaar)}</td>
-            <td class="px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind === 0 ? 'text-gray-300' : 'text-emerald-700'}">€ ${fmt(boekwaardeEind)}</td>
+            <td class="px-4 py-2 text-right pr-6 text-gray-700">€ ${fmt(boekwaardeBegin)}</td>
+            <td class="px-4 py-2 text-rose-500 text-right pr-6">− ${fmt(afschrijvingDitJaar)}</td>
+            <td class="px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind <= restwaarde ? 'text-gray-300' : 'text-emerald-700'}">€ ${fmt(boekwaardeEind)}</td>
             <td class="px-4 py-2 text-center">
                 <button data-action="remove-inv" data-id="${item.id}" class="text-gray-300 hover:text-red-500 transition-colors" title="Verwijderen">
                     <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
@@ -515,27 +526,40 @@ function updateInventarisRijBerekening(id) {
     const item = fiscalState.getState().inventaris.find(i => i.id === id);
     if (!item) return;
 
-    const aankoopBedrag     = parseFloat(item.aankoopBedrag) || 0;
-    const afschrijvingsDuur = parseFloat(item.afschrijvingsDuur) || 5;
-    const boekwaardeBegin   = parseFloat(item.boekwaardeVorigJaar) || 0;
-    const jaarlinkseAfschr  = aankoopBedrag / afschrijvingsDuur;
-    const afschrDitJaar     = Math.min(jaarlinkseAfschr, Math.max(0, boekwaardeBegin));
-    const boekwaardeEind    = Math.max(0, boekwaardeBegin - afschrDitJaar);
+    const huidigJaar = parseInt(fiscalState.getState().year, 10);
+
+    const aanschafJaar = parseInt(item.aankoopJaar || item.datum, 10);
+    const bedrag = parseFloat(item.aankoopBedrag || item.aanschafwaarde || 0);
+    const jaren = parseInt(item.afschrijvingsDuur || item.afschrijvingsJaren || 5, 10);
+    const restwaarde = parseFloat(item.restwaarde || 0);
+
+    const afschrijvingPerJaar = jaren > 0 ? (bedrag - restwaarde) / jaren : 0;
+    const jarenVooraf = Math.max(0, huidigJaar - aanschafJaar);
+
+    let boekwaardeBegin = bedrag - (jarenVooraf * afschrijvingPerJaar);
+    if (boekwaardeBegin < restwaarde) boekwaardeBegin = restwaarde;
+
+    let afschrijvingDitJaar = 0;
+    if (huidigJaar >= aanschafJaar && boekwaardeBegin > restwaarde) {
+        afschrijvingDitJaar = Math.min(afschrijvingPerJaar, boekwaardeBegin - restwaarde);
+    }
+
+    let boekwaardeEind = boekwaardeBegin - afschrijvingDitJaar;
 
     const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // Vind de rij via een input met data-inv-id op dit id
     const anyInput = document.querySelector(`[data-inv-id="${id}"]`);
     if (!anyInput) return;
     const row = anyInput.closest('tr');
     if (!row) return;
 
     const cells = row.querySelectorAll('td');
-    // Col 5 = Afschr. dit jaar, Col 6 = Boekw. eind
-    if (cells[5]) cells[5].textContent = `− ${fmt(afschrDitJaar)}`;
+    // td[4] = Boekw. begin, td[5] = Afschr. dit jaar, td[6] = Boekw. eind
+    if (cells[4]) cells[4].textContent = `€ ${fmt(boekwaardeBegin)}`;
+    if (cells[5]) cells[5].textContent = `− ${fmt(afschrijvingDitJaar)}`;
     if (cells[6]) {
         cells[6].textContent = `€ ${fmt(boekwaardeEind)}`;
-        cells[6].className = `px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind === 0 ? 'text-gray-300' : 'text-emerald-700'}`;
+        cells[6].className = `px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind <= restwaarde ? 'text-gray-300' : 'text-emerald-700'}`;
     }
 }
 
@@ -754,10 +778,10 @@ function setupEventListeners(container) {
                 // Lokale state bijwerken na succesvolle opslag
                 fiscalState.addInventarisItem({
                     omschrijving,
-                    aankoopJaar:        datum,
-                    aankoopBedrag:      aanschafwaarde,
-                    afschrijvingsDuur:  afschrijvingsJaren,
-                    boekwaardeVorigJaar: aanschafwaarde,
+                    aankoopJaar:      datum,
+                    aankoopBedrag:    aanschafwaarde,
+                    afschrijvingsDuur: afschrijvingsJaren,
+                    restwaarde:       0,
                 });
                 renderInventarisTable();
 
@@ -794,7 +818,7 @@ function setupEventListeners(container) {
                 aankoopJaar:       year,
                 aankoopBedrag:     item.aankoopBedrag,
                 afschrijvingsDuur: item.afschrijvingsDuur,
-                boekwaardeVorigJaar: item.aankoopBedrag  // nieuw in dit jaar: beginwaarde = aankoopbedrag
+                restwaarde: 0
             });
             renderInventarisTable();
             kaart.remove();
