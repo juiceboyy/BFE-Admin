@@ -1,6 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { collectYearData } from '../api/tax-collector.js';
-import { getYearlyTotals, fetchInventarisFromSheet, addInventarisItemToSheet } from '../api/storage-queries.js';
+import { getYearlyTotals, fetchInventarisFromSheet, addInventarisItemToSheet, deleteInventarisItemFromSheet } from '../api/storage-queries.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice, clearChatHistory } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
@@ -498,6 +498,11 @@ function renderInventarisTable() {
 
         let boekwaardeEind = boekwaardeBegin - afschrijvingDitJaar;
 
+        const isNieuwDitJaar = (aanschafJaar === huidigJaar);
+        // Only safe to delete if it entered the year already fully depreciated, generating 0 expenses this year.
+        const isHistorischAfgeschreven = (boekwaardeBegin <= restwaarde && afschrijvingDitJaar === 0);
+        const magVerwijderen = isNieuwDitJaar || isHistorischAfgeschreven;
+
         return `
         <tr class="hover:bg-gray-50 group transition-colors">
             <td class="px-4 py-2">
@@ -516,7 +521,10 @@ function renderInventarisTable() {
             <td class="px-4 py-2 text-rose-500 text-right pr-6">− ${fmt(afschrijvingDitJaar)}</td>
             <td class="px-4 py-2 font-medium text-right pr-6 ${boekwaardeEind <= restwaarde ? 'text-gray-300' : 'text-emerald-700'}">€ ${fmt(boekwaardeEind)}</td>
             <td class="px-4 py-2 text-center">
-                <button data-action="remove-inv" data-id="${item.id}" class="text-gray-300 hover:text-red-500 transition-colors" title="Verwijderen">
+                <button data-action="remove-inv" data-id="${item.id}"
+                    class="transition-colors ${magVerwijderen ? 'text-gray-300 hover:text-red-500' : 'text-gray-200 cursor-not-allowed opacity-40'}"
+                    title="${magVerwijderen ? 'Verwijderen' : 'Kan niet worden verwijderd tijdens actieve afschrijvingsperiode'}"
+                    ${magVerwijderen ? '' : 'disabled'}>
                     <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
                 </button>
             </td>
@@ -807,10 +815,26 @@ function setupEventListeners(container) {
         }
 
         const removeBtn = target.closest('[data-action="remove-inv"]');
-        if (removeBtn) {
+        if (removeBtn && !removeBtn.disabled) {
             const id = parseInt(removeBtn.dataset.id, 10);
-            fiscalState.removeInventarisItem(id);
-            renderInventarisTable();
+            const row = removeBtn.closest('tr');
+
+            removeBtn.disabled = true;
+            removeBtn.innerHTML = `<span class="text-xs text-gray-400">...</span>`;
+            if (row) row.style.opacity = '0.5';
+
+            try {
+                await deleteInventarisItemFromSheet(id);
+                fiscalState.removeInventarisItem(id);
+                renderInventarisTable();
+            } catch (err) {
+                console.error('Fout bij verwijderen inventaris item:', err);
+                if (row) row.style.opacity = '';
+                removeBtn.disabled = false;
+                removeBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>`;
+                if (window.lucide) window.lucide.createIcons();
+                alert(`Verwijderen mislukt: ${err.message}`);
+            }
         }
 
         // Kandidaat toevoegen aan inventaris

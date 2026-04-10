@@ -313,6 +313,66 @@ export async function addInventarisItemToSheet(item) {
     return await response.json();
 }
 
+/**
+ * Verwijdert een inventaris-item uit het Inventaris-tabblad van het Trend-spreadsheet.
+ * Strategie: fetch → filter → clear → write-back (veilig voor kleine datasets).
+ * @param {number|string} itemId - Het ID uit kolom A van het te verwijderen item
+ */
+export async function deleteInventarisItemFromSheet(itemId) {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    // a) Haal alle rijen op
+    const fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:F`;
+    const fetchResp = await fetchWithRetry(fetchUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (fetchResp.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!fetchResp.ok) {
+        const err = await fetchResp.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${fetchResp.status}`);
+    }
+    const data = await fetchResp.json();
+    const rows = data.values || [];
+
+    // b) Filter de te verwijderen rij uit de datarijen (sla headerrij over)
+    const dataRows = rows.slice(1);
+    const filtered = dataRows.filter(row => String(row[0]) !== String(itemId));
+
+    // c) Wis het volledige databereik
+    const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A2:F:clear`;
+    const clearResp = await fetchWithRetry(clearUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    });
+    if (clearResp.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!clearResp.ok) {
+        const err = await clearResp.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${clearResp.status}`);
+    }
+
+    // d) Schrijf de gefilterde rijen terug (alleen als er rijen zijn)
+    if (filtered.length > 0) {
+        const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A2?valueInputOption=USER_ENTERED`;
+        const writeResp = await fetchWithRetry(writeUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ values: filtered })
+        });
+        if (writeResp.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!writeResp.ok) {
+            const err = await writeResp.json().catch(() => ({}));
+            throw new Error(err?.error?.message || `HTTP ${writeResp.status}`);
+        }
+    }
+}
+
 export async function getYearlyTotals(year) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
 
