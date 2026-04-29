@@ -4,6 +4,7 @@ import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobal
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
+import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID } from '../api/storage.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -15,6 +16,7 @@ export function initScanner() {
     const bindEvent = (id, evt, cb) => document.getElementById(id)?.addEventListener(evt, cb);
     bindEvent('receipt-upload', 'change', (e) => handleFiles(e.target.files));
     bindEvent('folder-upload', 'change', (e) => handleFiles(e.target.files));
+    bindEvent('btn-scan-drive', 'click', handleScanDriveFolder);
     bindEvent('mode-inkoop', 'click', () => setMode('inkoop'));
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
     bindEvent('btn-refresh-dashboard', 'click', () => { invalidateDashboardCache(); setMode(currentMode); });
@@ -72,6 +74,45 @@ export function initScanner() {
 }
 
 // --- Event Handlers ---
+
+async function handleScanDriveFolder() {
+    const btn = document.getElementById('btn-scan-drive');
+    const setLoading = (loading) => {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading
+            ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met scannen...'
+            : '<i data-lucide="folder-search" class="w-4 h-4"></i> Scan Bonnetjes Map';
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    setLoading(true);
+    try {
+        const unprocessed = await scanUnprocessedReceipts(DRIVE_FOLDER_ID);
+
+        if (unprocessed.length === 0) {
+            alert('Geen nieuwe bonnen gevonden.');
+            return;
+        }
+
+        for (const driveFile of unprocessed) {
+            try {
+                const file = await downloadDriveFileAsBlob(driveFile.id, driveFile.name, driveFile.mimeType);
+                batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, driveFileId: driveFile.id });
+            } catch (err) {
+                console.error(`Fout bij downloaden ${driveFile.name}:`, err);
+            }
+        }
+
+        renderBatchTable();
+        processQueue();
+    } catch (error) {
+        console.error('Fout bij scannen Drive map:', error);
+        alert(`Er ging iets mis: ${error.message}`);
+    } finally {
+        setLoading(false);
+    }
+}
 
 function handleFiles(files) {
     if (!files || !files.length) return;
@@ -185,7 +226,7 @@ export async function saveBatchItem(id) {
         const factuurInput = document.getElementById(`factuurnummer-${id}`);
         if (factuurInput) factuurInput.value = factuurnummer;
 
-        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo);
+        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo, item.driveFileId || null);
 
         item.status = 'saved';
         invalidateDashboardCache();

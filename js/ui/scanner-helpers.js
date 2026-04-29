@@ -1,4 +1,4 @@
-import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries.js';
 
 export function prepareItemData(mode, aiData, memory) {
@@ -93,9 +93,14 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
     });
 }
 
-export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo) {
-    // Upload naar Drive
-    await uploadToDrive(file, `${factuurnummer} - ${formData.leverancier}`);
+export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo, driveFileId = null) {
+    const newName = `${factuurnummer} - ${formData.leverancier}`;
+    if (driveFileId) {
+        // File is already in Drive — rename it to mark as processed
+        await renameDriveFile(driveFileId, newName);
+    } else {
+        await uploadToDrive(file, newName);
+    }
 
     // Haal de dynamische sheet headers op
     const headers = await getSheetHeaders(dateInfo.targetSheet);

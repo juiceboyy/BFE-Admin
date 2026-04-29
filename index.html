@@ -157,13 +157,19 @@
                     </div>
 
                     <!-- Folder Upload Option -->
-                    <div id="folder-upload-container" class="mt-4 flex justify-center">
+                    <div id="folder-upload-container" class="mt-4 flex justify-center items-center gap-6 flex-wrap">
                         <label for="folder-upload"
                             class="cursor-pointer flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition-colors">
                             <i data-lucide="folder-up" class="w-4 h-4"></i>
                             Of upload een hele map
                         </label>
                         <input type="file" id="folder-upload" webkitdirectory directory multiple class="hidden">
+                        <span class="text-gray-300 text-xs">|</span>
+                        <button id="btn-scan-drive"
+                            class="flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-600 transition-colors">
+                            <i data-lucide="folder-search" class="w-4 h-4"></i>
+                            Scan Bonnetjes Map
+                        </button>
                     </div>
 
                     <!-- Batch Dashboard (Replaces Form) -->
