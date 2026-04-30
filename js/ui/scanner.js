@@ -226,6 +226,25 @@ export async function saveBatchItem(id) {
         if (window.lucide) window.lucide.createIcons();
     };
 
+    // --- Amount validation (before spinner) ---
+    // Vergoeding (excl. BTW) is always derived: factuurBedrag − btw.
+    // If btw > factuurBedrag the implied vergoeding is negative, which is impossible.
+    if (currentMode === 'inkoop') {
+        const preCheck = getFormDataFromDOM(id);
+        const vergoedingVal = preCheck.factuurBedrag - preCheck.btw;
+        const calculatedTotal = vergoedingVal + preCheck.btw; // == preCheck.factuurBedrag
+        const difference = Math.abs(calculatedTotal - preCheck.factuurBedrag);
+        if (preCheck.factuurBedrag > 0 && (vergoedingVal < -0.02 || difference > 0.02)) {
+            alert(
+                `Fout in bedragen!\n\n` +
+                `Vergoeding (${vergoedingVal.toFixed(2)}) + BTW (${preCheck.btw.toFixed(2)}) = ${calculatedTotal.toFixed(2)}.\n` +
+                `Dit komt niet overeen met het ingevulde Factuurbedrag (${preCheck.factuurBedrag.toFixed(2)}).\n\n` +
+                `Corrigeer de bedragen voordat je opslaat.`
+            );
+            return;
+        }
+    }
+
     setBtnState(true);
 
     try {
