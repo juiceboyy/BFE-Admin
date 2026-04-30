@@ -49,12 +49,12 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
                 ${omschrijvingInput}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
-                    value="${currentMode === 'verkoop' ? (d.totaalBedrag || '') : (d.factuurBedrag || '')}"  placeholder="0.00">
+                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
+                    value="${currentMode === 'verkoop' ? (d.totaalBedrag || d.factuurBedrag || '') : (d.factuurBedrag || d.totaalBedrag || d.bedrag || '')}"  placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                 <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
-                    value="${currentMode === 'verkoop' ? ((parseFloat(d.btwHoog) || 0) + (parseFloat(d.btwLaag) || 0)) : (d.btwBedrag || '')}"  placeholder="0.00">
+                 <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
+                    value="${currentMode === 'verkoop' ? ((parseFloat(d.btwHoog) || 0) + (parseFloat(d.btwLaag) || 0)) : (d.btwBedrag || d.btw || '')}"  placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <input type="text" id="factuurnummer-${item.id}" class="w-32 bg-transparent border-b border-transparent outline-none text-sm text-gray-500 cursor-default" 
