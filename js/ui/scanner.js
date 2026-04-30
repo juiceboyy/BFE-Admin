@@ -1,10 +1,12 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from '../api/storage-queries.js';
+import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals, clearQueryCaches } from '../api/storage-queries.js';
 import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
-import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID } from '../api/storage.js';
+import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID, clearSheetCaches } from '../api/storage.js';
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -73,8 +75,9 @@ export function initScanner() {
                     const newDate = new Date(year, parseInt(month) - 1, 1);
                     setGlobalTargetDate(newDate);
                     updateBtnText();
-                    
-                    // CRITICAL: Refresh the dashboard data & Activeer de nieuwe sheet logica
+                    // Clear sheet caches so the new period's data is fetched fresh
+                    clearSheetCaches();
+                    clearQueryCaches();
                     invalidateDashboardCache();
                     setMode(currentMode);
                 }
@@ -288,9 +291,12 @@ export async function saveAllSuccessItems() {
         if (window.lucide) window.lucide.createIcons();
     }
 
-    // Only save items the user has selected
+    // Only save items the user has selected; sequential with a pause to respect the Sheets quota
     const itemsToSave = batchQueue.filter(i => i.status === 'success' && i.selected !== false);
-    for (const item of itemsToSave) await saveBatchItem(item.id);
+    for (const item of itemsToSave) {
+        await saveBatchItem(item.id);
+        await delay(1000);
+    }
 
     // Remove unselected items from the local queue — Drive files are left untouched
     // so they will be picked up again during the next month's scan.
