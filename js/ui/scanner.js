@@ -21,19 +21,29 @@ export function initScanner() {
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
     bindEvent('btn-refresh-dashboard', 'click', () => { invalidateDashboardCache(); setMode(currentMode); });
 
-    document.getElementById('batch-table-body')?.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.delete-item-btn');
-        if (!deleteBtn) return; // Ignore clicks that aren't on a delete button
+    const tbody = document.getElementById('batch-table-body');
 
-        // Get the index from the data attribute
+    tbody?.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-item-btn');
+        if (!deleteBtn) return;
         const indexToDelete = parseInt(deleteBtn.getAttribute('data-index'), 10);
         if (isNaN(indexToDelete)) return;
-
-        // Remove the item from the global queue
         batchQueue.splice(indexToDelete, 1);
-
-        // Re-render the table. This function will also call updateDashboard.
         renderBatchTable();
+    });
+
+    tbody?.addEventListener('change', (e) => {
+        const checkbox = e.target.closest('.queue-item-select');
+        if (!checkbox) return;
+        const itemId = parseFloat(checkbox.getAttribute('data-item-id'));
+        const item = batchQueue.find(i => i.id === itemId);
+        if (!item) return;
+        item.selected = checkbox.checked;
+        // Update row opacity and save button in-place to preserve any user edits in the other fields
+        const row = document.getElementById(`batch-row-${itemId}`);
+        if (row) row.classList.toggle('opacity-40', !item.selected);
+        const saveBtn = document.getElementById(`btn-save-${itemId}`);
+        if (saveBtn && item.status === 'success') saveBtn.disabled = !item.selected;
     });
 
     // --- Period Selector Setup ---
@@ -98,7 +108,7 @@ async function handleScanDriveFolder() {
         for (const driveFile of unprocessed) {
             try {
                 const file = await downloadDriveFileAsBlob(driveFile.id, driveFile.name, driveFile.mimeType);
-                batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, driveFileId: driveFile.id });
+                batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, driveFileId: driveFile.id, selected: true });
             } catch (err) {
                 console.error(`Fout bij downloaden ${driveFile.name}:`, err);
             }
@@ -119,7 +129,7 @@ function handleFiles(files) {
 
     Array.from(files).forEach(file => {
         if (!file.name.startsWith('.') && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null });
+            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, selected: true });
         }
     });
 
@@ -187,9 +197,13 @@ async function processQueue() {
         try {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
-            
+
             item.data = prepareItemData(currentMode, aiData, currentMemory);
             item.status = 'success';
+
+            // Auto-deselect if the parsed date falls outside the active fiscal period
+            const dateInfo = getTargetDateInfo(currentMode);
+            item.selected = !item.data.datum || isDateValidForPeriod(item.data.datum, dateInfo.targetYear, dateInfo.targetMonthNum);
         } catch (err) {
             item.status = 'error';
             item.data = { error: err.message };
@@ -255,8 +269,14 @@ export async function saveAllSuccessItems() {
         if (window.lucide) window.lucide.createIcons();
     }
 
-    const itemsToSave = batchQueue.filter(i => i.status === 'success');
+    // Only save items the user has selected
+    const itemsToSave = batchQueue.filter(i => i.status === 'success' && i.selected !== false);
     for (const item of itemsToSave) await saveBatchItem(item.id);
+
+    // Remove unselected items from the local queue — Drive files are left untouched
+    // so they will be picked up again during the next month's scan.
+    batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved');
+    renderBatchTable();
 
     if (btn) {
         btn.disabled = false;

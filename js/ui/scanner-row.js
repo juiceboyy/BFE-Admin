@@ -8,6 +8,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
     const disabledAttr = isDisabled ? 'disabled' : '';
     const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
+    const isDeselected = item.selected === false;
     const d = item.data || {};
     const options = d.options || [];
     
@@ -27,7 +28,13 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     }
 
     return `
-        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors">
+        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors${isDeselected ? ' opacity-40' : ''}">
+            <td class="px-4 py-3 text-center">
+                <input type="checkbox" class="queue-item-select w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                    data-item-id="${item.id}"
+                    ${!isDeselected ? 'checked' : ''}
+                    ${isDisabled ? 'disabled' : ''}>
+            </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <div class="flex items-center gap-2">
                     <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
@@ -61,11 +68,11 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
                     value="${d.factuurnummer || ''}" readonly placeholder="Auto (bij opslaan)">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-center">
-                <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})" 
-                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors" 
-                    ${item.status !== 'success' && item.status !== 'saved' ? 'disabled' : ''} 
+                <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})"
+                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors"
+                    ${(item.status !== 'success' && item.status !== 'saved') || isDeselected ? 'disabled' : ''}
                     ${item.status === 'saved' ? 'disabled' : ''}
-                    title="${item.status === 'saved' ? 'Opgeslagen' : 'Opslaan'}">
+                    title="${item.status === 'saved' ? 'Opgeslagen' : isDeselected ? 'Uitgeschakeld' : 'Opslaan'}">
                     <i data-lucide="${item.status === 'saved' ? 'check' : 'save'}" class="w-4 h-4"></i>
                 </button>
             </td>
