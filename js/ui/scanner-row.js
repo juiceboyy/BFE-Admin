@@ -29,11 +29,10 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
 
     return `
         <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors${isDeselected ? ' opacity-40' : ''}">
-            <td class="px-4 py-3 text-center">
-                <input type="checkbox" class="queue-item-select w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+            <td class="px-4 py-3 align-middle text-center">
+                <input type="checkbox" class="queue-item-select w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     data-item-id="${item.id}"
-                    ${!isDeselected ? 'checked' : ''}
-                    ${isDisabled ? 'disabled' : ''}>
+                    ${item.selected !== false ? 'checked' : ''}>
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <div class="flex items-center gap-2">
