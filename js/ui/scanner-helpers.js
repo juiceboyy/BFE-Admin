@@ -1,4 +1,4 @@
-import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries.js';
 
 export function prepareItemData(mode, aiData, memory) {
@@ -67,20 +67,31 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
             ];
         }
     } else {
-        const vergoedingExcl = formData.factuurBedrag - formData.btw;
+        // Normalize: accept any property name the AI might return for the total amount
+        const btw = parseFloat(formData.btw) || 0;
+        let factuurBedrag = parseFloat(
+            formData.factuurBedrag || formData.factuurbedrag || formData.totaalBedrag || formData.totaal || 0
+        );
+        const vergoedingExcl = factuurBedrag - btw;
+        // Failsafe: if total is still 0 but we have excl + btw data, reconstruct it
+        if (factuurBedrag === 0 && vergoedingExcl + btw > 0) {
+            factuurBedrag = vergoedingExcl + btw;
+        }
+
         if (headers.length > 0) {
             rowValues = new Array(headers.length).fill("");
             const setVal = (keys, val) => { const i = getIdx(keys); if (i !== -1) rowValues[i] = val; };
-            
+
             setVal(['datum', 'date'], formData.datum);
             setVal(['factuur', 'nr', 'nummer'], factuurnummer);
             setVal(['omschrijving', 'beschrijving'], formData.omschrijving);
             setVal(['leverancier', 'naam leverancier', 'klant'], formData.leverancier);
-            setVal(['totaal', 'bedrag incl', 'incl'], formData.factuurBedrag);
-            setVal(['btw', 'voorbelasting'], formData.btw);
+            // 'factuurbedrag' catches the Dutch column name; more specific terms checked first
+            setVal(['totaal', 'bedrag incl', 'factuurbedrag incl', 'factuurbedrag', 'incl'], factuurBedrag);
+            setVal(['btw', 'voorbelasting'], btw);
             setVal(['vergoeding', 'excl', 'factuurbedrag excl'], vergoedingExcl);
         } else {
-            rowValues = [formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, formData.factuurBedrag, formData.btw, vergoedingExcl];
+            rowValues = [formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, factuurBedrag, btw, vergoedingExcl];
         }
     }
 
@@ -93,9 +104,14 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
     });
 }
 
-export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo) {
-    // Upload naar Drive
-    await uploadToDrive(file, `${factuurnummer} - ${formData.leverancier}`);
+export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo, driveFileId = null) {
+    const newName = `${factuurnummer} - ${formData.leverancier}`;
+    if (driveFileId) {
+        // File is already in Drive — rename it to mark as processed
+        await renameDriveFile(driveFileId, newName);
+    } else {
+        await uploadToDrive(file, newName);
+    }
 
     // Haal de dynamische sheet headers op
     const headers = await getSheetHeaders(dateInfo.targetSheet);

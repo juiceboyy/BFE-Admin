@@ -1,9 +1,12 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals } from '../api/storage-queries.js';
+import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals, clearQueryCaches } from '../api/storage-queries.js';
 import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
+import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID, clearSheetCaches } from '../api/storage.js';
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -15,23 +18,34 @@ export function initScanner() {
     const bindEvent = (id, evt, cb) => document.getElementById(id)?.addEventListener(evt, cb);
     bindEvent('receipt-upload', 'change', (e) => handleFiles(e.target.files));
     bindEvent('folder-upload', 'change', (e) => handleFiles(e.target.files));
+    bindEvent('btn-scan-drive', 'click', handleScanDriveFolder);
     bindEvent('mode-inkoop', 'click', () => setMode('inkoop'));
     bindEvent('mode-verkoop', 'click', () => setMode('verkoop'));
     bindEvent('btn-refresh-dashboard', 'click', () => { invalidateDashboardCache(); setMode(currentMode); });
 
-    document.getElementById('batch-table-body')?.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.delete-item-btn');
-        if (!deleteBtn) return; // Ignore clicks that aren't on a delete button
+    const tbody = document.getElementById('batch-table-body');
 
-        // Get the index from the data attribute
+    tbody?.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-item-btn');
+        if (!deleteBtn) return;
         const indexToDelete = parseInt(deleteBtn.getAttribute('data-index'), 10);
         if (isNaN(indexToDelete)) return;
-
-        // Remove the item from the global queue
         batchQueue.splice(indexToDelete, 1);
-
-        // Re-render the table. This function will also call updateDashboard.
         renderBatchTable();
+    });
+
+    tbody?.addEventListener('change', (e) => {
+        const checkbox = e.target.closest('.queue-item-select');
+        if (!checkbox) return;
+        const itemId = parseFloat(checkbox.getAttribute('data-item-id'));
+        const item = batchQueue.find(i => i.id === itemId);
+        if (!item) return;
+        item.selected = checkbox.checked;
+        // Update row opacity and save button in-place to preserve any user edits in the other fields
+        const row = document.getElementById(`batch-row-${itemId}`);
+        if (row) row.classList.toggle('opacity-40', !item.selected);
+        const saveBtn = document.getElementById(`btn-save-${itemId}`);
+        if (saveBtn && item.status === 'success') saveBtn.disabled = !item.selected;
     });
 
     // --- Period Selector Setup ---
@@ -61,8 +75,9 @@ export function initScanner() {
                     const newDate = new Date(year, parseInt(month) - 1, 1);
                     setGlobalTargetDate(newDate);
                     updateBtnText();
-                    
-                    // CRITICAL: Refresh the dashboard data & Activeer de nieuwe sheet logica
+                    // Clear sheet caches so the new period's data is fetched fresh
+                    clearSheetCaches();
+                    clearQueryCaches();
                     invalidateDashboardCache();
                     setMode(currentMode);
                 }
@@ -73,12 +88,51 @@ export function initScanner() {
 
 // --- Event Handlers ---
 
+async function handleScanDriveFolder() {
+    const btn = document.getElementById('btn-scan-drive');
+    const setLoading = (loading) => {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading
+            ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met scannen...'
+            : '<i data-lucide="folder-search" class="w-4 h-4"></i> Scan Bonnetjes Map';
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    setLoading(true);
+    try {
+        const unprocessed = await scanUnprocessedReceipts(DRIVE_FOLDER_ID);
+
+        if (unprocessed.length === 0) {
+            alert('Geen nieuwe bonnen gevonden.');
+            return;
+        }
+
+        for (const driveFile of unprocessed) {
+            try {
+                const file = await downloadDriveFileAsBlob(driveFile.id, driveFile.name, driveFile.mimeType);
+                batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, driveFileId: driveFile.id, selected: true });
+            } catch (err) {
+                console.error(`Fout bij downloaden ${driveFile.name}:`, err);
+            }
+        }
+
+        renderBatchTable();
+        processQueue();
+    } catch (error) {
+        console.error('Fout bij scannen Drive map:', error);
+        alert(`Er ging iets mis: ${error.message}`);
+    } finally {
+        setLoading(false);
+    }
+}
+
 function handleFiles(files) {
     if (!files || !files.length) return;
 
     Array.from(files).forEach(file => {
         if (!file.name.startsWith('.') && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null });
+            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, selected: true });
         }
     });
 
@@ -146,9 +200,13 @@ async function processQueue() {
         try {
             const currentMemory = await loadCloudMemory();
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
-            
+
             item.data = prepareItemData(currentMode, aiData, currentMemory);
             item.status = 'success';
+
+            // Auto-deselect if the parsed date falls outside the active fiscal period
+            const dateInfo = getTargetDateInfo(currentMode);
+            item.selected = !item.data.datum || isDateValidForPeriod(item.data.datum, dateInfo.targetYear, dateInfo.targetMonthNum);
         } catch (err) {
             item.status = 'error';
             item.data = { error: err.message };
@@ -171,6 +229,25 @@ export async function saveBatchItem(id) {
         if (window.lucide) window.lucide.createIcons();
     };
 
+    // --- Amount validation (before spinner) ---
+    // Vergoeding (excl. BTW) is always derived: factuurBedrag − btw.
+    // If btw > factuurBedrag the implied vergoeding is negative, which is impossible.
+    if (currentMode === 'inkoop') {
+        const preCheck = getFormDataFromDOM(id);
+        const vergoedingVal = preCheck.factuurBedrag - preCheck.btw;
+        const calculatedTotal = vergoedingVal + preCheck.btw; // == preCheck.factuurBedrag
+        const difference = Math.abs(calculatedTotal - preCheck.factuurBedrag);
+        if (preCheck.factuurBedrag > 0 && (vergoedingVal < -0.02 || difference > 0.02)) {
+            alert(
+                `Fout in bedragen!\n\n` +
+                `Vergoeding (${vergoedingVal.toFixed(2)}) + BTW (${preCheck.btw.toFixed(2)}) = ${calculatedTotal.toFixed(2)}.\n` +
+                `Dit komt niet overeen met het ingevulde Factuurbedrag (${preCheck.factuurBedrag.toFixed(2)}).\n\n` +
+                `Corrigeer de bedragen voordat je opslaat.`
+            );
+            return;
+        }
+    }
+
     setBtnState(true);
 
     try {
@@ -185,7 +262,7 @@ export async function saveBatchItem(id) {
         const factuurInput = document.getElementById(`factuurnummer-${id}`);
         if (factuurInput) factuurInput.value = factuurnummer;
 
-        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo);
+        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo, item.driveFileId || null);
 
         item.status = 'saved';
         invalidateDashboardCache();
@@ -214,8 +291,17 @@ export async function saveAllSuccessItems() {
         if (window.lucide) window.lucide.createIcons();
     }
 
-    const itemsToSave = batchQueue.filter(i => i.status === 'success');
-    for (const item of itemsToSave) await saveBatchItem(item.id);
+    // Only save items the user has selected; sequential with a pause to respect the Sheets quota
+    const itemsToSave = batchQueue.filter(i => i.status === 'success' && i.selected !== false);
+    for (const item of itemsToSave) {
+        await saveBatchItem(item.id);
+        await delay(1000);
+    }
+
+    // Remove unselected items from the local queue — Drive files are left untouched
+    // so they will be picked up again during the next month's scan.
+    batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved');
+    renderBatchTable();
 
     if (btn) {
         btn.disabled = false;

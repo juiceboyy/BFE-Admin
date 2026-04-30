@@ -4,6 +4,15 @@ import { SPREADSHEET_ID } from './storage.js';
 
 const TREND_SPREADSHEET_ID = '1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI';
 
+// Per-session caches — cleared when the user changes the fiscal period.
+let _cloudMemoryCache = null;              // null = uncached
+let _invoiceSeqCache  = {};               // `${sheetName}:${year}` → last-issued seq number
+
+export function clearQueryCaches() {
+    _cloudMemoryCache = null;
+    _invoiceSeqCache  = {};
+}
+
 /**
  * Voegt een rij toe aan het centrale Trend-archief spreadsheet.
  * @param {string|number} year - Het boekjaar
@@ -44,6 +53,7 @@ export async function appendToTrendSheet(year, trendData) {
 }
 
 export async function loadCloudMemory() {
+    if (_cloudMemoryCache !== null) return _cloudMemoryCache;
     try {
         const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
             headers: { Authorization: `Bearer ${accessToken}` }
@@ -63,11 +73,11 @@ export async function loadCloudMemory() {
                     };
 
                     const exists = memory[key].some(item => item.omschrijving === newItem.omschrijving && item.btwTarief == newItem.btwTarief);
-                    
                     if (!exists) memory[key].push(newItem);
                 }
             }
         }
+        _cloudMemoryCache = memory;
         return memory;
     } catch (e) {
         console.error("Fout bij laden cloud memory:", e);
@@ -77,6 +87,7 @@ export async function loadCloudMemory() {
 
 export async function saveCloudMemory(leverancier, omschrijving, tarief) {
     if (!accessToken) return;
+    _cloudMemoryCache = null; // Invalidate so the next batch picks up the new entry
     try {
         const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
             method: 'POST',
@@ -94,7 +105,18 @@ export async function saveCloudMemory(leverancier, omschrijving, tarief) {
 }
 
 export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
-    if (!accessToken) return `${targetYear}.001`;
+    const cacheKey = `${targetSheet}:${targetYear}`;
+
+    // After the first read, just increment locally — no further Sheets reads needed.
+    if (_invoiceSeqCache[cacheKey] !== undefined) {
+        _invoiceSeqCache[cacheKey]++;
+        return `${targetYear}.${String(_invoiceSeqCache[cacheKey]).padStart(3, '0')}`;
+    }
+
+    if (!accessToken) {
+        _invoiceSeqCache[cacheKey] = 1;
+        return `${targetYear}.001`;
+    }
 
     const fetchMaxFromSheet = async (sheet) => {
         try {
@@ -111,9 +133,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
                     const parts = val.split('.');
                     if (parts.length === 2) {
                         const seq = parseInt(parts[1], 10);
-                        if (!isNaN(seq)) {
-                            if (maxSeq === null || seq > maxSeq) maxSeq = seq;
-                        }
+                        if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
                     }
                 }
             }
@@ -125,12 +145,22 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
     };
 
     let maxSeq = await fetchMaxFromSheet(targetSheet);
-    if (maxSeq !== null) return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-    if (targetSheet.startsWith('Jan')) return `${targetYear}.001`;
+    if (maxSeq !== null) {
+        _invoiceSeqCache[cacheKey] = maxSeq + 1;
+        return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+    }
+    if (targetSheet.startsWith('Jan')) {
+        _invoiceSeqCache[cacheKey] = 1;
+        return `${targetYear}.001`;
+    }
     if (prevSheet) {
         maxSeq = await fetchMaxFromSheet(prevSheet);
-        if (maxSeq !== null) return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+        if (maxSeq !== null) {
+            _invoiceSeqCache[cacheKey] = maxSeq + 1;
+            return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+        }
     }
+    _invoiceSeqCache[cacheKey] = 1;
     return `${targetYear}.001`;
 }
 

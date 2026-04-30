@@ -1,7 +1,7 @@
 export let accessToken = null;
 
 const CLIENT_ID = '876110380505-g169p7tcffqh73qt3ukghme8g31gvu7g.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets';
 
 let tokenClient;
 

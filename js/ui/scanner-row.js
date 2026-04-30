@@ -8,6 +8,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
     const disabledAttr = isDisabled ? 'disabled' : '';
     const opacityClass = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
+    const isDeselected = item.selected === false;
     const d = item.data || {};
     const options = d.options || [];
     
@@ -27,7 +28,12 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     }
 
     return `
-        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors">
+        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors${isDeselected ? ' opacity-40' : ''}">
+            <td class="px-4 py-3 align-middle text-center">
+                <input type="checkbox" class="queue-item-select w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    data-item-id="${item.id}"
+                    ${item.selected !== false ? 'checked' : ''}>
+            </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <div class="flex items-center gap-2">
                     <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
@@ -49,23 +55,23 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
                 ${omschrijvingInput}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
-                    value="${currentMode === 'verkoop' ? (d.totaalBedrag || '') : (d.factuurBedrag || '')}"  placeholder="0.00">
+                <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
+                    value="${currentMode === 'verkoop' ? (d.totaalBedrag || d.factuurBedrag || '') : (d.factuurBedrag || d.totaalBedrag || d.bedrag || '')}"  placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                 <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " 
-                    value="${currentMode === 'verkoop' ? ((parseFloat(d.btwHoog) || 0) + (parseFloat(d.btwLaag) || 0)) : (d.btwBedrag || '')}"  placeholder="0.00">
+                 <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
+                    value="${currentMode === 'verkoop' ? ((parseFloat(d.btwHoog) || 0) + (parseFloat(d.btwLaag) || 0)) : (d.btwBedrag || d.btw || '')}"  placeholder="0.00">
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <input type="text" id="factuurnummer-${item.id}" class="w-32 bg-transparent border-b border-transparent outline-none text-sm text-gray-500 cursor-default" 
                     value="${d.factuurnummer || ''}" readonly placeholder="Auto (bij opslaan)">
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-center">
-                <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})" 
-                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors" 
-                    ${item.status !== 'success' && item.status !== 'saved' ? 'disabled' : ''} 
+                <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})"
+                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors"
+                    ${(item.status !== 'success' && item.status !== 'saved') || isDeselected ? 'disabled' : ''}
                     ${item.status === 'saved' ? 'disabled' : ''}
-                    title="${item.status === 'saved' ? 'Opgeslagen' : 'Opslaan'}">
+                    title="${item.status === 'saved' ? 'Opgeslagen' : isDeselected ? 'Uitgeschakeld' : 'Opslaan'}">
                     <i data-lucide="${item.status === 'saved' ? 'check' : 'save'}" class="w-4 h-4"></i>
                 </button>
             </td>
