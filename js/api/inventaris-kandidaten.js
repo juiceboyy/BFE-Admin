@@ -1,7 +1,7 @@
 /**
  * js/api/inventaris-kandidaten.js
  * Haalt individuele Inkoop-rijen op uit de spreadsheet en filtert op activeringsdrempel (>€450).
- * Stuurt kandidaten naar Claude voor classificatie als duurzaam bedrijfsmiddel.
+ * Stuurt kandidaten naar Gemini voor classificatie als duurzaam bedrijfsmiddel.
  */
 
 import { accessToken } from './auth.js';
@@ -81,7 +81,7 @@ async function fetchInkoopKandidaten(year, spreadsheetId) {
 }
 
 /**
- * Stuurt de kandidaten naar Claude voor classificatie.
+ * Stuurt de kandidaten naar Gemini voor classificatie.
  * Geeft een array van geclassificeerde items terug.
  */
 export async function getInventarisKandidaten(year, spreadsheetId) {

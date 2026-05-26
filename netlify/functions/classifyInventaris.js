@@ -1,7 +1,7 @@
 /**
  * netlify/functions/classifyInventaris.js
- * Stuurt Inkoop-rijen boven de activeringsdrempel naar Claude.
- * Claude beoordeelt welke items activeerbaar zijn als duurzaam bedrijfsmiddel
+ * Stuurt Inkoop-rijen boven de activeringsdrempel naar Gemini.
+ * Gemini beoordeelt welke items activeerbaar zijn als duurzaam bedrijfsmiddel
  * en suggereert een afschrijvingsduur.
  *
  * Expected POST body: { rijen: Array, year: string }
@@ -56,9 +56,9 @@ export const handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ text: '[]' }) };
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
-        return { statusCode: 500, body: JSON.stringify({ error: true, message: 'ANTHROPIC_API_KEY ontbreekt.' }) };
+        return { statusCode: 500, body: JSON.stringify({ error: true, message: 'GEMINI_API_KEY ontbreekt.' }) };
     }
 
     const rijsamenvatting = rijen.map((r, i) =>
@@ -71,32 +71,35 @@ Geef alleen de items terug die WEL geactiveerd moeten worden.
 INKOOPRIJEN:
 ${rijsamenvatting}`;
 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+
+    const payload = {
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{
+            parts: [{ text: userMessage }]
+        }],
+        generationConfig: {
+            temperature: 0
+        }
+    };
+
     try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
-                max_tokens: 1024,
-                system: SYSTEM_PROMPT,
-                messages: [{ role: 'user', content: userMessage }]
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-        const requestId = response.headers.get('request-id') || 'n/a';
-        console.log(`[classifyInventaris] request-id: ${requestId}, jaar: ${year}, rijen: ${rijen.length}`);
+        console.log(`[classifyInventaris] Gemini status: ${response.status}, jaar: ${year}, rijen: ${rijen.length}`);
 
         if (!response.ok) {
-            const err = await response.json();
-            return { statusCode: response.status, body: JSON.stringify({ error: true, message: err?.error?.message }) };
+            const err = await response.json().catch(() => ({}));
+            const message = err?.error?.message || `Gemini API fout: ${response.status}`;
+            return { statusCode: response.status, body: JSON.stringify({ error: true, message }) };
         }
 
         const data = await response.json();
-        const text = data?.content?.[0]?.text || '[]';
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
 
         return {
             statusCode: 200,
