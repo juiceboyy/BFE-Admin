@@ -21,8 +21,8 @@ export const handler = async (event, context) => {
             };
         }
 
-        // Gebruik de stabiele URL voor Gemini 2.5 Flash
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+        // Gebruik de stabiele URL voor Gemini 3.5 Flash
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
         // Zorg ervoor dat base64Data géén data prefix bevat
         if (base64Data.includes(',')) {
