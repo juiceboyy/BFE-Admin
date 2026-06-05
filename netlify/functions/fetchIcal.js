@@ -1,7 +1,7 @@
 const https = require('https');
 
 /**
- * Helper to fetch a URL natively with redirect support.
+ * Fetch a URL natively, handle redirects, and release sockets properly.
  */
 function fetchUrlWithRedirects(url, maxRedirects = 5) {
     return new Promise((resolve, reject) => {
@@ -16,15 +16,24 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
             // Handle redirects (301, 302, 307, 308)
             if (statusCode === 301 || statusCode === 302 || statusCode === 307 || statusCode === 308) {
                 const redirectUrl = res.headers.location;
+                res.resume(); // CRITICAL: Consume the response stream to release the socket
+
                 if (redirectUrl) {
-                    fetchUrlWithRedirects(redirectUrl, maxRedirects - 1)
-                        .then(resolve)
-                        .catch(reject);
+                    try {
+                        // Resolve relative redirect URLs against the current URL
+                        const resolvedUrl = new URL(redirectUrl, url).toString();
+                        fetchUrlWithRedirects(resolvedUrl, maxRedirects - 1)
+                            .then(resolve)
+                            .catch(reject);
+                    } catch (err) {
+                        reject(new Error(`Ongeldige omleidings-URL: ${redirectUrl}`));
+                    }
                     return;
                 }
             }
 
             if (statusCode < 200 || statusCode >= 300) {
+                res.resume(); // CRITICAL: Consume the response stream to release the socket
                 reject(new Error(`HTTP status ${statusCode}`));
                 return;
             }
