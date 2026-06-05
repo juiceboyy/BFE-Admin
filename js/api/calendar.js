@@ -359,30 +359,60 @@ function detectInstrument(description, summary) {
 export function cleanLocationName(loc) {
     if (!loc) return 'Lely';
     
-    // 1. Split on common separators: comma, hyphen, slash, semicolon
+    const lower = loc.toLowerCase();
+    
+    // 1. Check for known locations first (fast path)
+    if (lower.includes('lely lyceum') || lower.includes('lelylyceum')) {
+        return 'Lely Lyceum';
+    }
+    if (lower.includes('muziekcentrum') || lower.includes('mzo')) {
+        return 'Muziekcentrum Zuidoost';
+    }
+    if (lower.includes('lely')) {
+        return 'Lely Lyceum';
+    }
+    
+    // 2. Split on common separators: comma, hyphen, slash, semicolon
     let cleaned = loc.split(',')[0];
     cleaned = cleaned.split(' - ')[0];
     cleaned = cleaned.split(' / ')[0];
     cleaned = cleaned.split(';')[0];
     
-    // 2. Remove text inside parentheses (e.g. "(locatie Amsterdam)")
+    // 3. Remove text inside parentheses (e.g. "(Gymzaal)")
     cleaned = cleaned.replace(/\s*\(.*?\)\s*/g, ' ');
     
-    // 3. Clean extra whitespace
-    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    // 4. Strip street names and numbers
+    const words = cleaned.split(/\s+/);
+    const cleanedWords = [];
+    for (const word of words) {
+        const lowerWord = word.toLowerCase();
+        
+        // Stop adding words if we see a house number or common Dutch street suffix
+        if (
+            /^\d+/.test(word) ||
+            lowerWord.endsWith('pad') ||
+            lowerWord.endsWith('straat') ||
+            lowerWord.endsWith('weg') ||
+            lowerWord.endsWith('laan') ||
+            lowerWord.endsWith('singel') ||
+            lowerWord.endsWith('plein') ||
+            lowerWord.endsWith('dijk') ||
+            lowerWord.endsWith('kade') ||
+            lowerWord.endsWith('steeg') ||
+            lowerWord.endsWith('gracht')
+        ) {
+            break;
+        }
+        cleanedWords.push(word);
+    }
+    cleaned = cleanedWords.join(' ').trim();
     
-    // 4. Default if empty
+    // 5. Default if empty
     if (!cleaned) return 'Lely';
     
-    // 5. If still very long, restrict to max 3 words or 22 characters
+    // 6. Truncate if still too long
     if (cleaned.length > 22) {
-        const words = cleaned.split(' ');
-        if (words.length > 3) {
-            cleaned = words.slice(0, 3).join(' ');
-        }
-        if (cleaned.length > 22) {
-            cleaned = cleaned.substring(0, 22).trim() + '...';
-        }
+        cleaned = cleaned.substring(0, 22).trim() + '...';
     }
     
     return cleaned;
