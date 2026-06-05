@@ -100,8 +100,8 @@ export function parseEventsForInvoicing(events, searchKeyword) {
         // 2. Format Date (D/M/YY)
         const formattedDate = formatDateShort(startDate);
         
-        // 3. Location (first segment of location string)
-        const location = (event.location || '').split(',')[0].trim() || 'Lely'; // Default to Lely if empty
+        // 3. Location (cleaned and shortened location string)
+        const location = cleanLocationName(event.location);
 
         // 4. Activity (clean the MZO keyword out of the title)
         let activity = event.summary || '';
@@ -348,4 +348,42 @@ function detectInstrument(description, summary) {
     }
     
     return 'diversen';
+}
+
+/**
+ * Cleans the location string to extract only the name of the venue.
+ * Removes addresses, room numbers, parentheses, and keeps it short and clean.
+ * @param {string} loc - Raw location string
+ * @returns {string} Cleaned short location name
+ */
+export function cleanLocationName(loc) {
+    if (!loc) return 'Lely';
+    
+    // 1. Split on common separators: comma, hyphen, slash, semicolon
+    let cleaned = loc.split(',')[0];
+    cleaned = cleaned.split(' - ')[0];
+    cleaned = cleaned.split(' / ')[0];
+    cleaned = cleaned.split(';')[0];
+    
+    // 2. Remove text inside parentheses (e.g. "(locatie Amsterdam)")
+    cleaned = cleaned.replace(/\s*\(.*?\)\s*/g, ' ');
+    
+    // 3. Clean extra whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    // 4. Default if empty
+    if (!cleaned) return 'Lely';
+    
+    // 5. If still very long, restrict to max 3 words or 22 characters
+    if (cleaned.length > 22) {
+        const words = cleaned.split(' ');
+        if (words.length > 3) {
+            cleaned = words.slice(0, 3).join(' ');
+        }
+        if (cleaned.length > 22) {
+            cleaned = cleaned.substring(0, 22).trim() + '...';
+        }
+    }
+    
+    return cleaned;
 }

@@ -469,6 +469,17 @@ async function handleGenerateInvoice() {
         
         iframeDoc.body.appendChild(invoiceElement);
 
+        // Wait for all images (e.g. the logo) to load fully before generating the PDF
+        const images = invoiceElement.querySelectorAll('img');
+        const imageLoadPromises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        });
+        await Promise.all(imageLoadPromises);
+
         const opt = {
             margin:       0,
             filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
@@ -609,12 +620,7 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
             </div>
             
             <div style="margin-top: 5px;">
-                <svg width="140" height="92" viewBox="0 0 150 100" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="5" y="5" width="140" height="90" fill="white" stroke="#E30613" stroke-width="8" />
-                    <path d="M 32,50 C 52,32 88,32 108,50 C 88,68 52,68 32,50 Z" fill="black" />
-                    <path d="M 108,50 L 123,38 L 123,62 Z" fill="black" />
-                    <circle cx="47" cy="50" r="3.5" fill="white" />
-                </svg>
+                <img src="images/logo.png" alt="Logo" style="width: 140px; height: auto; display: block;" />
             </div>
         </div>
 
@@ -647,11 +653,11 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
             <table style="table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
                 <thead>
                     <tr style="border-bottom: 1px solid #000; font-weight: bold; background-color: #fff;">
-                        <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 6%;">Week</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 10%; text-align: left;">Datum</th>
+                        <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 8%;">Week</th>
+                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 12%; text-align: left;">Datum</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Lokatie</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 25%; text-align: left;">Activiteit</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Instrument</th>
+                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 23%; text-align: left;">Activiteit</th>
+                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 13%; text-align: left;">Instrument</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 8%; text-align: right;">Uren</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 10%; text-align: right;">Tarief</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 11%; text-align: right;">Bedrag</th>
