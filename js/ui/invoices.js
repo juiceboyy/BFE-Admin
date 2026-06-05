@@ -302,8 +302,9 @@ async function handleGenerateInvoice() {
         
         const container = document.createElement('div');
         container.style.position = 'absolute';
-        container.style.left = '-9999px';
+        container.style.left = '0';
         container.style.top = '0';
+        container.style.zIndex = '-9999';
         container.style.width = '680px';
         container.style.overflow = 'hidden';
         
@@ -314,7 +315,14 @@ async function handleGenerateInvoice() {
             margin:       15,
             filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
+            html2canvas:  { 
+                scale: 2, 
+                useCORS: true, 
+                scrollX: 0, 
+                scrollY: 0,
+                windowWidth: 800,
+                windowHeight: 2000
+            },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
@@ -466,9 +474,9 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
                 <thead>
                     <tr style="border-bottom: 1px solid #000; font-weight: bold; background-color: #fff;">
-                        <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 8%;">Week</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 12%; text-align: left;">Datum</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 16%; text-align: left;">Lokatie</th>
+                        <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 6%;">Week</th>
+                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 10%; text-align: left;">Datum</th>
+                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Lokatie</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 25%; text-align: left;">Activiteit</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Instrument</th>
                         <th style="border-right: 1px solid #000; padding: 6px 8px; width: 8%; text-align: right;">Uren</th>
