@@ -1,3 +1,48 @@
+import https from 'https';
+
+/**
+ * Helper to fetch a URL natively with redirect support.
+ */
+function fetchUrlWithRedirects(url, maxRedirects = 5) {
+    return new Promise((resolve, reject) => {
+        if (maxRedirects <= 0) {
+            reject(new Error('Te veel omleidingen (redirect loop)'));
+            return;
+        }
+
+        https.get(url, (res) => {
+            const statusCode = res.statusCode;
+
+            // Handle redirects (301, 302, 307, 308)
+            if (statusCode === 301 || statusCode === 302 || statusCode === 307 || statusCode === 308) {
+                const redirectUrl = res.headers.location;
+                if (redirectUrl) {
+                    fetchUrlWithRedirects(redirectUrl, maxRedirects - 1)
+                        .then(resolve)
+                        .catch(reject);
+                    return;
+                }
+            }
+
+            if (statusCode < 200 || statusCode >= 300) {
+                reject(new Error(`HTTP status ${statusCode}`));
+                return;
+            }
+
+            // Read response body chunks
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                resolve(data);
+            });
+        }).on('error', (err) => {
+            reject(err);
+        });
+    });
+}
+
 export const handler = async (event, context) => {
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -41,16 +86,9 @@ export const handler = async (event, context) => {
             };
         }
 
-        const response = await fetch(targetUrl);
-        if (!response.ok) {
-            return {
-                statusCode: response.status,
-                headers,
-                body: JSON.stringify({ error: `Fout bij ophalen agenda: HTTP ${response.status}` })
-            };
-        }
+        // Fetch using our native resolver (follows redirects, CORS-safe)
+        const data = await fetchUrlWithRedirects(targetUrl);
 
-        const data = await response.text();
         return {
             statusCode: 200,
             headers: {
@@ -61,6 +99,7 @@ export const handler = async (event, context) => {
         };
 
     } catch (error) {
+        console.error('fetchIcal function error:', error.message);
         return {
             statusCode: 500,
             headers,
