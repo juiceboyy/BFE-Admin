@@ -1,4 +1,4 @@
-import { fetchAndParseIcsCalendar, parseEventsForInvoicing } from '../api/calendar.js';
+import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
 import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { getNextInvoiceNumberFromCloud } from '../api/storage-queries.js';
 import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
@@ -25,15 +25,6 @@ export function initInvoicesModule() {
         input?.addEventListener('input', recalculateTotals);
     });
 
-    // Load webcal URL from localStorage
-    const webcalInput = document.getElementById('invoice-webcal-url');
-    if (webcalInput) {
-        webcalInput.value = localStorage.getItem('bfe_ical_webcal_url') || '';
-        webcalInput.addEventListener('input', (e) => {
-            localStorage.setItem('bfe_ical_webcal_url', e.target.value.trim());
-        });
-    }
-
     // Default the invoice date to today
     const invoiceDateInput = document.getElementById('invoice-date');
     if (invoiceDateInput) {
@@ -45,12 +36,6 @@ async function handleFetchCalendar() {
     const btn = document.getElementById('btn-fetch-calendar');
     const keyword = document.getElementById('invoice-filter-keyword').value || 'MZO';
     const defaultRate = parseFloat(document.getElementById('invoice-default-rate').value) || 50.00;
-    const webcalUrl = document.getElementById('invoice-webcal-url')?.value.trim();
-
-    if (!webcalUrl) {
-        alert('Vul eerst je iCloud Agenda Link (bovenin) in.');
-        return;
-    }
     
     const setLoading = (loading) => {
         if (!btn) return;
@@ -72,8 +57,8 @@ async function handleFetchCalendar() {
         const timeMin = new Date(year, month, 1, 0, 0, 0).toISOString();
         const timeMax = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
-        // Fetch using the iCloud Webcal proxy helper
-        const rawEvents = await fetchAndParseIcsCalendar(webcalUrl, timeMin, timeMax);
+        // Fetch from Google Calendar API
+        const rawEvents = await fetchCalendarEvents(timeMin, timeMax);
         invoicedEvents = parseEventsForInvoicing(rawEvents, keyword);
 
         // Apply default rate to fetched events
@@ -84,7 +69,7 @@ async function handleFetchCalendar() {
         // Warn if some events already contain gefactureerd tag
         const alreadyInvoicedCount = invoicedEvents.filter(e => e.gefactureerd).length;
         if (alreadyInvoicedCount > 0) {
-            alert(`Let op: er zijn ${alreadyInvoicedCount} afspraken gevonden die al de status 'gefactureerd' in de agenda-omschrijving lijken te hebben.`);
+            alert(`Let op: er zijn ${alreadyInvoicedCount} afspraken gevonden die al de status 'gefactureerd' in de agenda-omschrijving hebben.`);
         }
 
         renderEventsTable();
@@ -346,8 +331,14 @@ async function handleGenerateInvoice() {
         const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
         await insertRowInSheet(targetSheet, rowValues);
 
-        // Note: iCloud feeds are read-only; we cannot write "gefactureerd" back to iCloud automatically.
-        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- Note: Agenda-afspraken in iCloud konden niet automatisch worden aangepast (alleen-lezen feed).`);
+        // 6. Update Calendar Events in Google Calendar
+        for (const event of invoicedEvents) {
+            if (event.id) {
+                await updateCalendarEventInvoiceStatus(event.id, factuurNummer);
+            }
+        }
+
+        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- ${invoicedEvents.length} agenda-afspraken in Google Calendar bijgewerkt.`);
         
         // Clear queue
         invoicedEvents = [];
@@ -510,7 +501,7 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
                 Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
             </p>
             <p style="margin: 4px 0 0 0; font-weight: bold; color: #000;">
-                Te betalen binnen 15 days na ontvangst factuur.
+                Te betalen binnen 15 dagen na ontvangst factuur.
             </p>
         </div>
     `;
