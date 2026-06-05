@@ -1,4 +1,4 @@
-import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
+import { fetchAndParseIcsCalendar, parseEventsForInvoicing } from '../api/calendar.js';
 import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { getNextInvoiceNumberFromCloud } from '../api/storage-queries.js';
 import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
@@ -25,6 +25,15 @@ export function initInvoicesModule() {
         input?.addEventListener('input', recalculateTotals);
     });
 
+    // Load webcal URL from localStorage
+    const webcalInput = document.getElementById('invoice-webcal-url');
+    if (webcalInput) {
+        webcalInput.value = localStorage.getItem('bfe_ical_webcal_url') || '';
+        webcalInput.addEventListener('input', (e) => {
+            localStorage.setItem('bfe_ical_webcal_url', e.target.value.trim());
+        });
+    }
+
     // Default the invoice date to today
     const invoiceDateInput = document.getElementById('invoice-date');
     if (invoiceDateInput) {
@@ -36,6 +45,12 @@ async function handleFetchCalendar() {
     const btn = document.getElementById('btn-fetch-calendar');
     const keyword = document.getElementById('invoice-filter-keyword').value || 'MZO';
     const defaultRate = parseFloat(document.getElementById('invoice-default-rate').value) || 50.00;
+    const webcalUrl = document.getElementById('invoice-webcal-url')?.value.trim();
+
+    if (!webcalUrl) {
+        alert('Vul eerst je iCloud Agenda Link (bovenin) in.');
+        return;
+    }
     
     const setLoading = (loading) => {
         if (!btn) return;
@@ -53,11 +68,12 @@ async function handleFetchCalendar() {
         const year = targetDate.getFullYear();
         const month = targetDate.getMonth();
         
-        // Define calendar date boundaries
+        // Define calendar date boundaries (ISO Strings)
         const timeMin = new Date(year, month, 1, 0, 0, 0).toISOString();
         const timeMax = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
-        const rawEvents = await fetchCalendarEvents(timeMin, timeMax);
+        // Fetch using the iCloud Webcal proxy helper
+        const rawEvents = await fetchAndParseIcsCalendar(webcalUrl, timeMin, timeMax);
         invoicedEvents = parseEventsForInvoicing(rawEvents, keyword);
 
         // Apply default rate to fetched events
@@ -65,10 +81,10 @@ async function handleFetchCalendar() {
             e.tarief = defaultRate;
         });
 
-        // If some events were already invoiced, we warn the user or deselect them
+        // Warn if some events already contain gefactureerd tag
         const alreadyInvoicedCount = invoicedEvents.filter(e => e.gefactureerd).length;
         if (alreadyInvoicedCount > 0) {
-            alert(`Let op: er zijn ${alreadyInvoicedCount} afspraken gevonden die al de status 'gefactureerd' hebben in de agenda. Deze zijn gemarkeerd in de lijst.`);
+            alert(`Let op: er zijn ${alreadyInvoicedCount} afspraken gevonden die al de status 'gefactureerd' in de agenda-omschrijving lijken te hebben.`);
         }
 
         renderEventsTable();
@@ -142,7 +158,7 @@ function renderEventsTable() {
 
     if (window.lucide) window.lucide.createIcons();
 
-    // Bind event listeners for row deletion
+    // Bind row deletion
     tbody.querySelectorAll('.delete-event-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const index = parseInt(e.currentTarget.getAttribute('data-index'));
@@ -151,14 +167,13 @@ function renderEventsTable() {
         });
     });
 
-    // Bind event listeners for real-time recalculations on hours and rate changes
+    // Bind real-time recalculations on hours and rate changes
     tbody.querySelectorAll('.event-hours-input').forEach(input => {
         input.addEventListener('input', (e) => {
             const index = parseInt(e.target.getAttribute('data-index'));
             const val = parseFloat(e.target.value);
             invoicedEvents[index].uren = isNaN(val) ? null : val;
             
-            // Remove red border if now valid
             if (!isNaN(val)) {
                 e.target.classList.replace('border-red-500', 'border-gray-200');
             } else {
@@ -178,7 +193,6 @@ function renderEventsTable() {
         });
     });
 
-    // Automatically calculate travel days based on unique days
     calculateTravelDaysAutomatically();
     recalculateTotals();
 }
@@ -194,11 +208,9 @@ function updateRowTotal(index) {
 }
 
 function calculateTravelDaysAutomatically() {
-    // Unique dates from all active events
     const uniqueDates = new Set();
     invoicedEvents.forEach(e => {
         if (e.datum) {
-            // Normalize dates to check unique days
             uniqueDates.add(e.datum);
         }
     });
@@ -234,7 +246,6 @@ function recalculateTotals() {
 }
 
 async function handleGenerateInvoice() {
-    // Check if any hours are missing (null)
     const missingHoursIndex = invoicedEvents.findIndex(e => e.uren === null || isNaN(e.uren));
     if (missingHoursIndex !== -1) {
         alert('Vul a.b.b. alle uren in voor de lessen.');
@@ -261,14 +272,14 @@ async function handleGenerateInvoice() {
     setLoading(true);
 
     try {
-        const dateInfo = getTargetDateInfo('verkoop'); // Uses verkoop tab logic
+        const dateInfo = getTargetDateInfo('verkoop');
         const currentYear = dateInfo.targetYear;
         const targetSheet = dateInfo.targetSheet;
 
         // 1. Get the next invoice sequence number from the Google Sheet
         const factuurNummer = await getNextInvoiceNumberFromCloud(targetSheet, dateInfo.prevSheet, currentYear);
         
-        // 2. Fetch all values from DOM/table state to generate PDF
+        // 2. Fetch all values to generate PDF
         const travelDays = parseInt(document.getElementById('travel-days').value) || 0;
         const travelDistance = parseFloat(document.getElementById('travel-distance').value) || 0;
         const travelRate = parseFloat(document.getElementById('travel-rate').value) || 0;
@@ -296,7 +307,6 @@ async function handleGenerateInvoice() {
         const invoiceElement = buildInvoiceDOM(factuurNummer, invoiceDateVal, finalizedRows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal);
         document.body.appendChild(invoiceElement);
 
-        // PDF Output settings
         const opt = {
             margin:       15,
             filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
@@ -305,29 +315,23 @@ async function handleGenerateInvoice() {
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
-        // Render to PDF using html2pdf
         const pdfWorker = html2pdf().from(invoiceElement).set(opt);
-        
-        // Save PDF locally (download)
         await pdfWorker.save();
         
-        // Get the PDF as a Blob to upload to Google Drive
         const pdfBlob = await pdfWorker.outputPdf('blob');
         const pdfFile = new File([pdfBlob], `${factuurNummer} - Muziekcentrum Zuidoost.pdf`, { type: 'application/pdf' });
 
-        // Remove offscreen print container from body
         document.body.removeChild(invoiceElement);
 
         // 4. Upload PDF to Google Drive
         await uploadToDrive(pdfFile, `${factuurNummer} - Muziekcentrum Zuidoost`);
 
         // 5. Book row in Google Sheets (Verkoop <maand>)
-        // We use constructSheetRow from scanner-helpers.js
         const formData = {
-            datum: invoiceDateVal, // Invoice date
-            leverancier: 'Muziekcentrum Zuidoost', // Client
+            datum: invoiceDateVal,
+            leverancier: 'Muziekcentrum Zuidoost',
             omschrijving: 'Factuur lesgeven en reiskosten',
-            factuurBedrag: invoiceTotal, // Total amount
+            factuurBedrag: invoiceTotal,
         };
 
         const itemData = {
@@ -335,22 +339,15 @@ async function handleGenerateInvoice() {
             btwHoog: 0,
             omzetLaag: 0,
             omzetHoog: 0,
-            omzetNul: invoiceTotal, // Educational teaching is exempt, so 0% VAT
+            omzetNul: invoiceTotal,
         };
 
         const headers = await getSheetHeaders(targetSheet);
         const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
         await insertRowInSheet(targetSheet, rowValues);
 
-        // 6. Update Calendar Events: Append gefactureerd to descriptions
-        for (const event of invoicedEvents) {
-            if (event.id) {
-                await updateCalendarEventInvoiceStatus(event.id, factuurNummer);
-            }
-        }
-
-        // 7. Success state
-        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- ${invoicedEvents.length} agenda-afspraken bijgewerkt.`);
+        // Note: iCloud feeds are read-only; we cannot write "gefactureerd" back to iCloud automatically.
+        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- Note: Agenda-afspraken in iCloud konden niet automatisch worden aangepast (alleen-lezen feed).`);
         
         // Clear queue
         invoicedEvents = [];
@@ -369,7 +366,7 @@ async function handleGenerateInvoice() {
  */
 function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal) {
     const el = document.createElement('div');
-    el.style.width = '700px'; // Render size (fits A4 with html2pdf margins)
+    el.style.width = '700px';
     el.style.padding = '10px';
     el.style.backgroundColor = 'white';
     el.style.color = 'black';
@@ -377,7 +374,6 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
     el.style.fontSize = '13px';
     el.style.lineHeight = '1.45';
 
-    // Format Dutch Date
     const months = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
     const dObj = new Date(invoiceDate);
     const day = dObj.getDate();
@@ -395,7 +391,6 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
         return new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 2 }).format(val);
     };
 
-    // Render table rows
     const tableRowsHTML = rows.map(r => `
         <tr style="border-bottom: 1px solid #000;">
             <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 12px;">${r.week}</td>
@@ -473,7 +468,6 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
                 </thead>
                 <tbody>
                     ${tableRowsHTML}
-                    <!-- Subtotal row -->
                     <tr style="font-weight: bold; border-top: 1px solid #000; background-color: #fff;">
                         <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px;"></td>
                         <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
@@ -516,7 +510,7 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
                 Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
             </p>
             <p style="margin: 4px 0 0 0; font-weight: bold; color: #000;">
-                Te betalen binnen 15 dagen na ontvangst factuur.
+                Te betalen binnen 15 days na ontvangst factuur.
             </p>
         </div>
     `;

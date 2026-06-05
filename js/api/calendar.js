@@ -2,7 +2,7 @@ import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
 
 /**
- * Fetch calendar events from the primary calendar within a date range.
+ * Fetch calendar events from the primary calendar within a date range (Google Calendar).
  * @param {string} timeMin - ISO String representing the start of the period (RFC3339)
  * @param {string} timeMax - ISO String representing the end of the period (RFC3339)
  * @returns {Promise<Array>} List of event resources
@@ -35,8 +35,49 @@ export async function fetchCalendarEvents(timeMin, timeMax) {
 }
 
 /**
+ * Fetches an iCloud iCal calendar via Netlify CORS proxy and parses it.
+ * @param {string} webcalUrl - The webcal:// or https:// iCloud sharing URL
+ * @param {string} timeMin - ISO string start date filter
+ * @param {string} timeMax - ISO string end date filter
+ * @returns {Promise<Array>} List of calendar events matching date filters
+ */
+export async function fetchAndParseIcsCalendar(webcalUrl, timeMin, timeMax) {
+    const proxyUrl = `/.netlify/functions/fetchIcal?url=${encodeURIComponent(webcalUrl)}`;
+    
+    const response = await fetch(proxyUrl);
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || `Fout bij ophalen iCloud agenda (HTTP ${response.status})`);
+    }
+
+    const icsText = await response.text();
+    const allEvents = parseIcs(icsText);
+    
+    // Filter events by date range
+    const startBound = new Date(timeMin);
+    const endBound = new Date(timeMax);
+
+    const filtered = allEvents.filter(event => {
+        const eventDateStr = event.start?.dateTime || event.start?.date;
+        if (!eventDateStr) return false;
+        
+        const eventDate = new Date(eventDateStr);
+        return eventDate >= startBound && eventDate <= endBound;
+    });
+
+    // Sort by start date ascending
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.start?.dateTime || a.start?.date);
+        const dateB = new Date(b.start?.dateTime || b.start?.date);
+        return dateA - dateB;
+    });
+
+    return filtered;
+}
+
+/**
  * Parses events and extracts fields required for the invoice.
- * @param {Array} events - List of Google Calendar events
+ * @param {Array} events - List of events (works with both Google Calendar and parsed iCal format)
  * @param {string} searchKeyword - Keyword to filter events by
  * @returns {Array} List of parsed invoice rows
  */
@@ -65,7 +106,6 @@ export function parseEventsForInvoicing(events, searchKeyword) {
         // 4. Activity (clean the MZO keyword out of the title)
         let activity = event.summary || '';
         if (keyword) {
-            // Strip the keyword and common separators
             const regex = new RegExp(searchKeyword, 'gi');
             activity = activity.replace(regex, '').replace(/^[\s\-_:/]+|[\s\-_:/]+$/g, '').trim();
         }
@@ -103,7 +143,7 @@ function checkAlreadyInvoiced(description) {
 }
 
 /**
- * Updates a calendar event's description to append invoicing details.
+ * Updates a calendar event's description to append invoicing details. (Google Calendar only)
  * @param {string} eventId 
  * @param {string} factuurNummer 
  */
@@ -125,12 +165,10 @@ export async function updateCalendarEventInvoiceStatus(eventId, factuurNummer) {
     const event = await getResponse.json();
     let currentDesc = event.description || '';
 
-    // Check if already contains this specific invoice number or general gefactureerd tag
     if (currentDesc.includes(`gefactureerd ${factuurNummer}`)) {
-        return; // Already marked
+        return; 
     }
 
-    // Append invoice info
     const label = `gefactureerd ${factuurNummer}`;
     const newDesc = currentDesc ? `${currentDesc}\n${label}` : label;
 
@@ -151,6 +189,93 @@ export async function updateCalendarEventInvoiceStatus(eventId, factuurNummer) {
     if (!patchResponse.ok) {
         const err = await patchResponse.json().catch(() => ({}));
         console.error(`Fout bij markeren event ${eventId} als gefactureerd:`, err?.error?.message || patchResponse.status);
+    }
+}
+
+/**
+ * Simple iCalendar (.ics) text file parser.
+ * @param {string} icsText 
+ * @returns {Array} List of parsed events in Google Calendar-like schema
+ */
+export function parseIcs(icsText) {
+    const events = [];
+    const lines = icsText.split(/\r?\n/);
+    let currentEvent = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+
+        // Unfold lines: continuation lines start with whitespace
+        while (i + 1 < lines.length && (lines[i + 1].startsWith(' ') || lines[i + 1].startsWith('\t'))) {
+            line += lines[i + 1].slice(1);
+            i++;
+        }
+
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) continue;
+
+        const key = line.slice(0, colonIdx);
+        const value = line.slice(colonIdx + 1);
+
+        const propName = key.split(';')[0].toUpperCase().trim();
+
+        if (propName === 'BEGIN' && value.trim() === 'VEVENT') {
+            currentEvent = {};
+        } else if (propName === 'END' && value.trim() === 'VEVENT') {
+            if (currentEvent) events.push(currentEvent);
+            currentEvent = null;
+        } else if (currentEvent) {
+            if (propName === 'SUMMARY') {
+                currentEvent.summary = unescapeIcsValue(value);
+            } else if (propName === 'DESCRIPTION') {
+                currentEvent.description = unescapeIcsValue(value);
+            } else if (propName === 'LOCATION') {
+                currentEvent.location = unescapeIcsValue(value);
+            } else if (propName === 'DTSTART') {
+                currentEvent.start = parseIcsDate(line, value);
+            } else if (propName === 'DTEND') {
+                currentEvent.end = parseIcsDate(line, value);
+            } else if (propName === 'UID') {
+                currentEvent.id = value.trim();
+            }
+        }
+    }
+
+    return events;
+}
+
+function unescapeIcsValue(val) {
+    return val.replace(/\\,/g, ',')
+              .replace(/\\;/g, ';')
+              .replace(/\\n/gi, '\n')
+              .replace(/\\\\/g, '\\')
+              .trim();
+}
+
+function parseIcsDate(line, value) {
+    const val = value.trim();
+    
+    // Check for TzID parameters in the key, but we default to parse as local date string
+    // Format is YYYYMMDDTHHMMSSZ or YYYYMMDDTHHMMSS or YYYYMMDD
+    const year = parseInt(val.slice(0, 4), 10);
+    const month = parseInt(val.slice(4, 6), 10) - 1;
+    const day = parseInt(val.slice(6, 8), 10);
+
+    if (val.includes('T')) {
+        const hour = parseInt(val.slice(9, 11), 10);
+        const min = parseInt(val.slice(11, 13), 10);
+        const sec = parseInt(val.slice(13, 15), 10);
+
+        if (val.endsWith('Z')) {
+            // UTC
+            return { dateTime: new Date(Date.UTC(year, month, day, hour, min, sec)).toISOString() };
+        } else {
+            // Local time (parsed in current client timezone)
+            return { dateTime: new Date(year, month, day, hour, min, sec).toISOString() };
+        }
+    } else {
+        // Date only
+        return { date: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` };
     }
 }
 
@@ -180,7 +305,6 @@ function formatDateShort(date) {
  */
 function parseHours(event) {
     const textToSearch = `${event.description || ''} ${event.summary || ''}`;
-    // Look for numbers like 1.5, 2,25, 2 followed by 'u' or 'uur' or 'hour'
     const match = textToSearch.match(/(?:^|\s|\()([0-9]+(?:[.,][0-9]+)?)\s*(?:u|uur|uren|hrs|h|hour|hours)(?:\s|$|\))/i);
     if (match) {
         const val = match[1].replace(',', '.');
@@ -223,5 +347,5 @@ function detectInstrument(description, summary) {
         return 'basgitaar';
     }
     
-    return 'diversen'; // Default
+    return 'diversen';
 }
