@@ -1,4 +1,4 @@
-import https from 'https';
+const https = require('https');
 
 /**
  * Helper to fetch a URL natively with redirect support.
@@ -43,7 +43,7 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
     });
 }
 
-export const handler = async (event, context) => {
+exports.handler = async (event, context) => {
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
