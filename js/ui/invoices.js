@@ -3,6 +3,7 @@ import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { getNextInvoiceNumberFromCloud } from '../api/storage-queries.js';
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, clearSheetCaches, SPREADSHEET_ID } from '../api/storage.js';
 import { constructSheetRow } from './scanner-helpers.js';
+import { accessToken } from '../api/auth.js';
 
 let invoicedEvents = [];
 
