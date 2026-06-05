@@ -1,7 +1,7 @@
 import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
 import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { getNextInvoiceNumberFromCloud } from '../api/storage-queries.js';
-import { uploadToDrive, insertRowInSheet, getSheetHeaders, clearSheetCaches } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders, clearSheetCaches, SPREADSHEET_ID } from '../api/storage.js';
 import { constructSheetRow } from './scanner-helpers.js';
 
 let invoicedEvents = [];
@@ -270,10 +270,145 @@ async function handleGenerateInvoice() {
         const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
         const prevSheet = `${MONTH_NAMES[prevMonthIndex]} Verkoop`;
 
-        // 1. Get the next invoice sequence number from the Google Sheet
-        const factuurNummer = await getNextInvoiceNumberFromCloud(targetSheet, prevSheet, currentYear);
+        // Fetch sheet values to locate the target row and check for a pre-filled invoice number
+        const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${targetSheet}'!A1:Z`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
         
-        // 2. Fetch all values to generate PDF
+        let targetRowIndex = null;
+        let factuurNummer = null;
+        let sheetRows = [];
+
+        if (getRes.ok) {
+            const getJson = await getRes.json();
+            sheetRows = getJson.values || [];
+        }
+
+        if (sheetRows.length > 0) {
+            const headerRow = sheetRows[0] || [];
+            const headers = headerRow.map(h => String(h || '').toLowerCase().trim());
+            
+            const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+            
+            const datumIdx = getIdx(['datum', 'date']);
+            const descIdx = getIdx(['omschrijving', 'beschrijving']);
+            const clientIdx = getIdx(['klant', 'relatie', 'naam', 'debiteur', 'leverancier']);
+            const factuurIdx = getIdx(['factuur', 'nr', 'nummer']);
+
+            // Find the target row using the same logic as storage.js
+            for (let i = 1; i < sheetRows.length; i++) {
+                const row = sheetRows[i] || [];
+                
+                // Stop if we see 'Totalen' sentinel
+                const isTotalenSentinel = row.some(cell => {
+                    const val = String(cell || '').trim().toLowerCase();
+                    return val === 'totalen' || val === 'totaal';
+                });
+                if (isTotalenSentinel) {
+                    targetRowIndex = i + 1;
+                    break;
+                }
+
+                let isEmpty = true;
+                if (headers.length > 0) {
+                    const hasDatum = datumIdx !== -1 && row[datumIdx] !== undefined && String(row[datumIdx]).trim() !== '';
+                    const hasDesc = descIdx !== -1 && row[descIdx] !== undefined && String(row[descIdx]).trim() !== '';
+                    const hasClient = clientIdx !== -1 && row[clientIdx] !== undefined && String(row[clientIdx]).trim() !== '';
+                    
+                    let hasAmount = false;
+                    headers.forEach((h, idx) => {
+                        if (h.includes('totaal') || h.includes('bedrag') || h.includes('omzet') || h.includes('btw') || h.includes('excl') || h.includes('vergoeding') || h.includes('voorbelasting')) {
+                            if (row[idx] !== undefined && String(row[idx]).trim() !== '' && String(row[idx]).trim() !== '0' && String(row[idx]).trim() !== '0,00') {
+                                hasAmount = true;
+                            }
+                        }
+                    });
+
+                    if (hasDatum || hasDesc || hasClient || hasAmount) {
+                        isEmpty = false;
+                    }
+                } else {
+                    for (let colIdx = 0; colIdx < row.length; colIdx++) {
+                        if (colIdx === 1) continue; // Skip Factuurnummer in fallback
+                        const val = String(row[colIdx] || '').trim();
+                        if (val !== '' && val !== '0' && val !== '0,00') {
+                            isEmpty = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (isEmpty) {
+                    targetRowIndex = i + 1;
+                    const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+                    if (row[fIdx] && String(row[fIdx]).trim() !== '') {
+                        factuurNummer = String(row[fIdx]).trim();
+                    }
+                    break;
+                }
+            }
+            
+            if (!targetRowIndex) {
+                targetRowIndex = sheetRows.length + 1;
+            }
+        } else {
+            targetRowIndex = 2; // Default if sheet is empty
+        }
+
+        // If target row doesn't have a pre-filled invoice number, generate the next one
+        if (!factuurNummer) {
+            let maxSeq = null;
+            const factuurIdx = sheetRows[0] ? sheetRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+            const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+
+            for (const row of sheetRows) {
+                const val = row[fIdx];
+                if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                    const parts = val.split('.');
+                    if (parts.length === 2) {
+                        const seq = parseInt(parts[1], 10);
+                        if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                    }
+                }
+            }
+
+            if (maxSeq !== null) {
+                factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+            } else if (targetSheet.startsWith('Jan')) {
+                factuurNummer = `${currentYear}.001`;
+            } else if (prevSheet) {
+                // Fetch from previous sheet
+                const prevRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${prevSheet}'!A1:Z`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (prevRes.ok) {
+                    const prevJson = await prevRes.json();
+                    const prevRows = prevJson.values || [];
+                    const prevFactuurIdx = prevRows[0] ? prevRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+                    const pfIdx = prevFactuurIdx !== -1 ? prevFactuurIdx : 1;
+
+                    for (const row of prevRows) {
+                        const val = row[pfIdx];
+                        if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                            const parts = val.split('.');
+                            if (parts.length === 2) {
+                                const seq = parseInt(parts[1], 10);
+                                if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                            }
+                        }
+                    }
+                }
+                if (maxSeq !== null) {
+                    factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                } else {
+                    factuurNummer = `${currentYear}.001`;
+                }
+            } else {
+                factuurNummer = `${currentYear}.001`;
+            }
+        }
+        
+        // 2. Fetch all travel values to generate PDF
         const travelDays = parseInt(document.getElementById('travel-days').value) || 0;
         const travelDistance = parseFloat(document.getElementById('travel-distance').value) || 0;
         const travelRate = parseFloat(document.getElementById('travel-rate').value) || 0;
@@ -305,14 +440,14 @@ async function handleGenerateInvoice() {
         container.style.left = '0';
         container.style.top = '0';
         container.style.zIndex = '-9999';
-        container.style.width = '680px';
+        container.style.width = '794px';
         container.style.overflow = 'hidden';
         
         container.appendChild(invoiceElement);
         document.body.appendChild(container);
 
         const opt = {
-            margin:       15,
+            margin:       0,
             filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { 
@@ -321,7 +456,7 @@ async function handleGenerateInvoice() {
                 scrollX: 0, 
                 scrollY: 0,
                 windowWidth: 800,
-                windowHeight: 2000
+                windowHeight: 1200
             },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
@@ -355,7 +490,7 @@ async function handleGenerateInvoice() {
 
         const headers = await getSheetHeaders(targetSheet);
         const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
-        await insertRowInSheet(targetSheet, rowValues);
+        await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
 
         // 6. Update Calendar Events in Google Calendar
         for (const event of invoicedEvents) {
@@ -383,9 +518,10 @@ async function handleGenerateInvoice() {
  */
 function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal) {
     const el = document.createElement('div');
-    el.style.width = '100%';
+    el.style.width = '794px';
+    el.style.minHeight = '1122px';
     el.style.boxSizing = 'border-box';
-    el.style.padding = '20px';
+    el.style.padding = '20mm';
     el.style.backgroundColor = 'white';
     el.style.color = 'black';
     el.style.fontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";

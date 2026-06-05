@@ -157,13 +157,15 @@ export async function uploadToDrive(file, factuurNummer) {
  * @param {string} sheetName - De naam van het tabblad (bijv. 'Jan Inkoop').
  * @param {Array} data - Array met waarden [datum, factuurnummer, omschrijving, leverancier, totaal, btw, excl]
  */
-export async function insertRowInSheet(sheetName, data) {
+export async function insertRowInSheet(sheetName, data, targetRowOverride = null) {
     if (!accessToken) throw new Error("Niet ingelogd bij Google.");
 
     try {
         let targetRow;
 
-        if (_rowCache.has(sheetName)) {
+        if (targetRowOverride !== null) {
+            targetRow = targetRowOverride;
+        } else if (_rowCache.has(sheetName)) {
             // Subsequent saves: use cached row, no read needed
             targetRow = _rowCache.get(sheetName);
         } else {
