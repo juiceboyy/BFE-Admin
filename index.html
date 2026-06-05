@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="css/style.css">
@@ -42,6 +43,10 @@
             <button id="tab-fiscal"
                 class="py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors">
                 ⚖️ Fiscale Jaarafsluiting
+            </button>
+            <button id="tab-invoices"
+                class="py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors">
+                📄 Facturen Maken
             </button>
         </nav>
 
@@ -200,6 +205,135 @@
         <div id="view-fiscal" class="hidden">
             <h2 class="text-2xl font-bold mb-4">Fiscale Jaarafsluiting &amp; AI Adviseur</h2>
             <p>Hier bouwen we binnenkort de automatische IB-aangifte module.</p>
+        </div>
+
+        <div id="view-invoices" class="hidden space-y-8">
+            <div class="glass-panel p-6 rounded-3xl">
+                <h2 class="text-xl font-medium mb-6">Agenda-gebaseerde Facturatie (MZO)</h2>
+                
+                <!-- Filters and settings -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Zoekterm in agenda</label>
+                        <input type="text" id="invoice-filter-keyword" value="lesgeven" placeholder="Bijv. lesgeven" 
+                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Standaard Uurtarief (€)</label>
+                        <input type="number" id="invoice-default-rate" value="50" placeholder="50" 
+                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Factuurdatum</label>
+                        <input type="date" id="invoice-date" 
+                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="btn-fetch-calendar" 
+                            class="w-full bg-black text-white rounded-xl py-2.5 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="calendar-search" class="w-4 h-4"></i> Agenda Ophalen
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main table container -->
+                <div id="invoice-events-container" class="hidden mt-8 space-y-6">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-4 py-3 w-12 text-center">Week</th>
+                                    <th class="px-4 py-3 w-24">Datum</th>
+                                    <th class="px-4 py-3 w-32">Locatie</th>
+                                    <th class="px-4 py-3">Activiteit</th>
+                                    <th class="px-4 py-3 w-32">Instrument</th>
+                                    <th class="px-4 py-3 w-20 text-right">Uren</th>
+                                    <th class="px-4 py-3 w-24 text-right">Tarief (€)</th>
+                                    <th class="px-4 py-3 w-28 text-right">Bedrag (€)</th>
+                                    <th class="px-4 py-3 w-16 text-center">Status</th>
+                                    <th class="px-4 py-3 w-16 text-center">Actie</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoice-table-body" class="divide-y divide-gray-100">
+                                <!-- Calendar items populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Travel costs & Client details panel -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-700 mb-3">Reiskosten Berekening</h3>
+                            <div class="space-y-3 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-500 w-24">Aantal reisdagen:</span>
+                                    <input type="number" id="travel-days" class="w-16 bg-white border border-gray-200 rounded-lg px-2 py-1 text-center font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-500" value="0">
+                                    <span class="text-gray-400 text-xs">(unieke lesdagen)</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-500 w-24">Afstand per dag:</span>
+                                    <input type="number" id="travel-distance" class="w-16 bg-white border border-gray-200 rounded-lg px-2 py-1 text-center font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-500" value="60">
+                                    <span class="text-gray-500">km</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-500 w-24">Tarief per km:</span>
+                                    <input type="number" step="0.01" id="travel-rate" class="w-16 bg-white border border-gray-200 rounded-lg px-2 py-1 text-center font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-500" value="0.23">
+                                    <span class="text-gray-500">€</span>
+                                </div>
+                                <div class="flex justify-between border-t border-gray-200 pt-2 font-medium">
+                                    <span>Totaal Reiskosten:</span>
+                                    <span id="total-travel-amount">€ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-700 mb-3">Factuur Ontvanger</h3>
+                            <div class="text-sm space-y-1 text-gray-600">
+                                <div class="font-medium text-gray-800">Muziekcentrum Zuidoost</div>
+                                <div>Boekhouding</div>
+                                <div>Hofgeest 139</div>
+                                <div>1102EG Amsterdam ZO</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary & Action -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-4 border-t border-gray-200">
+                        <div class="text-sm space-y-1">
+                            <div class="flex justify-between w-64 text-gray-500">
+                                <span>Subtotaal lessen:</span>
+                                <span id="summary-subtotal" class="font-medium text-gray-700">€ 0,00</span>
+                            </div>
+                            <div class="flex justify-between w-64 text-gray-500">
+                                <span>Reiskosten:</span>
+                                <span id="summary-travel" class="font-medium text-gray-700">€ 0,00</span>
+                            </div>
+                            <div class="flex justify-between w-64 text-gray-500">
+                                <span>BTW (0% / vrijgesteld):</span>
+                                <span class="font-medium text-gray-700">€ nihil</span>
+                            </div>
+                            <div class="flex justify-between w-64 text-base font-semibold text-gray-900 pt-1 border-t border-dashed border-gray-200">
+                                <span>Totaal Factuur:</span>
+                                <span id="summary-total">€ 0,00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full md:w-auto">
+                            <button id="btn-generate-invoice" 
+                                class="w-full md:w-auto px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium shadow-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
+                                <i data-lucide="printer" class="w-4 h-4"></i> Factuur Genereren & Boeken
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="invoice-empty-state" class="text-center py-12 text-gray-400">
+                    <i data-lucide="calendar" class="w-12 h-12 mx-auto mb-3 text-gray-300"></i>
+                    <p class="text-sm">Klik op "Agenda Ophalen" om de lessen voor de geselecteerde periode te laden.</p>
+                </div>
+            </div>
         </div>
 
     </div>

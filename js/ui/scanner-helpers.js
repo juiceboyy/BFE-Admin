@@ -52,7 +52,7 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
             setVal(['factuur', 'nr', 'nummer'], factuurnummer);
             setVal(['omschrijving', 'beschrijving'], formData.omschrijving);
             setVal(['klant', 'relatie', 'naam', 'debiteur'], formData.leverancier);
-            setVal(['totaal', 'bedrag incl', 'incl'], formData.factuurBedrag);
+            setVal(['totaal', 'bedrag incl', 'factuurbedrag', 'incl'], formData.factuurBedrag);
             setVal(['btw laag', 'btw 9', 'btw l'], parseFloat(itemData.btwLaag) || 0);
             setVal(['btw hoog', 'btw 21', 'btw h'], parseFloat(itemData.btwHoog) || 0);
             setVal(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9'], parseFloat(itemData.omzetLaag) || 0);

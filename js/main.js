@@ -2,6 +2,7 @@ import { initAuth } from './api/auth.js';
 import { initBtwModule } from './ui/btw.js';
 import { initScanner } from './ui/scanner.js';
 import { initFiscalIntake, loadInventarisAfterAuth } from './ui/fiscal-intake.js';
+import { initInvoicesModule } from './ui/invoices.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initBtwModule();
     initScanner();
     initFiscalIntake();
+    initInvoicesModule();
 });
 
 // Initialiseer Authenticatie en data fetching

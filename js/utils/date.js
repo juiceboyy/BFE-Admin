@@ -3,7 +3,7 @@
  * Bevat datum-gerelateerde hulpfuncties voor de boekhouding.
  */
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
 
 // Default to previous month. Set date to 1st to avoid edge cases (e.g., March 31 -> Feb 31 -> March 3).
 let globalTargetDate = new Date();
