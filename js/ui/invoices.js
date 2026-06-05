@@ -260,12 +260,18 @@ async function handleGenerateInvoice() {
         // Clear cached rows to ensure we find the first actual empty row fresh from the cloud
         clearSheetCaches();
 
-        const dateInfo = getTargetDateInfo('verkoop');
-        const currentYear = dateInfo.targetYear;
-        const targetSheet = dateInfo.targetSheet;
+        // Deriving the target sheet and year directly from the user-selected invoice date
+        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+        const invoiceD = new Date(invoiceDateVal);
+        const targetMonthIndex = invoiceD.getMonth();
+        const currentYear = invoiceD.getFullYear();
+        const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
+        
+        const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
+        const prevSheet = `${MONTH_NAMES[prevMonthIndex]} Verkoop`;
 
         // 1. Get the next invoice sequence number from the Google Sheet
-        const factuurNummer = await getNextInvoiceNumberFromCloud(targetSheet, dateInfo.prevSheet, currentYear);
+        const factuurNummer = await getNextInvoiceNumberFromCloud(targetSheet, prevSheet, currentYear);
         
         // 2. Fetch all values to generate PDF
         const travelDays = parseInt(document.getElementById('travel-days').value) || 0;
