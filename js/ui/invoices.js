@@ -478,6 +478,8 @@ async function handleGenerateInvoice() {
                 useCORS: true, 
                 scrollX: 0, 
                 scrollY: 0,
+                x: 0,              // CRUCIAL: dwingt de x-origin naar de absolute linkerkant
+                y: 0,              // CRUCIAL: dwingt de y-origin naar de absolute bovenkant
                 windowWidth: 794,
                 windowHeight: 1122
             },
