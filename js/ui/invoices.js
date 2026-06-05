@@ -433,19 +433,40 @@ async function handleGenerateInvoice() {
         
         const invoiceTotal = lessonsSubtotal + travelAmount;
 
-        // 3. Generate PDF element offscreen inside a container to prevent browser squishing
+        // 3. Generate PDF element inside a hidden iframe to ensure perfect isolation and zero offsets
         const invoiceElement = buildInvoiceDOM(factuurNummer, invoiceDateVal, finalizedRows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal);
         
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '0';
-        container.style.top = '0';
-        container.style.zIndex = '-9999';
-        container.style.width = '794px';
-        container.style.overflow = 'hidden';
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.left = '-9999px';
+        iframe.style.top = '0';
+        iframe.style.width = '794px';
+        iframe.style.height = '1122px';
+        iframe.style.border = 'none';
         
-        container.appendChild(invoiceElement);
-        document.body.appendChild(container);
+        document.body.appendChild(iframe);
+        
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+                <style>
+                    body { margin: 0; padding: 0; background-color: white; }
+                </style>
+            </head>
+            <body>
+            </body>
+            </html>
+        `);
+        iframeDoc.close();
+        
+        // Wait a tiny bit for iframe to initialize
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        iframeDoc.body.appendChild(invoiceElement);
 
         const opt = {
             margin:       0,
@@ -456,8 +477,8 @@ async function handleGenerateInvoice() {
                 useCORS: true, 
                 scrollX: 0, 
                 scrollY: 0,
-                windowWidth: 800,
-                windowHeight: 1200
+                windowWidth: 794,
+                windowHeight: 1122
             },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
@@ -468,7 +489,7 @@ async function handleGenerateInvoice() {
         const pdfBlob = await pdfWorker.outputPdf('blob');
         const pdfFile = new File([pdfBlob], `${factuurNummer} - Muziekcentrum Zuidoost.pdf`, { type: 'application/pdf' });
 
-        document.body.removeChild(container);
+        document.body.removeChild(iframe);
 
         // 4. Upload PDF to Google Drive
         await uploadToDrive(pdfFile, `${factuurNummer} - Muziekcentrum Zuidoost`);
