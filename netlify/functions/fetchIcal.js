@@ -1,7 +1,9 @@
 const https = require('https');
+const http = require('http');
 
 /**
- * Fetch a URL natively, handle redirects, and release sockets properly.
+ * Fetch a URL natively, handle redirects, select correct protocol client,
+ * and protect against synchronous crashes inside callbacks.
  */
 function fetchUrlWithRedirects(url, maxRedirects = 5) {
     return new Promise((resolve, reject) => {
@@ -10,45 +12,57 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
             return;
         }
 
-        https.get(url, (res) => {
-            const statusCode = res.statusCode;
+        try {
+            // Support both http and https protocols dynamically
+            const client = url.startsWith('https') ? https : http;
 
-            // Handle redirects (301, 302, 307, 308)
-            if (statusCode === 301 || statusCode === 302 || statusCode === 307 || statusCode === 308) {
-                const redirectUrl = res.headers.location;
-                res.resume(); // CRITICAL: Consume the response stream to release the socket
+            client.get(url, (res) => {
+                try {
+                    const statusCode = res.statusCode;
 
-                if (redirectUrl) {
-                    try {
-                        // Resolve relative redirect URLs against the current URL
-                        const resolvedUrl = new URL(redirectUrl, url).toString();
-                        fetchUrlWithRedirects(resolvedUrl, maxRedirects - 1)
-                            .then(resolve)
-                            .catch(reject);
-                    } catch (err) {
-                        reject(new Error(`Ongeldige omleidings-URL: ${redirectUrl}`));
+                    // Handle redirects (301, 302, 307, 308)
+                    if (statusCode === 301 || statusCode === 302 || statusCode === 307 || statusCode === 308) {
+                        const redirectUrl = res.headers.location;
+                        res.resume(); // CRITICAL: Consume the stream to release socket
+
+                        if (redirectUrl) {
+                            try {
+                                const resolvedUrl = new URL(redirectUrl, url).toString();
+                                // Safe recursive call
+                                fetchUrlWithRedirects(resolvedUrl, maxRedirects - 1)
+                                    .then(resolve)
+                                    .catch(reject);
+                            } catch (err) {
+                                reject(err);
+                            }
+                            return;
+                        }
                     }
-                    return;
+
+                    if (statusCode < 200 || statusCode >= 300) {
+                        res.resume(); // CRITICAL: Consume the stream to release socket
+                        reject(new Error(`HTTP status ${statusCode}`));
+                        return;
+                    }
+
+                    // Read response body chunks
+                    let data = '';
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    res.on('end', () => {
+                        resolve(data);
+                    });
+                } catch (err) {
+                    reject(err);
                 }
-            }
-
-            if (statusCode < 200 || statusCode >= 300) {
-                res.resume(); // CRITICAL: Consume the response stream to release the socket
-                reject(new Error(`HTTP status ${statusCode}`));
-                return;
-            }
-
-            // Read response body chunks
-            let data = '';
-            res.on('data', (chunk) => {
-                data += chunk;
+            }).on('error', (err) => {
+                reject(err);
             });
-            res.on('end', () => {
-                resolve(data);
-            });
-        }).on('error', (err) => {
+        } catch (err) {
+            // Catch synchronous errors before the request starts
             reject(err);
-        });
+        }
     });
 }
 
@@ -95,7 +109,7 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Fetch using our native resolver (follows redirects, CORS-safe)
+        // Fetch using our native resolver (follows redirects, CORS-safe, crash-proof)
         const data = await fetchUrlWithRedirects(targetUrl);
 
         return {
