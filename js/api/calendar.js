@@ -151,15 +151,15 @@ export async function updateCalendarEventInvoiceStatus(eventId, factuurNummer) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
     // 1. Fetch current event to preserve other fields
-    const getUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;
+    const getUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`;
     const getResponse = await fetchWithRetry(getUrl, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (getResponse.status === 401) throw new Error('TOKEN_EXPIRED');
     if (!getResponse.ok) {
-        console.error(`Fout bij ophalen event ${eventId}:`, getResponse.status);
-        return;
+        const err = await getResponse.json().catch(() => ({}));
+        throw new Error(`Ophalen Google Calendar afspraak ${eventId} mislukt: ${err?.error?.message || getResponse.status}`);
     }
 
     const event = await getResponse.json();
@@ -173,7 +173,7 @@ export async function updateCalendarEventInvoiceStatus(eventId, factuurNummer) {
     const newDesc = currentDesc ? `${currentDesc}\n${label}` : label;
 
     // 2. PATCH the description
-    const patchUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;
+    const patchUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`;
     const patchResponse = await fetchWithRetry(patchUrl, {
         method: 'PATCH',
         headers: {
@@ -188,7 +188,7 @@ export async function updateCalendarEventInvoiceStatus(eventId, factuurNummer) {
     if (patchResponse.status === 401) throw new Error('TOKEN_EXPIRED');
     if (!patchResponse.ok) {
         const err = await patchResponse.json().catch(() => ({}));
-        console.error(`Fout bij markeren event ${eventId} als gefactureerd:`, err?.error?.message || patchResponse.status);
+        throw new Error(`Bijwerken Google Calendar omschrijving mislukt: ${err?.error?.message || patchResponse.status}`);
     }
 }
 

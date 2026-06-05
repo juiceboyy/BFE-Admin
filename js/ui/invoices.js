@@ -438,8 +438,9 @@ async function handleGenerateInvoice() {
         
         const iframe = document.createElement('iframe');
         iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
+        iframe.style.left = '0';
         iframe.style.top = '0';
+        iframe.style.zIndex = '-9999';
         iframe.style.width = '794px';
         iframe.style.height = '1122px';
         iframe.style.border = 'none';
@@ -515,13 +516,25 @@ async function handleGenerateInvoice() {
         await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
 
         // 6. Update Calendar Events in Google Calendar
+        const calendarErrors = [];
+        let updatedCount = 0;
         for (const event of invoicedEvents) {
             if (event.id) {
-                await updateCalendarEventInvoiceStatus(event.id, factuurNummer);
+                try {
+                    await updateCalendarEventInvoiceStatus(event.id, factuurNummer);
+                    updatedCount++;
+                } catch (calendarErr) {
+                    console.error(`Fout bij bijwerken agenda-afspraak ${event.id}:`, calendarErr);
+                    calendarErrors.push(`${event.datum} (${event.activiteit}): ${calendarErr.message}`);
+                }
             }
         }
 
-        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- ${invoicedEvents.length} agenda-afspraken in Google Calendar bijgewerkt.`);
+        if (calendarErrors.length > 0) {
+            alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n\n⚠️ LET OP: Het bijwerken van de omschrijving in Google Calendar is (gedeeltelijk) mislukt:\n\n${calendarErrors.join('\n')}`);
+        } else {
+            alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}\n- ${updatedCount} agenda-afspraken in Google Calendar bijgewerkt.`);
+        }
         
         // Clear queue
         invoicedEvents = [];
