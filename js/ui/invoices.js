@@ -481,10 +481,14 @@ async function handleGenerateInvoice() {
         await Promise.all(imageLoadPromises);
 
         const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-        const maandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
-        const year2 = String(invoiceD.getFullYear()).slice(-2);
+        const calendarD = getGlobalTargetDate();
+        const calendarMaandNaam = MONTH_NAMES_DUTCH[calendarD.getMonth()];
+        const calendarYear = calendarD.getFullYear();
+        const calendarYear2 = String(calendarYear).slice(-2);
+
+        const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
         const factuurNummerFilename = factuurNummer.replace('.', '-');
-        const pdfFileName = `BFE${year2}FR ${factuurNummerFilename} lesgeven ${maandNaam} '${year2}`;
+        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} lesgeven ${calendarMaandNaam} '${calendarYear2}`;
 
         const opt = {
             margin:       0,
@@ -518,7 +522,7 @@ async function handleGenerateInvoice() {
         const formData = {
             datum: invoiceDateVal,
             leverancier: 'MZO',
-            omschrijving: `lesgeven ${maandNaam} ${invoiceD.getFullYear()}`,
+            omschrijving: `lesgeven ${calendarMaandNaam} ${calendarYear}`,
             factuurBedrag: invoiceTotal,
         };
 
