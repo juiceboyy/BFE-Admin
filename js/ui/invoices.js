@@ -480,9 +480,15 @@ async function handleGenerateInvoice() {
         });
         await Promise.all(imageLoadPromises);
 
+        const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+        const maandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
+        const year2 = String(invoiceD.getFullYear()).slice(-2);
+        const factuurNummerFilename = factuurNummer.replace('.', '-');
+        const pdfFileName = `BFE${year2}FR ${factuurNummerFilename} lesgeven ${maandNaam} '${year2}`;
+
         const opt = {
             margin:       0,
-            filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
+            filename:     `${pdfFileName}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { 
                 scale: 2, 
@@ -501,18 +507,18 @@ async function handleGenerateInvoice() {
         await pdfWorker.save();
         
         const pdfBlob = await pdfWorker.outputPdf('blob');
-        const pdfFile = new File([pdfBlob], `${factuurNummer} - Muziekcentrum Zuidoost.pdf`, { type: 'application/pdf' });
+        const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
         document.body.removeChild(iframe);
 
         // 4. Upload PDF to Google Drive
-        await uploadToDrive(pdfFile, `${factuurNummer} - Muziekcentrum Zuidoost`);
+        await uploadToDrive(pdfFile, pdfFileName);
 
         // 5. Book row in Google Sheets (Verkoop <maand>)
         const formData = {
             datum: invoiceDateVal,
-            leverancier: 'Muziekcentrum Zuidoost',
-            omschrijving: 'Factuur lesgeven en reiskosten',
+            leverancier: 'MZO',
+            omschrijving: `lesgeven ${maandNaam} ${invoiceD.getFullYear()}`,
             factuurBedrag: invoiceTotal,
         };
 
