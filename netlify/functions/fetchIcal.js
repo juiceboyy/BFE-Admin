@@ -3,7 +3,7 @@ const http = require('http');
 
 /**
  * Fetch a URL natively, handle redirects, select correct protocol client,
- * and protect against synchronous crashes inside callbacks.
+ * protect against synchronous crashes, and implement a connection timeout.
  */
 function fetchUrlWithRedirects(url, maxRedirects = 5) {
     return new Promise((resolve, reject) => {
@@ -13,10 +13,9 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
         }
 
         try {
-            // Support both http and https protocols dynamically
             const client = url.startsWith('https') ? https : http;
 
-            client.get(url, (res) => {
+            const req = client.get(url, (res) => {
                 try {
                     const statusCode = res.statusCode;
 
@@ -28,7 +27,6 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
                         if (redirectUrl) {
                             try {
                                 const resolvedUrl = new URL(redirectUrl, url).toString();
-                                // Safe recursive call
                                 fetchUrlWithRedirects(resolvedUrl, maxRedirects - 1)
                                     .then(resolve)
                                     .catch(reject);
@@ -56,7 +54,14 @@ function fetchUrlWithRedirects(url, maxRedirects = 5) {
                 } catch (err) {
                     reject(err);
                 }
-            }).on('error', (err) => {
+            });
+
+            // Set an explicit connection timeout (6 seconds) to prevent hanging
+            req.setTimeout(6000, () => {
+                req.destroy(new Error('Verbinding time-out (iCloud reageert niet of blokkeert de server)'));
+            });
+
+            req.on('error', (err) => {
                 reject(err);
             });
         } catch (err) {
@@ -109,7 +114,7 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Fetch using our native resolver (follows redirects, CORS-safe, crash-proof)
+        // Fetch using our native resolver (follows redirects, CORS-safe, crash-proof, with timeout)
         const data = await fetchUrlWithRedirects(targetUrl);
 
         return {
