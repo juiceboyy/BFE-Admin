@@ -167,8 +167,8 @@ export async function insertRowInSheet(sheetName, data) {
             // Subsequent saves: use cached row, no read needed
             targetRow = _rowCache.get(sheetName);
         } else {
-            // First save: read A1:A to locate the first empty row or 'Totalen' sentinel
-            const getRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:A`, {
+            // First save: read A1:Z to locate the first empty row, pre-allocated invoice row, or 'Totalen' sentinel
+            const getRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
 
@@ -179,12 +179,67 @@ export async function insertRowInSheet(sheetName, data) {
             }
 
             const getJson = await getRes.json();
-            targetRow = getJson.values ? getJson.values.length + 1 : 2;
+            const rows = getJson.values || [];
+            targetRow = rows.length + 1;
 
-            if (getJson.values) {
-                for (let i = 1; i < getJson.values.length; i++) {
-                    const cellValue = getJson.values[i] && getJson.values[i][0] ? getJson.values[i][0] : '';
-                    if (!cellValue || cellValue === 'Totalen') {
+            if (rows.length > 0) {
+                const headerRow = rows[0] || [];
+                const headers = headerRow.map(h => String(h || '').toLowerCase().trim());
+                
+                // Helper to find column index by keywords
+                const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+                
+                const datumIdx = getIdx(['datum', 'date']);
+                const descIdx = getIdx(['omschrijving', 'beschrijving']);
+                const clientIdx = getIdx(['klant', 'relatie', 'naam', 'debiteur', 'leverancier']);
+
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i] || [];
+                    
+                    // Stop if we see 'Totalen' sentinel in any cell of the row
+                    const isTotalenSentinel = row.some(cell => {
+                        const val = String(cell || '').trim().toLowerCase();
+                        return val === 'totalen' || val === 'totaal';
+                    });
+                    if (isTotalenSentinel) {
+                        targetRow = i + 1;
+                        break;
+                    }
+
+                    // Check if row is empty or only has factuurnummer
+                    let isEmpty = true;
+                    
+                    if (headers.length > 0) {
+                        const hasDatum = datumIdx !== -1 && row[datumIdx] !== undefined && String(row[datumIdx]).trim() !== '';
+                        const hasDesc = descIdx !== -1 && row[descIdx] !== undefined && String(row[descIdx]).trim() !== '';
+                        const hasClient = clientIdx !== -1 && row[clientIdx] !== undefined && String(row[clientIdx]).trim() !== '';
+                        
+                        // Check for any amount columns
+                        let hasAmount = false;
+                        headers.forEach((h, idx) => {
+                            if (h.includes('totaal') || h.includes('bedrag') || h.includes('omzet') || h.includes('btw') || h.includes('excl') || h.includes('vergoeding') || h.includes('voorbelasting')) {
+                                if (row[idx] !== undefined && String(row[idx]).trim() !== '' && String(row[idx]).trim() !== '0' && String(row[idx]).trim() !== '0,00') {
+                                    hasAmount = true;
+                                }
+                            }
+                        });
+
+                        if (hasDatum || hasDesc || hasClient || hasAmount) {
+                            isEmpty = false;
+                        }
+                    } else {
+                        // Fallback check if headers are not available: check if there's any non-empty cell other than index 1 (Factuurnummer)
+                        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+                            if (colIdx === 1) continue; // Skip Factuurnummer in fallback
+                            const val = String(row[colIdx] || '').trim();
+                            if (val !== '' && val !== '0' && val !== '0,00') {
+                                isEmpty = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isEmpty) {
                         targetRow = i + 1;
                         break;
                     }

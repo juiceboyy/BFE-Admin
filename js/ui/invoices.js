@@ -1,7 +1,7 @@
 import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
 import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { getNextInvoiceNumberFromCloud } from '../api/storage-queries.js';
-import { uploadToDrive, insertRowInSheet, getSheetHeaders } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders, clearSheetCaches } from '../api/storage.js';
 import { constructSheetRow } from './scanner-helpers.js';
 
 let invoicedEvents = [];
@@ -257,6 +257,9 @@ async function handleGenerateInvoice() {
     setLoading(true);
 
     try {
+        // Clear cached rows to ensure we find the first actual empty row fresh from the cloud
+        clearSheetCaches();
+
         const dateInfo = getTargetDateInfo('verkoop');
         const currentYear = dateInfo.targetYear;
         const targetSheet = dateInfo.targetSheet;
@@ -288,15 +291,24 @@ async function handleGenerateInvoice() {
         
         const invoiceTotal = lessonsSubtotal + travelAmount;
 
-        // 3. Generate PDF element offscreen
+        // 3. Generate PDF element offscreen inside a container to prevent browser squishing
         const invoiceElement = buildInvoiceDOM(factuurNummer, invoiceDateVal, finalizedRows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal);
-        document.body.appendChild(invoiceElement);
+        
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '680px';
+        container.style.overflow = 'hidden';
+        
+        container.appendChild(invoiceElement);
+        document.body.appendChild(container);
 
         const opt = {
             margin:       15,
             filename:     `${factuurNummer} - Muziekcentrum Zuidoost.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
+            html2canvas:  { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
@@ -306,7 +318,7 @@ async function handleGenerateInvoice() {
         const pdfBlob = await pdfWorker.outputPdf('blob');
         const pdfFile = new File([pdfBlob], `${factuurNummer} - Muziekcentrum Zuidoost.pdf`, { type: 'application/pdf' });
 
-        document.body.removeChild(invoiceElement);
+        document.body.removeChild(container);
 
         // 4. Upload PDF to Google Drive
         await uploadToDrive(pdfFile, `${factuurNummer} - Muziekcentrum Zuidoost`);
@@ -357,8 +369,9 @@ async function handleGenerateInvoice() {
  */
 function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal) {
     const el = document.createElement('div');
-    el.style.width = '700px';
-    el.style.padding = '10px';
+    el.style.width = '100%';
+    el.style.boxSizing = 'border-box';
+    el.style.padding = '20px';
     el.style.backgroundColor = 'white';
     el.style.color = 'black';
     el.style.fontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";
