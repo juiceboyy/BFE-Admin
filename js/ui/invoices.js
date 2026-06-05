@@ -642,7 +642,7 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
 
         <!-- Lesson items Table -->
         <div style="margin-bottom: 30px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
+            <table style="table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
                 <thead>
                     <tr style="border-bottom: 1px solid #000; font-weight: bold; background-color: #fff;">
                         <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 6%;">Week</th>
