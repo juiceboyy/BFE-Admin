@@ -101,7 +101,15 @@ export function parseEventsForInvoicing(events, searchKeyword) {
         const formattedDate = formatDateShort(startDate);
         
         // 3. Location (cleaned and shortened location string)
-        const location = cleanLocationName(event.location);
+        let location = cleanLocationName(event.location);
+        
+        // Auto-detect Van Houteschool based on activity summary/description
+        const summaryLower = (event.summary || '').toLowerCase();
+        const descLower = (event.description || '').toLowerCase();
+        if (summaryLower.includes('popkidz') || summaryLower.includes('van houte') || 
+            descLower.includes('popkidz') || descLower.includes('van houte')) {
+            location = 'Van Houteschool';
+        }
 
         // 4. Activity (clean the MZO keyword out of the title)
         let activity = event.summary || '';
@@ -367,6 +375,9 @@ export function cleanLocationName(loc) {
     }
     if (lower.includes('muziekcentrum') || lower.includes('mzo')) {
         return 'Muziekcentrum Zuidoost';
+    }
+    if (lower.includes('van houte') || lower.includes('popkidz') || lower.includes('vanhoute') || lower.includes('houteschool')) {
+        return 'Van Houteschool';
     }
     if (lower.includes('lely')) {
         return 'Lely Lyceum';
