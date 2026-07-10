@@ -37,6 +37,10 @@ export function initInvoicesModule() {
     const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
     if (rentInvoiceDateInput) {
         rentInvoiceDateInput.valueAsDate = new Date();
+        rentInvoiceDateInput.addEventListener('change', () => {
+            loadDefaultRentItems();
+            renderRentTable();
+        });
     }
 
     const btnRefreshRent = document.getElementById('btn-refresh-rent');
@@ -60,10 +64,14 @@ export function initInvoicesModule() {
 }
 
 function loadDefaultRentItems() {
-    const calendarDate = getGlobalTargetDate();
+    const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
+    let targetDate = getGlobalTargetDate();
+    if (rentInvoiceDateInput && rentInvoiceDateInput.value) {
+        targetDate = new Date(rentInvoiceDateInput.value);
+    }
     const MONTH_NAMES_DUTCH_STANDARD = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-    const maandNaam = MONTH_NAMES_DUTCH_STANDARD[calendarDate.getMonth()];
-    const year2 = String(calendarDate.getFullYear()).slice(-2);
+    const maandNaam = MONTH_NAMES_DUTCH_STANDARD[targetDate.getMonth()];
+    const year2 = String(targetDate.getFullYear()).slice(-2);
     
     rentItems = [
         {
@@ -1158,10 +1166,9 @@ async function handleGenerateRentInvoices() {
             });
 
             const factuurNummerFilename = factuurNummer.replace('.', '-');
-            const calendarD = getGlobalTargetDate();
             const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-            const calendarMaandNaam = MONTH_NAMES_DUTCH[calendarD.getMonth()];
-            const calendarYear2 = String(calendarD.getFullYear()).slice(-2);
+            const calendarMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
+            const calendarYear2 = String(invoiceD.getFullYear()).slice(-2);
             
             const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${group.fileNamePrefix} ${calendarMaandNaam} '${calendarYear2}`;
 
@@ -1172,7 +1179,7 @@ async function handleGenerateRentInvoices() {
             const formData = {
                 datum: invoiceDateVal,
                 leverancier: group.clientName,
-                omschrijving: `${group.sheetDescription} ${calendarMaandNaam} ${calendarD.getFullYear()}`,
+                omschrijving: `${group.sheetDescription} ${calendarMaandNaam} ${invoiceD.getFullYear()}`,
                 factuurBedrag: total,
                 btw: btwAmount
             };
