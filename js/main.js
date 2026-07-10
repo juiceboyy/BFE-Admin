@@ -5,14 +5,20 @@ import { initFiscalIntake, loadInventarisAfterAuth } from './ui/fiscal-intake.js
 import { initInvoicesModule } from './ui/invoices.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
     // Initialiseer UI componenten
     if (window.lucide) window.lucide.createIcons();
     initBtwModule();
     initScanner();
     initFiscalIntake();
     initInvoicesModule();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
 
 // Initialiseer Authenticatie en data fetching
 // De callback wordt uitgevoerd zodra de gebruiker succesvol is ingelogd
