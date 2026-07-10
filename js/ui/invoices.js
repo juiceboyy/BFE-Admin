@@ -6,6 +6,7 @@ import { constructSheetRow } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
 
 let invoicedEvents = [];
+let rentItems = [];
 
 export function initInvoicesModule() {
     const btnFetch = document.getElementById('btn-fetch-calendar');
@@ -31,6 +32,132 @@ export function initInvoicesModule() {
     if (invoiceDateInput) {
         invoiceDateInput.valueAsDate = new Date();
     }
+
+    // --- Studio Verhuur Setup ---
+    const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
+    if (rentInvoiceDateInput) {
+        rentInvoiceDateInput.valueAsDate = new Date();
+    }
+
+    const btnRefreshRent = document.getElementById('btn-refresh-rent');
+    btnRefreshRent?.addEventListener('click', () => {
+        loadDefaultRentItems();
+        renderRentTable();
+    });
+
+    const btnGenerateRent = document.getElementById('btn-generate-rent');
+    btnGenerateRent?.addEventListener('click', handleGenerateRentInvoices);
+
+    const tabInvoices = document.getElementById('tab-invoices');
+    tabInvoices?.addEventListener('click', () => {
+        loadDefaultRentItems();
+        renderRentTable();
+    });
+
+    // Initial load
+    loadDefaultRentItems();
+    renderRentTable();
+}
+
+function loadDefaultRentItems() {
+    const calendarDate = getGlobalTargetDate();
+    const MONTH_NAMES_DUTCH_STANDARD = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+    const maandNaam = MONTH_NAMES_DUTCH_STANDARD[calendarDate.getMonth()];
+    const year2 = String(calendarDate.getFullYear()).slice(-2);
+    
+    rentItems = [
+        {
+            tenantKey: 'multi_acoustics',
+            clientName: "Studio Multi Acoustics",
+            attention: "Gijs Hietkamp",
+            address: "Van Hogendorpstraat 136",
+            city: "2515NX Den Haag",
+            fileNamePrefix: "huur studio",
+            sheetDescription: "huur studio",
+            desc: `Verhuur opslag Binckhorst ${maandNaam} '${year2}`,
+            amount: 54.60,
+            btwRate: 21
+        },
+        {
+            tenantKey: 'multi_acoustics',
+            clientName: "Studio Multi Acoustics",
+            attention: "Gijs Hietkamp",
+            address: "Van Hogendorpstraat 136",
+            city: "2515NX Den Haag",
+            fileNamePrefix: "huur studio",
+            sheetDescription: "huur studio",
+            desc: `Verhuur werkruimte Binckhorst ${maandNaam} '${year2}`,
+            amount: 54.60,
+            btwRate: 21
+        },
+        {
+            tenantKey: 'oh_snap',
+            clientName: "Oh Snap!",
+            attention: "Tommy Everts",
+            address: "Minister Talmalaan 23",
+            city: "2285 EB Rijswijk",
+            fileNamePrefix: "huur werkkamer",
+            sheetDescription: "huur werkkamer",
+            desc: `Verhuur werkruimte ${maandNaam} '${year2} 1.12`,
+            amount: 109.20,
+            btwRate: 21
+        }
+    ];
+}
+
+function renderRentTable() {
+    const tbody = document.getElementById('rent-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = rentItems.map((item, index) => {
+        const rowId = `rent-row-${index}`;
+        const btwAmount = (item.amount * (item.btwRate / 100)).toFixed(2);
+        const totalAmount = (item.amount + parseFloat(btwAmount)).toFixed(2);
+        
+        return `
+            <tr id="${rowId}" class="hover:bg-white/40 transition-colors">
+                <td class="px-4 py-3 font-medium text-gray-800">${item.clientName}</td>
+                <td class="px-4 py-3">
+                    <input type="text" id="rent-desc-${index}" value="${item.desc}" 
+                        class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 rent-desc-input" data-index="${index}">
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <input type="number" step="0.01" id="rent-amount-${index}" value="${item.amount.toFixed(2)}" 
+                        class="w-24 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-right font-medium text-gray-800 py-0.5 rent-amount-input" data-index="${index}">
+                </td>
+                <td class="px-4 py-3 text-center text-gray-500">${item.btwRate}%</td>
+                <td class="px-4 py-3 text-right font-medium text-gray-800" id="rent-total-${index}">
+                    € ${totalAmount.replace('.', ',')}
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Bind listeners
+    tbody.querySelectorAll('.rent-desc-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const index = parseInt(e.target.getAttribute('data-index'));
+            rentItems[index].desc = e.target.value;
+        });
+    });
+    
+    tbody.querySelectorAll('.rent-amount-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const index = parseInt(e.target.getAttribute('data-index'));
+            const val = parseFloat(e.target.value);
+            rentItems[index].amount = isNaN(val) ? 0 : val;
+            
+            // Recalculate row total in DOM
+            const btwRate = rentItems[index].btwRate;
+            const btwAmount = rentItems[index].amount * (btwRate / 100);
+            const total = rentItems[index].amount + btwAmount;
+            
+            const totalEl = document.getElementById(`rent-total-${index}`);
+            if (totalEl) {
+                totalEl.innerText = `€ ${total.toFixed(2).replace('.', ',')}`;
+            }
+        });
+    });
 }
 
 async function handleFetchCalendar() {
@@ -707,6 +834,432 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
                 <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
                     <td style="padding: 8px 0;">Totaal</td>
                     <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(invoiceTotal)}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Payment Terms Footer -->
+        <div style="margin-top: 45px; font-size: 12.5px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 15px;">
+            <p style="margin: 0; color: #111;">
+                Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
+            </p>
+            <p style="margin: 4px 0 0 0; font-weight: bold; color: #000;">
+                Te betalen binnen 15 dagen na ontvangst factuur.
+            </p>
+        </div>
+    `;
+
+    return el;
+}
+
+async function handleGenerateRentInvoices() {
+    const invoiceDateInput = document.getElementById('rent-invoice-date');
+    const invoiceDateVal = invoiceDateInput ? invoiceDateInput.value : '';
+    if (!invoiceDateVal) {
+        alert('Selecteer een factuurdatum.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-generate-rent');
+    const setLoading = (loading) => {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading
+            ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met genereren & boeken...'
+            : '<i data-lucide="printer" class="w-4 h-4"></i> Huurfacturen Genereren & Boeken';
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    if (!accessToken) {
+        alert('Niet ingelogd met Google. Klik eerst op "Sync Drive" om in te loggen.');
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+        // Group the rent items by tenantKey
+        const tenantGroups = {};
+        rentItems.forEach(item => {
+            if (!tenantGroups[item.tenantKey]) {
+                tenantGroups[item.tenantKey] = {
+                    clientName: item.clientName,
+                    attention: item.attention,
+                    address: item.address,
+                    city: item.city,
+                    fileNamePrefix: item.fileNamePrefix,
+                    sheetDescription: item.sheetDescription,
+                    items: []
+                };
+            }
+            tenantGroups[item.tenantKey].items.push(item);
+        });
+
+        const generatedList = [];
+
+        // Run sequentially to prevent race conditions on invoice numbers and row indexes
+        for (const key of Object.keys(tenantGroups)) {
+            const group = tenantGroups[key];
+            
+            // Clear sheet caches so we get fresh data
+            clearSheetCaches();
+
+            // Deriving target sheet
+            const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+            const invoiceD = new Date(invoiceDateVal);
+            const targetMonthIndex = invoiceD.getMonth();
+            const currentYear = invoiceD.getFullYear();
+            const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
+            
+            const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
+            const prevSheet = `${MONTH_NAMES[prevMonthIndex]} Verkoop`;
+
+            // Fetch target sheet to find empty row & calculate next invoice number
+            const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${targetSheet}'!A1:Z`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            let targetRowIndex = null;
+            let factuurNummer = null;
+            let sheetRows = [];
+
+            if (getRes.ok) {
+                const getJson = await getRes.json();
+                sheetRows = getJson.values || [];
+            }
+
+            if (sheetRows.length > 0) {
+                const headerRow = sheetRows[0] || [];
+                const headers = headerRow.map(h => String(h || '').toLowerCase().trim());
+                
+                const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+                
+                const datumIdx = getIdx(['datum', 'date']);
+                const descIdx = getIdx(['omschrijving', 'beschrijving']);
+                const clientIdx = getIdx(['klant', 'relatie', 'naam', 'debiteur', 'leverancier']);
+                const factuurIdx = getIdx(['factuur', 'nr', 'nummer']);
+
+                for (let i = 1; i < sheetRows.length; i++) {
+                    const row = sheetRows[i] || [];
+                    
+                    const isTotalenSentinel = row.some(cell => {
+                        const val = String(cell || '').trim().toLowerCase();
+                        return val === 'totalen' || val === 'totaal';
+                    });
+                    if (isTotalenSentinel) {
+                        targetRowIndex = i + 1;
+                        break;
+                    }
+
+                    let isEmpty = true;
+                    if (headers.length > 0) {
+                        const hasDatum = datumIdx !== -1 && row[datumIdx] !== undefined && String(row[datumIdx]).trim() !== '';
+                        const hasDesc = descIdx !== -1 && row[descIdx] !== undefined && String(row[descIdx]).trim() !== '';
+                        const hasClient = clientIdx !== -1 && row[clientIdx] !== undefined && String(row[clientIdx]).trim() !== '';
+                        
+                        let hasAmount = false;
+                        headers.forEach((h, idx) => {
+                            if (h.includes('totaal') || h.includes('bedrag') || h.includes('omzet') || h.includes('btw') || h.includes('excl') || h.includes('vergoeding') || h.includes('voorbelasting')) {
+                                if (row[idx] !== undefined && String(row[idx]).trim() !== '' && String(row[idx]).trim() !== '0' && String(row[idx]).trim() !== '0,00') {
+                                    hasAmount = true;
+                                }
+                            }
+                        });
+
+                        if (hasDatum || hasDesc || hasClient || hasAmount) {
+                            isEmpty = false;
+                        }
+                    } else {
+                        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+                            if (colIdx === 1) continue;
+                            const val = String(row[colIdx] || '').trim();
+                            if (val !== '' && val !== '0' && val !== '0,00') {
+                                isEmpty = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isEmpty) {
+                        targetRowIndex = i + 1;
+                        const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+                        if (row[fIdx] && String(row[fIdx]).trim() !== '') {
+                            factuurNummer = String(row[fIdx]).trim();
+                        }
+                        break;
+                    }
+                }
+                
+                if (!targetRowIndex) {
+                    targetRowIndex = sheetRows.length + 1;
+                }
+            } else {
+                targetRowIndex = 2;
+            }
+
+            if (!factuurNummer) {
+                let maxSeq = null;
+                const factuurIdx = sheetRows[0] ? sheetRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+                const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+
+                for (const row of sheetRows) {
+                    const val = row[fIdx];
+                    if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                        const parts = val.split('.');
+                        if (parts.length === 2) {
+                            const seq = parseInt(parts[1], 10);
+                            if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                        }
+                    }
+                }
+
+                if (maxSeq !== null) {
+                    factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                } else if (targetSheet.startsWith('Jan')) {
+                    factuurNummer = `${currentYear}.001`;
+                } else if (prevSheet) {
+                    const prevRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${prevSheet}'!A1:Z`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (prevRes.ok) {
+                        const prevJson = await prevRes.json();
+                        const prevRows = prevJson.values || [];
+                        const prevFactuurIdx = prevRows[0] ? prevRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+                        const pfIdx = prevFactuurIdx !== -1 ? prevFactuurIdx : 1;
+
+                        for (const row of prevRows) {
+                            const val = row[pfIdx];
+                            if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                                const parts = val.split('.');
+                                if (parts.length === 2) {
+                                    const seq = parseInt(parts[1], 10);
+                                    if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                                }
+                            }
+                        }
+                    }
+                    if (maxSeq !== null) {
+                        factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                    } else {
+                        factuurNummer = `${currentYear}.001`;
+                    }
+                } else {
+                    factuurNummer = `${currentYear}.001`;
+                }
+            }
+
+            // Calculate totals
+            let subtotal = 0;
+            group.items.forEach(item => {
+                subtotal += item.amount;
+            });
+            const btwRate = group.items[0]?.btwRate || 21;
+            const btwAmount = subtotal * (btwRate / 100);
+            const total = subtotal + btwAmount;
+
+            // Generate DOM and PDF
+            const invoiceElement = buildSubtenantInvoiceDOM(factuurNummer, invoiceDateVal, group, subtotal, btwAmount, total);
+            
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '0';
+            iframe.style.top = '0';
+            iframe.style.zIndex = '-9999';
+            iframe.style.width = '794px';
+            iframe.style.height = '1122px';
+            iframe.style.border = 'none';
+            
+            document.body.appendChild(iframe);
+            
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            iframeDoc.open();
+            iframeDoc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+                    <style>
+                        body { margin: 0; padding: 0; background-color: white; }
+                    </style>
+                </head>
+                <body>
+                </body>
+                </html>
+            `);
+            iframeDoc.close();
+            
+            await new Promise(resolve => setTimeout(resolve, 50));
+            iframeDoc.body.appendChild(invoiceElement);
+
+            const images = invoiceElement.querySelectorAll('img');
+            const imagePromises = Array.from(images).map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(resolve => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                });
+            });
+            await Promise.all(imagePromises);
+
+            const factuurNummerFilename = factuurNummer.replace('.', '-');
+            const calendarD = getGlobalTargetDate();
+            const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+            const calendarMaandNaam = MONTH_NAMES_DUTCH[calendarD.getMonth()];
+            const calendarYear2 = String(calendarD.getFullYear()).slice(-2);
+            
+            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${group.fileNamePrefix} ${calendarMaandNaam} '${calendarYear2}`;
+
+            const opt = {
+                margin:       0,
+                filename:     `${pdfFileName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    scrollX: 0, 
+                    scrollY: 0,
+                    x: 0,
+                    y: 0
+                },
+                jsPDF:        { unit: 'pt', format: 'a4', orientation: 'portrait' }
+            };
+
+            const pdfBlob = await window.html2pdf().from(iframeDoc.body).set(opt).output('blob');
+            
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(pdfBlob);
+            downloadLink.download = `${pdfFileName}.pdf`;
+            downloadLink.click();
+            URL.revokeObjectURL(downloadLink.href);
+
+            document.body.removeChild(iframe);
+
+            const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
+            await uploadToDrive(pdfFile, pdfFileName);
+
+            // Book row in Google Sheets
+            const headers = await getSheetHeaders(targetSheet);
+            const formData = {
+                datum: invoiceDateVal,
+                leverancier: group.clientName,
+                omschrijving: `${group.sheetDescription} ${calendarMaandNaam} ${calendarD.getFullYear()}`,
+                factuurBedrag: total,
+                btw: btwAmount
+            };
+            const itemData = {
+                btwLaag: 0,
+                btwHoog: btwAmount,
+                omzetLaag: 0,
+                omzetHoog: subtotal,
+                omzetNul: 0
+            };
+            const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
+            await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
+
+            generatedList.push(`Factuur ${factuurNummer} (${group.clientName})`);
+        }
+
+        alert(`Huurfacturen succesvol gegenereerd, gedownload en opgeslagen!\n\n${generatedList.map(item => `- ${item}`).join('\n')}\n\n- Opgeslagen in Drive\n- Geboekt in Sheet.`);
+    } catch (err) {
+        console.error('Fout bij genereren huurfacturen:', err);
+        alert(`Er ging iets mis bij het genereren of opslaan van de huurfacturen: ${err.message}`);
+    } finally {
+        setLoading(false);
+    }
+}
+
+function buildSubtenantInvoiceDOM(factuurNummer, invoiceDate, tenantInfo, subtotal, btwAmount, total) {
+    const el = document.createElement('div');
+    el.style.width = '794px';
+    el.style.minHeight = '1122px';
+    el.style.boxSizing = 'border-box';
+    el.style.padding = '20mm';
+    el.style.backgroundColor = 'white';
+    el.style.color = 'black';
+    el.style.fontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";
+    el.style.fontSize = '13px';
+    el.style.lineHeight = '1.45';
+
+    const months = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+    const dObj = new Date(invoiceDate);
+    const day = dObj.getDate();
+    const monthName = months[dObj.getMonth()];
+    const yearSuffix = String(dObj.getFullYear()).slice(-2);
+    const dateFormatted = `Zoetermeer, ${day} ${monthName} '${yearSuffix}`;
+
+    const formatDutchBedrag = (val) => {
+        if (val % 1 === 0) return `${val},=`;
+        return new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+    };
+
+    const itemsHTML = tenantInfo.items.map(item => `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+            <div style="width: 75%;">${item.desc}</div>
+            <div style="width: 25%; text-align: right; font-weight: 500;">€ ${formatDutchBedrag(item.amount)}</div>
+        </div>
+    `).join('');
+
+    el.innerHTML = `
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px;">
+            <div>
+                <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0; color: #000; letter-spacing: -0.5px;">Big Fish Entertainment</h1>
+                <p style="margin: 0; font-weight: 500; font-size: 14px;">Ronald van Holst</p>
+                <p style="margin: 2px 0 0 0; font-size: 13px; color: #333;">Kortlandpad 62</p>
+                <p style="margin: 2px 0 15px 0; font-size: 13px; color: #333;">2729DN Zoetermeer</p>
+                <p style="margin: 0; font-size: 12px; color: #555;">tel.: 06 2888 4143</p>
+                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">BTW nr. NL1359.33.729.B.01</p>
+                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">KvK nr: 34393338</p>
+            </div>
+            
+            <div style="margin-top: 5px;">
+                <img src="images/logo.png" alt="Logo" style="width: 140px; height: auto; display: block;" />
+            </div>
+        </div>
+
+        <!-- Address details -->
+        <div style="margin-bottom: 40px; font-size: 13px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">Factuur voor:</td>
+                    <td style="width: 47%; vertical-align: top; line-height: 1.45;">
+                        <strong style="font-size: 14px; color: #000;">${tenantInfo.clientName}</strong><br>
+                        ${tenantInfo.attention ? tenantInfo.attention + '<br>' : ''}
+                        ${tenantInfo.address}<br>
+                        ${tenantInfo.city}
+                    </td>
+                    <td style="width: 35%; vertical-align: bottom; text-align: right; font-weight: 500; font-size: 13px;">
+                        ${dateFormatted}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Invoice Title Block -->
+        <div style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+            <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
+        </div>
+
+        <!-- Rent items List (Borderless) -->
+        <div style="margin-bottom: 40px; border-bottom: 1px solid #000; padding-bottom: 10px;">
+            ${itemsHTML}
+        </div>
+
+        <!-- Summary & Totals -->
+        <div style="margin-top: 25px; margin-bottom: 40px; font-size: 13px; line-height: 1.6;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 60%; padding-bottom: 5px; color: #333;">Totaal ex BTW</td>
+                    <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(subtotal)}</td>
+                </tr>
+                <tr>
+                    <td style="padding-bottom: 5px; color: #333;">Totaal btw (21%)</td>
+                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(btwAmount)}</td>
+                </tr>
+                <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
+                    <td style="padding: 8px 0;">Totaal, inc. btw</td>
+                    <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(total)}</td>
                 </tr>
             </table>
         </div>

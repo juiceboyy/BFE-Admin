@@ -334,6 +334,52 @@
                     <p class="text-sm">Klik op "Agenda Ophalen" om de lessen voor de geselecteerde periode te laden.</p>
                 </div>
             </div>
+
+            <!-- Studio Verhuur Panel -->
+            <div class="glass-panel p-6 rounded-3xl mt-8">
+                <h2 class="text-xl font-medium mb-6">Studio Verhuur Facturatie</h2>
+                
+                <!-- Inputs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Factuurdatum</label>
+                        <input type="date" id="rent-invoice-date" 
+                            class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="btn-refresh-rent" 
+                            class="w-full bg-white border border-gray-200 text-gray-700 rounded-xl py-2.5 text-sm font-medium shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset Tabel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Table -->
+                <div class="overflow-x-auto mt-6">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                            <tr>
+                                <th class="px-4 py-3 w-48">Huurder</th>
+                                <th class="px-4 py-3">Omschrijving</th>
+                                <th class="px-4 py-3 w-36 text-right">Bedrag ex BTW (€)</th>
+                                <th class="px-4 py-3 w-28 text-center">BTW Tarief</th>
+                                <th class="px-4 py-3 w-36 text-right">Bedrag inc BTW (€)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rent-table-body" class="divide-y divide-gray-100">
+                            <!-- Pre-filled via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Action Button -->
+                <div class="flex justify-end mt-6 pt-4 border-t border-gray-200">
+                    <button id="btn-generate-rent" 
+                        class="px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-2">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Huurfacturen Genereren & Boeken
+                    </button>
+                </div>
+            </div>
         </div>
 
     </div>
