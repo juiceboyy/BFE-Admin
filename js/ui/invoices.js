@@ -1118,23 +1118,22 @@ async function handleGenerateRentInvoices() {
                     useCORS: true, 
                     scrollX: 0, 
                     scrollY: 0,
-                    x: 0,
-                    y: 0
+                    x: 0,              // CRUCIAL: dwingt de x-origin naar de absolute linkerkant
+                    y: 0,              // CRUCIAL: dwingt de y-origin naar de absolute bovenkant
+                    windowWidth: 794,
+                    windowHeight: 1122
                 },
-                jsPDF:        { unit: 'pt', format: 'a4', orientation: 'portrait' }
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            const pdfBlob = await window.html2pdf().from(iframeDoc.body).set(opt).output('blob');
+            const pdfWorker = html2pdf().from(invoiceElement).set(opt);
+            await pdfWorker.save();
             
-            const downloadLink = document.createElement('a');
-            downloadLink.href = URL.createObjectURL(pdfBlob);
-            downloadLink.download = `${pdfFileName}.pdf`;
-            downloadLink.click();
-            URL.revokeObjectURL(downloadLink.href);
+            const pdfBlob = await pdfWorker.outputPdf('blob');
+            const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
             document.body.removeChild(iframe);
 
-            const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
             await uploadToDrive(pdfFile, pdfFileName);
 
             // Book row in Google Sheets
@@ -1192,12 +1191,18 @@ function buildSubtenantInvoiceDOM(factuurNummer, invoiceDate, tenantInfo, subtot
         return new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
     };
 
-    const itemsHTML = tenantInfo.items.map(item => `
-        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-            <div style="width: 75%;">${item.desc}</div>
-            <div style="width: 25%; text-align: right; font-weight: 500;">€ ${formatDutchBedrag(item.amount)}</div>
-        </div>
-    `).join('');
+    const itemsHTML = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tbody>
+                ${tenantInfo.items.map(item => `
+                    <tr>
+                        <td style="padding: 8px 0; width: 75%; text-align: left; vertical-align: top;">${item.desc}</td>
+                        <td style="padding: 8px 0; width: 25%; text-align: right; vertical-align: top; font-weight: 500;">€ ${formatDutchBedrag(item.amount)}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 
     el.innerHTML = `
         <!-- Header -->
