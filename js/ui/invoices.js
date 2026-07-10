@@ -34,6 +34,9 @@ export function initInvoicesModule() {
     if (invoiceDateInput) {
         invoiceDateInput.valueAsDate = new Date();
     }
+
+    // --- Studio Verhuur Setup ---
+    initStudioInvoices();
 }
 
 async function handleFetchCalendar() {
