@@ -6,6 +6,7 @@ import { constructSheetRow } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
 
 let invoicedEvents = [];
+let rentItems = [];
 
 export function initInvoicesModule() {
     const btnFetch = document.getElementById('btn-fetch-calendar');
@@ -31,6 +32,132 @@ export function initInvoicesModule() {
     if (invoiceDateInput) {
         invoiceDateInput.valueAsDate = new Date();
     }
+
+    // --- Studio Verhuur Setup ---
+    const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
+    if (rentInvoiceDateInput) {
+        rentInvoiceDateInput.valueAsDate = new Date();
+    }
+
+    const btnRefreshRent = document.getElementById('btn-refresh-rent');
+    btnRefreshRent?.addEventListener('click', () => {
+        loadDefaultRentItems();
+        renderRentTable();
+    });
+
+    const btnGenerateRent = document.getElementById('btn-generate-rent');
+    btnGenerateRent?.addEventListener('click', handleGenerateRentInvoices);
+
+    const tabInvoices = document.getElementById('tab-invoices');
+    tabInvoices?.addEventListener('click', () => {
+        loadDefaultRentItems();
+        renderRentTable();
+    });
+
+    // Initial load
+    loadDefaultRentItems();
+    renderRentTable();
+}
+
+function loadDefaultRentItems() {
+    const targetDate = getGlobalTargetDate();
+    const MONTH_NAMES_DUTCH_STANDARD = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+    const maandNaam = MONTH_NAMES_DUTCH_STANDARD[targetDate.getMonth()];
+    const year2 = String(targetDate.getFullYear()).slice(-2);
+    
+    rentItems = [
+        {
+            tenantKey: 'multi_acoustics',
+            clientName: "Studio Multi Acoustics",
+            attention: "Gijs Hietkamp",
+            address: "Van Hogendorpstraat 136",
+            city: "2515NX Den Haag",
+            fileNamePrefix: "huur studio",
+            sheetDescription: "huur studio",
+            desc: `Verhuur opslag Binckhorst ${maandNaam} '${year2}`,
+            amount: 54.60,
+            btwRate: 21
+        },
+        {
+            tenantKey: 'multi_acoustics',
+            clientName: "Studio Multi Acoustics",
+            attention: "Gijs Hietkamp",
+            address: "Van Hogendorpstraat 136",
+            city: "2515NX Den Haag",
+            fileNamePrefix: "huur studio",
+            sheetDescription: "huur studio",
+            desc: `Verhuur werkruimte Binckhorst ${maandNaam} '${year2}`,
+            amount: 54.60,
+            btwRate: 21
+        },
+        {
+            tenantKey: 'oh_snap',
+            clientName: "Oh Snap!",
+            attention: "Tommy Everts",
+            address: "Minister Talmalaan 23",
+            city: "2285 EB Rijswijk",
+            fileNamePrefix: "huur werkkamer",
+            sheetDescription: "huur werkkamer",
+            desc: `Verhuur werkruimte ${maandNaam} '${year2} 1.12`,
+            amount: 109.20,
+            btwRate: 21
+        }
+    ];
+}
+
+function renderRentTable() {
+    const tbody = document.getElementById('rent-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = rentItems.map((item, index) => {
+        const rowId = `rent-row-${index}`;
+        const btwAmount = (item.amount * (item.btwRate / 100)).toFixed(2);
+        const totalAmount = (item.amount + parseFloat(btwAmount)).toFixed(2);
+        
+        return `
+            <tr id="${rowId}" class="hover:bg-white/40 transition-colors">
+                <td class="px-4 py-3 font-medium text-gray-800">${item.clientName}</td>
+                <td class="px-4 py-3">
+                    <input type="text" id="rent-desc-${index}" value="${item.desc}" 
+                        class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 rent-desc-input" data-index="${index}">
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <input type="number" step="0.01" id="rent-amount-${index}" value="${item.amount.toFixed(2)}" 
+                        class="w-24 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-right font-medium text-gray-800 py-0.5 rent-amount-input" data-index="${index}">
+                </td>
+                <td class="px-4 py-3 text-center text-gray-500">${item.btwRate}%</td>
+                <td class="px-4 py-3 text-right font-medium text-gray-800" id="rent-total-${index}">
+                    € ${totalAmount.replace('.', ',')}
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Bind listeners
+    tbody.querySelectorAll('.rent-desc-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const index = parseInt(e.target.getAttribute('data-index'));
+            rentItems[index].desc = e.target.value;
+        });
+    });
+    
+    tbody.querySelectorAll('.rent-amount-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const index = parseInt(e.target.getAttribute('data-index'));
+            const val = parseFloat(e.target.value);
+            rentItems[index].amount = isNaN(val) ? 0 : val;
+            
+            // Recalculate row total in DOM
+            const btwRate = rentItems[index].btwRate;
+            const btwAmount = rentItems[index].amount * (btwRate / 100);
+            const total = rentItems[index].amount + btwAmount;
+            
+            const totalEl = document.getElementById(`rent-total-${index}`);
+            if (totalEl) {
+                totalEl.innerText = `€ ${total.toFixed(2).replace('.', ',')}`;
+            }
+        });
+    });
 }
 
 async function handleFetchCalendar() {
@@ -433,52 +560,27 @@ async function handleGenerateInvoice() {
         
         const invoiceTotal = lessonsSubtotal + travelAmount;
 
-        // 3. Generate PDF element inside a hidden iframe to ensure perfect isolation and zero offsets
-        const invoiceElement = buildInvoiceDOM(factuurNummer, invoiceDateVal, finalizedRows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal);
-        
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.left = '0';
-        iframe.style.top = '0';
-        iframe.style.zIndex = '-9999';
-        iframe.style.width = '794px';
-        iframe.style.height = '1122px';
-        iframe.style.border = 'none';
-        
-        document.body.appendChild(iframe);
-        
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        iframeDoc.open();
-        iframeDoc.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
-                <style>
-                    body { margin: 0; padding: 0; background-color: white; }
-                </style>
-            </head>
-            <body>
-            </body>
-            </html>
-        `);
-        iframeDoc.close();
-        
-        // Wait a tiny bit for iframe to initialize
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        iframeDoc.body.appendChild(invoiceElement);
-
-        // Wait for all images (e.g. the logo) to load fully before generating the PDF
-        const images = invoiceElement.querySelectorAll('img');
-        const imageLoadPromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => {
-                img.onload = resolve;
-                img.onerror = resolve;
-            });
+        // 3. Generate PDF element
+        const invoiceElement = buildInvoiceDOM({
+            type: 'lesgeven',
+            factuurNummer,
+            invoiceDate: invoiceDateVal,
+            clientInfo: {
+                name: 'Muziekcentrum Zuidoost',
+                attention: 'Boekhouding',
+                address: 'Hofgeest 139',
+                city: '1102EG Amsterdam ZO'
+            },
+            items: finalizedRows,
+            totals: {
+                subtotal: lessonsSubtotal,
+                travelDays,
+                travelDistance,
+                travelRate,
+                travelAmount,
+                total: invoiceTotal
+            }
         });
-        await Promise.all(imageLoadPromises);
 
         const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
         const calendarD = getGlobalTargetDate();
@@ -490,33 +592,7 @@ async function handleGenerateInvoice() {
         const factuurNummerFilename = factuurNummer.replace('.', '-');
         const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} lesgeven ${calendarMaandNaam} '${calendarYear2}`;
 
-        const opt = {
-            margin:       0,
-            filename:     `${pdfFileName}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { 
-                scale: 2, 
-                useCORS: true, 
-                scrollX: 0, 
-                scrollY: 0,
-                x: 0,              // CRUCIAL: dwingt de x-origin naar de absolute linkerkant
-                y: 0,              // CRUCIAL: dwingt de y-origin naar de absolute bovenkant
-                windowWidth: 794,
-                windowHeight: 1122
-            },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        const pdfWorker = html2pdf().from(invoiceElement).set(opt);
-        await pdfWorker.save();
-        
-        const pdfBlob = await pdfWorker.outputPdf('blob');
-        const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
-
-        document.body.removeChild(iframe);
-
-        // 4. Upload PDF to Google Drive
-        await uploadToDrive(pdfFile, pdfFileName);
+        await generateAndUploadPDF(invoiceElement, pdfFileName);
 
         // 5. Book row in Google Sheets (Verkoop <maand>)
         const formData = {
@@ -574,7 +650,16 @@ async function handleGenerateInvoice() {
 /**
  * Builds A4 DOM representation of the invoice.
  */
-function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, travelDays, travelDistance, travelRate, travelAmount, invoiceTotal) {
+function buildInvoiceDOM(config) {
+    const {
+        type, // 'lesgeven' or 'rent'
+        factuurNummer,
+        invoiceDate,
+        clientInfo, // { name, attention, address, city }
+        items, // for lesgeven: { week, datum, lokatie, activiteit, instrument, uren, tarief }; for rent: { desc, amount }
+        totals // for lesgeven: { subtotal, travelDays, travelDistance, travelRate, travelAmount, total }; for rent: { subtotal, btwAmount, total }
+    } = config;
+
     const el = document.createElement('div');
     el.style.width = '794px';
     el.style.minHeight = '1122px';
@@ -603,18 +688,117 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
         return new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 2 }).format(val);
     };
 
-    const tableRowsHTML = rows.map(r => `
-        <tr style="border-bottom: 1px solid #000;">
-            <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 12px;">${r.week}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.datum}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.lokatie}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.activiteit}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.instrument}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 12px;">${String(r.uren).replace('.', ',')}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 12px;">${formatDutchTarief(r.tarief)}</td>
-            <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-weight: 500; font-size: 12px;">${formatDutchBedrag(r.uren * r.tarief)}</td>
-        </tr>
-    `).join('');
+    // Recipient Address
+    let recipientHTML = `
+        <strong style="font-size: 14px; color: #000;">${clientInfo.name}</strong><br>
+    `;
+    if (clientInfo.attention) recipientHTML += `${clientInfo.attention}<br>`;
+    recipientHTML += `${clientInfo.address}<br>${clientInfo.city}`;
+
+    // Item details
+    let itemsHTML = '';
+    let totalsHTML = '';
+
+    if (type === 'lesgeven') {
+        const tableRowsHTML = items.map(r => `
+            <tr style="border-bottom: 1px solid #000;">
+                <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 12px;">${r.week}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.datum}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.lokatie}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.activiteit}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; font-size: 12px;">${r.instrument}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 12px;">${String(r.uren).replace('.', ',')}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 12px;">${formatDutchTarief(r.tarief)}</td>
+                <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right; font-weight: 500; font-size: 12px;">${formatDutchBedrag(r.uren * r.tarief)}</td>
+            </tr>
+        `).join('');
+
+        itemsHTML = `
+            <div style="margin-bottom: 30px;">
+                <table style="table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000; font-weight: bold; background-color: #fff;">
+                            <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 8%;">Week</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 12%; text-align: left;">Datum</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Lokatie</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 23%; text-align: left;">Activiteit</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 13%; text-align: left;">Instrument</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 8%; text-align: right;">Uren</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 10%; text-align: right;">Tarief</th>
+                            <th style="border-right: 1px solid #000; padding: 6px 8px; width: 11%; text-align: right;">Bedrag</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHTML}
+                        <tr style="font-weight: bold; border-top: 1px solid #000; background-color: #fff;">
+                            <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;">Subtotaal</td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
+                            <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">${formatDutchBedrag(totals.subtotal)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        totalsHTML = `
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 60%; padding-bottom: 5px; color: #333;">Reiskosten (${totals.travelDays} x ${totals.travelDistance} km à ${totals.travelRate.toFixed(2).replace('.', ',')} ct/km)</td>
+                    <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.travelAmount)}</td>
+                </tr>
+                <tr>
+                    <td style="padding-bottom: 5px; font-weight: bold;">Subtotaal ex BTW</td>
+                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.total)}</td>
+                </tr>
+                <tr>
+                    <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (btw vrijgesteld, onderwijs aan leerlingen onder de 21 jaar)</td>
+                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+                </tr>
+                <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
+                    <td style="padding: 8px 0;">Totaal</td>
+                    <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(totals.total)}</td>
+                </tr>
+            </table>
+        `;
+    } else {
+        // Rent
+        itemsHTML = `
+            <div style="margin-bottom: 40px; border-bottom: 1px solid #000; padding-bottom: 10px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td style="padding: 8px 0; width: 75%; text-align: left; vertical-align: top;">${item.desc}</td>
+                                <td style="padding: 8px 0; width: 25%; text-align: right; vertical-align: top; font-weight: 500;">€ ${formatDutchBedrag(item.amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        totalsHTML = `
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 60%; padding-bottom: 5px; color: #333;">Totaal ex BTW</td>
+                    <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.subtotal)}</td>
+                </tr>
+                <tr>
+                    <td style="padding-bottom: 5px; color: #333;">Totaal btw (21%)</td>
+                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.btwAmount)}</td>
+                </tr>
+                <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
+                    <td style="padding: 8px 0;">Totaal, inc. btw</td>
+                    <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(totals.total)}</td>
+                </tr>
+            </table>
+        `;
+    }
 
     el.innerHTML = `
         <!-- Header -->
@@ -640,10 +824,7 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
                 <tr>
                     <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">Factuur voor:</td>
                     <td style="width: 47%; vertical-align: top; line-height: 1.45;">
-                        <strong style="font-size: 14px; color: #000;">Muziekcentrum Zuidoost</strong><br>
-                        Boekhouding<br>
-                        Hofgeest 139<br>
-                        1102EG Amsterdam ZO
+                        ${recipientHTML}
                     </td>
                     <td style="width: 35%; vertical-align: bottom; text-align: right; font-weight: 500; font-size: 13px;">
                         ${dateFormatted}
@@ -653,62 +834,17 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
         </div>
 
         <!-- Invoice Title Block -->
-        <div style="margin-bottom: 30px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+        <div style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
             <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
             <p style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
         </div>
 
-        <!-- Lesson items Table -->
-        <div style="margin-bottom: 30px;">
-            <table style="table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
-                <thead>
-                    <tr style="border-bottom: 1px solid #000; font-weight: bold; background-color: #fff;">
-                        <th style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px; text-align: center; width: 8%;">Week</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 12%; text-align: left;">Datum</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 15%; text-align: left;">Lokatie</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 23%; text-align: left;">Activiteit</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 13%; text-align: left;">Instrument</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 8%; text-align: right;">Uren</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 10%; text-align: right;">Tarief</th>
-                        <th style="border-right: 1px solid #000; padding: 6px 8px; width: 11%; text-align: right;">Bedrag</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRowsHTML}
-                    <tr style="font-weight: bold; border-top: 1px solid #000; background-color: #fff;">
-                        <td style="border-left: 1px solid #000; border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;">Subtotaal</td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px;"></td>
-                        <td style="border-right: 1px solid #000; padding: 6px 8px; text-align: right;">${formatDutchBedrag(lessonsSubtotal)}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- Items list/table -->
+        ${itemsHTML}
 
         <!-- Summary & Totals -->
-        <div style="margin-top: 35px; margin-bottom: 40px; font-size: 13px; line-height: 1.6;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="width: 60%; padding-bottom: 5px; color: #333;">Reiskosten (${travelDays} x ${travelDistance} km à ${travelRate.toFixed(2).replace('.', ',')} ct/km)</td>
-                    <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(travelAmount)}</td>
-                </tr>
-                <tr>
-                    <td style="padding-bottom: 5px; font-weight: bold;">Subtotaal ex BTW</td>
-                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(invoiceTotal)}</td>
-                </tr>
-                <tr>
-                    <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (btw vrijgesteld, onderwijs aan leerlingen onder de 21 jaar)</td>
-                    <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
-                </tr>
-                <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
-                    <td style="padding: 8px 0;">Totaal</td>
-                    <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(invoiceTotal)}</td>
-                </tr>
-            </table>
+        <div style="margin-top: 25px; margin-bottom: 40px; font-size: 13px; line-height: 1.6;">
+            ${totalsHTML}
         </div>
 
         <!-- Payment Terms Footer -->
@@ -724,3 +860,336 @@ function buildInvoiceDOM(factuurNummer, invoiceDate, rows, lessonsSubtotal, trav
 
     return el;
 }
+
+async function generateAndUploadPDF(invoiceElement, pdfFileName) {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
+    iframe.style.zIndex = '-9999';
+    iframe.style.width = '794px';
+    iframe.style.height = '1122px';
+    iframe.style.border = 'none';
+    
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+            <style>
+                body { margin: 0; padding: 0; background-color: white; }
+            </style>
+        </head>
+        <body>
+        </body>
+        </html>
+    `);
+    iframeDoc.close();
+    
+    await new Promise(resolve => setTimeout(resolve, 50));
+    iframeDoc.body.appendChild(invoiceElement);
+
+    // Wait for images
+    const images = invoiceElement.querySelectorAll('img');
+    const imageLoadPromises = Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+        });
+    });
+    await Promise.all(imageLoadPromises);
+
+    const opt = {
+        margin:       0,
+        filename:     `${pdfFileName}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            scrollX: 0, 
+            scrollY: 0,
+            x: 0,
+            y: 0,
+            windowWidth: 794,
+            windowHeight: 1122
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const pdfWorker = html2pdf().from(invoiceElement).set(opt);
+    await pdfWorker.save();
+    
+    const pdfBlob = await pdfWorker.outputPdf('blob');
+    const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
+
+    document.body.removeChild(iframe);
+
+    await uploadToDrive(pdfFile, pdfFileName);
+    return pdfBlob;
+}
+
+async function handleGenerateRentInvoices() {
+    const invoiceDateVal = new Date().toISOString().split('T')[0]; // Altijd de huidige datum
+
+    const btn = document.getElementById('btn-generate-rent');
+    const setLoading = (loading) => {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading
+            ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met genereren & boeken...'
+            : '<i data-lucide="printer" class="w-4 h-4"></i> Huurfacturen Genereren & Boeken';
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    if (!accessToken) {
+        alert('Niet ingelogd met Google. Klik eerst op "Sync Drive" om in te loggen.');
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+        // Group the rent items by tenantKey
+        const tenantGroups = {};
+        rentItems.forEach(item => {
+            if (!tenantGroups[item.tenantKey]) {
+                tenantGroups[item.tenantKey] = {
+                    clientName: item.clientName,
+                    attention: item.attention,
+                    address: item.address,
+                    city: item.city,
+                    fileNamePrefix: item.fileNamePrefix,
+                    sheetDescription: item.sheetDescription,
+                    items: []
+                };
+            }
+            tenantGroups[item.tenantKey].items.push(item);
+        });
+
+        const generatedList = [];
+
+        // Run sequentially to prevent race conditions on invoice numbers and row indexes
+        for (const key of Object.keys(tenantGroups)) {
+            const group = tenantGroups[key];
+            
+            // Clear sheet caches so we get fresh data
+            clearSheetCaches();
+
+            // Deriving target sheet
+            const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
+            const invoiceD = new Date(invoiceDateVal);
+            const targetMonthIndex = invoiceD.getMonth();
+            const currentYear = invoiceD.getFullYear();
+            const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
+            
+            const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
+            const prevSheet = `${MONTH_NAMES[prevMonthIndex]} Verkoop`;
+
+            // Fetch target sheet to find empty row & calculate next invoice number
+            const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${targetSheet}'!A1:Z`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            let targetRowIndex = null;
+            let factuurNummer = null;
+            let sheetRows = [];
+
+            if (getRes.ok) {
+                const getJson = await getRes.json();
+                sheetRows = getJson.values || [];
+            }
+
+            if (sheetRows.length > 0) {
+                const headerRow = sheetRows[0] || [];
+                const headers = headerRow.map(h => String(h || '').toLowerCase().trim());
+                
+                const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+                
+                const datumIdx = getIdx(['datum', 'date']);
+                const descIdx = getIdx(['omschrijving', 'beschrijving']);
+                const clientIdx = getIdx(['klant', 'relatie', 'naam', 'debiteur', 'leverancier']);
+                const factuurIdx = getIdx(['factuur', 'nr', 'nummer']);
+
+                for (let i = 1; i < sheetRows.length; i++) {
+                    const row = sheetRows[i] || [];
+                    
+                    const isTotalenSentinel = row.some(cell => {
+                        const val = String(cell || '').trim().toLowerCase();
+                        return val === 'totalen' || val === 'totaal';
+                    });
+                    if (isTotalenSentinel) {
+                        targetRowIndex = i + 1;
+                        break;
+                    }
+
+                    let isEmpty = true;
+                    if (headers.length > 0) {
+                        const hasDatum = datumIdx !== -1 && row[datumIdx] !== undefined && String(row[datumIdx]).trim() !== '';
+                        const hasDesc = descIdx !== -1 && row[descIdx] !== undefined && String(row[descIdx]).trim() !== '';
+                        const hasClient = clientIdx !== -1 && row[clientIdx] !== undefined && String(row[clientIdx]).trim() !== '';
+                        
+                        let hasAmount = false;
+                        headers.forEach((h, idx) => {
+                            if (h.includes('totaal') || h.includes('bedrag') || h.includes('omzet') || h.includes('btw') || h.includes('excl') || h.includes('vergoeding') || h.includes('voorbelasting')) {
+                                if (row[idx] !== undefined && String(row[idx]).trim() !== '' && String(row[idx]).trim() !== '0' && String(row[idx]).trim() !== '0,00') {
+                                    hasAmount = true;
+                                }
+                            }
+                        });
+
+                        if (hasDatum || hasDesc || hasClient || hasAmount) {
+                            isEmpty = false;
+                        }
+                    } else {
+                        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+                            if (colIdx === 1) continue;
+                            const val = String(row[colIdx] || '').trim();
+                            if (val !== '' && val !== '0' && val !== '0,00') {
+                                isEmpty = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isEmpty) {
+                        targetRowIndex = i + 1;
+                        const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+                        if (row[fIdx] && String(row[fIdx]).trim() !== '') {
+                            factuurNummer = String(row[fIdx]).trim();
+                        }
+                        break;
+                    }
+                }
+                
+                if (!targetRowIndex) {
+                    targetRowIndex = sheetRows.length + 1;
+                }
+            } else {
+                targetRowIndex = 2;
+            }
+
+            if (!factuurNummer) {
+                let maxSeq = null;
+                const factuurIdx = sheetRows[0] ? sheetRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+                const fIdx = factuurIdx !== -1 ? factuurIdx : 1;
+
+                for (const row of sheetRows) {
+                    const val = row[fIdx];
+                    if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                        const parts = val.split('.');
+                        if (parts.length === 2) {
+                            const seq = parseInt(parts[1], 10);
+                            if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                        }
+                    }
+                }
+
+                if (maxSeq !== null) {
+                    factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                } else if (targetSheet.startsWith('Jan')) {
+                    factuurNummer = `${currentYear}.001`;
+                } else if (prevSheet) {
+                    const prevRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${prevSheet}'!A1:Z`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (prevRes.ok) {
+                        const prevJson = await prevRes.json();
+                        const prevRows = prevJson.values || [];
+                        const prevFactuurIdx = prevRows[0] ? prevRows[0].map(h => String(h || '').toLowerCase().trim()).findIndex(h => h.includes('factuur') || h.includes('nr') || h.includes('nummer')) : 1;
+                        const pfIdx = prevFactuurIdx !== -1 ? prevFactuurIdx : 1;
+
+                        for (const row of prevRows) {
+                            const val = row[pfIdx];
+                            if (val && typeof val === 'string' && val.startsWith(`${currentYear}.`)) {
+                                const parts = val.split('.');
+                                if (parts.length === 2) {
+                                    const seq = parseInt(parts[1], 10);
+                                    if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
+                                }
+                            }
+                        }
+                    }
+                    if (maxSeq !== null) {
+                        factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                    } else {
+                        factuurNummer = `${currentYear}.001`;
+                    }
+                } else {
+                    factuurNummer = `${currentYear}.001`;
+                }
+            }
+
+            // Calculate totals
+            let subtotal = 0;
+            group.items.forEach(item => {
+                subtotal += item.amount;
+            });
+            const btwRate = group.items[0]?.btwRate || 21;
+            const btwAmount = subtotal * (btwRate / 100);
+            const total = subtotal + btwAmount;
+
+            // Generate DOM
+            const invoiceElement = buildInvoiceDOM({
+                type: 'rent',
+                factuurNummer,
+                invoiceDate: invoiceDateVal,
+                clientInfo: {
+                    name: group.clientName,
+                    attention: group.attention,
+                    address: group.address,
+                    city: group.city
+                },
+                items: group.items,
+                totals: {
+                    subtotal,
+                    btwAmount,
+                    total
+                }
+            });
+
+            const factuurNummerFilename = factuurNummer.replace('.', '-');
+            const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+            const calendarMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
+            const calendarYear2 = String(invoiceD.getFullYear()).slice(-2);
+            
+            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${group.fileNamePrefix} ${calendarMaandNaam} '${calendarYear2}`;
+
+            await generateAndUploadPDF(invoiceElement, pdfFileName);
+
+            // Book row in Google Sheets
+            const headers = await getSheetHeaders(targetSheet);
+            const formData = {
+                datum: invoiceDateVal,
+                leverancier: group.clientName,
+                omschrijving: `${group.sheetDescription} ${calendarMaandNaam} ${invoiceD.getFullYear()}`,
+                factuurBedrag: total,
+                btw: btwAmount
+            };
+            const itemData = {
+                btwLaag: 0,
+                btwHoog: btwAmount,
+                omzetLaag: 0,
+                omzetHoog: subtotal,
+                omzetNul: 0
+            };
+            const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
+            await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
+
+            generatedList.push(`Factuur ${factuurNummer} (${group.clientName})`);
+        }
+
+        alert(`Huurfacturen succesvol gegenereerd, gedownload en opgeslagen!\n\n${generatedList.map(item => `- ${item}`).join('\n')}\n\n- Opgeslagen in Drive\n- Geboekt in Sheet.`);
+    } catch (err) {
+        console.error('Fout bij genereren huurfacturen:', err);
+        alert(`Er ging iets mis bij het genereren of opslaan van de huurfacturen: ${err.message}`);
+    } finally {
+        setLoading(false);
+    }
+}
+
+
