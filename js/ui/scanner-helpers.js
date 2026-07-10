@@ -1,5 +1,5 @@
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile } from '../api/storage.js';
-import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries.js';
+import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {

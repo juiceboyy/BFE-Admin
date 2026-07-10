@@ -1,5 +1,5 @@
 import { getGlobalTargetDate } from '../utils/date.js';
-import { findInvoiceTargetRowAndNumber } from '../api/storage-queries.js';
+import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { insertRowInSheet, getSheetHeaders, clearSheetCaches, SPREADSHEET_ID } from '../api/storage.js';
 import { constructSheetRow } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
