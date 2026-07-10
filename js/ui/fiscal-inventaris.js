@@ -1,5 +1,5 @@
 import { fiscalState } from '../store/fiscal-state.js';
-import { addInventarisItemToSheet, deleteInventarisItemFromSheet } from './storage-queries-fiscal.js';
+import { addInventarisItemToSheet, deleteInventarisItemFromSheet } from '../api/storage-queries-fiscal.js';
 import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 import { SPREADSHEET_IDS } from './fiscal-intake.js';
 
