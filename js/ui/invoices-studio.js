@@ -3,7 +3,8 @@ import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.j
 import { insertRowInSheet, getSheetHeaders, clearSheetCaches, SPREADSHEET_ID } from '../api/storage.js';
 import { constructSheetRow } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
-import { buildInvoiceDOM, generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 
 let rentItems = [];
 
