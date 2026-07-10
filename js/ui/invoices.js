@@ -37,10 +37,6 @@ export function initInvoicesModule() {
     const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
     if (rentInvoiceDateInput) {
         rentInvoiceDateInput.valueAsDate = new Date();
-        rentInvoiceDateInput.addEventListener('change', () => {
-            loadDefaultRentItems();
-            renderRentTable();
-        });
     }
 
     const btnRefreshRent = document.getElementById('btn-refresh-rent');
@@ -64,11 +60,7 @@ export function initInvoicesModule() {
 }
 
 function loadDefaultRentItems() {
-    const rentInvoiceDateInput = document.getElementById('rent-invoice-date');
-    let targetDate = getGlobalTargetDate();
-    if (rentInvoiceDateInput && rentInvoiceDateInput.value) {
-        targetDate = new Date(rentInvoiceDateInput.value);
-    }
+    const targetDate = getGlobalTargetDate();
     const MONTH_NAMES_DUTCH_STANDARD = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
     const maandNaam = MONTH_NAMES_DUTCH_STANDARD[targetDate.getMonth()];
     const year2 = String(targetDate.getFullYear()).slice(-2);
@@ -942,12 +934,7 @@ async function generateAndUploadPDF(invoiceElement, pdfFileName) {
 }
 
 async function handleGenerateRentInvoices() {
-    const invoiceDateInput = document.getElementById('rent-invoice-date');
-    const invoiceDateVal = invoiceDateInput ? invoiceDateInput.value : '';
-    if (!invoiceDateVal) {
-        alert('Selecteer een factuurdatum.');
-        return;
-    }
+    const invoiceDateVal = new Date().toISOString().split('T')[0]; // Altijd de huidige datum
 
     const btn = document.getElementById('btn-generate-rent');
     const setLoading = (loading) => {
