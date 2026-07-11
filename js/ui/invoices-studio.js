@@ -1,7 +1,7 @@
 import { getGlobalTargetDate } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
-import { insertRowInSheet, getSheetHeaders, clearSheetCaches, SPREADSHEET_ID } from '../api/storage.js';
-import { constructSheetRow } from './scanner-helpers.js';
+import { clearSheetCaches } from '../api/storage.js';
+import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
@@ -229,10 +229,10 @@ async function handleGenerateRentInvoices() {
             
             const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${group.fileNamePrefix} ${calendarMaandNaam} '${calendarYear2}`;
 
-            await generateAndUploadPDF(invoiceElement, pdfFileName);
+            const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
+            const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
             // Book row in Google Sheets
-            const headers = await getSheetHeaders(targetSheet);
             const formData = {
                 datum: invoiceDateVal,
                 leverancier: group.clientName,
@@ -247,8 +247,9 @@ async function handleGenerateRentInvoices() {
                 omzetHoog: subtotal,
                 omzetNul: 0
             };
-            const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
-            await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
+
+            const dateInfo = { targetSheet };
+            await processItemSave(pdfFile, formData, itemData, 'verkoop', factuurNummer, dateInfo);
 
             generatedList.push(`Factuur ${factuurNummer} (${group.clientName})`);
         }

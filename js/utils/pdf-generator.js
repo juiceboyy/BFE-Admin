@@ -1,7 +1,5 @@
-import { uploadToDrive } from '../api/storage.js';
-
 /**
- * Generates PDF from DOM element, triggers browser save/download, and uploads it to Google Drive.
+ * Generates PDF from DOM element, triggers browser save/download.
  * Uses global html2pdf library loaded via CDN in index.html.
  * @param {HTMLElement} invoiceElement - The HTML element representing the A4 page.
  * @param {string} pdfFileName - Filename for the generated PDF.
@@ -72,10 +70,8 @@ export async function generateAndUploadPDF(invoiceElement, pdfFileName) {
     await pdfWorker.save();
     
     const pdfBlob = await pdfWorker.outputPdf('blob');
-    const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
     document.body.removeChild(iframe);
 
-    await uploadToDrive(pdfFile, pdfFileName);
     return pdfBlob;
 }

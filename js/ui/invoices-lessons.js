@@ -1,8 +1,8 @@
 import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
 import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
-import { insertRowInSheet, getSheetHeaders, clearSheetCaches } from '../api/storage.js';
-import { constructSheetRow } from './scanner-helpers.js';
+import { clearSheetCaches } from '../api/storage.js';
+import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 
@@ -325,7 +325,8 @@ async function handleGenerateInvoice() {
         const factuurNummerFilename = factuurNummer.replace('.', '-');
         const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} lesgeven ${calendarMaandNaam} '${calendarYear2}`;
 
-        await generateAndUploadPDF(invoiceElement, pdfFileName);
+        const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
+        const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
         const formData = {
             datum: invoiceDateVal,
@@ -342,9 +343,8 @@ async function handleGenerateInvoice() {
             omzetNul: invoiceTotal,
         };
 
-        const headers = await getSheetHeaders(targetSheet);
-        const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
-        await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
+        const dateInfo = { targetSheet };
+        await processItemSave(pdfFile, formData, itemData, 'verkoop', factuurNummer, dateInfo);
 
         const calendarErrors = [];
         let updatedCount = 0;

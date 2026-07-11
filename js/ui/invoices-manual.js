@@ -1,8 +1,8 @@
 import { fetchWithRetry } from '../utils/network.js';
 import { accessToken } from '../api/auth.js';
-import { SPREADSHEET_ID, insertRowInSheet, getSheetHeaders, clearSheetCaches } from '../api/storage.js';
+import { clearSheetCaches } from '../api/storage.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
-import { constructSheetRow } from './scanner-helpers.js';
+import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 
@@ -665,10 +665,10 @@ async function handleGenerateManualInvoice() {
         const cleanKlantnaam = clientName.replace(/[^a-zA-Z0-9]/g, ' ').trim().replace(/\s+/g, '-').toLowerCase();
         const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${cleanKlantnaam} ${billingMaandNaam} '${invoiceYear2}`;
 
-        await generateAndUploadPDF(invoiceElement, pdfFileName);
+        const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
+        const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
         // Book row in Google Sheets
-        const headers = await getSheetHeaders(targetSheet);
         const formData = {
             datum: invoiceDateVal,
             leverancier: clientName,
@@ -684,8 +684,8 @@ async function handleGenerateManualInvoice() {
             omzetNul: omzetNul,
         };
 
-        const rowValues = constructSheetRow('verkoop', formData, itemData, factuurNummer, headers);
-        await insertRowInSheet(targetSheet, rowValues, targetRowIndex);
+        const dateInfo = { targetSheet };
+        await processItemSave(pdfFile, formData, itemData, 'verkoop', factuurNummer, dateInfo);
 
         alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}`);
         
