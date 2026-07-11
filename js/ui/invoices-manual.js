@@ -446,6 +446,32 @@ function renderItemsTable() {
     recalculateTotals();
 }
 
+function abbreviateDescription(text) {
+    if (!text) return '';
+    let result = text;
+    
+    const mappings = [
+        [/\bwerkzaamheden\b/gi, 'werkzk'],
+        [/\bmanagement\b/gi, 'mgmt'],
+        [/\badministratie\b/gi, 'adm'],
+        [/\bdiversen\b/gi, 'div'],
+        [/\bverhuur\b/gi, 'vh'],
+        [/\blesgeven\b/gi, 'lessen'],
+        [/\borganisatie\b/gi, 'org'],
+        [/\bonderhoud\b/gi, 'ond'],
+        [/\breiskosten\b/gi, 'reis'],
+        [/\babonnement\b/gi, 'abo'],
+        [/\blicentie\b/gi, 'lic'],
+        [/\bbijeenkomst\b/gi, 'bijeenk'],
+        [/\bvoorstelling\b/gi, 'voorst']
+    ];
+    
+    for (const [regex, replacement] of mappings) {
+        result = result.replace(regex, replacement);
+    }
+    return result;
+}
+
 function suggestBookingDescription() {
     if (isOmschrijvingManuallyEdited) return;
 
@@ -459,9 +485,8 @@ function suggestBookingDescription() {
     if (descriptions.length === 0) {
         bookingDescInput.value = '';
     } else {
-        const text = `werkzaamheden: ${descriptions.join(', ')}`;
-        // Cap length to keep it clean in sheet
-        bookingDescInput.value = text.length > 50 ? text.slice(0, 47) + '...' : text;
+        const rawText = `werkzk: ${descriptions.join(', ')}`;
+        bookingDescInput.value = abbreviateDescription(rawText);
     }
 }
 
