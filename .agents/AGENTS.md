@@ -33,3 +33,8 @@ Because ES6 modules execute deferred, `DOMContentLoaded` or `window.onload` even
 When splitting monolithic modules into smaller focused files (like separating Studio Rent from MZO Invoicing):
 * **Bootstrap Check**: Always ensure the new module's initialization function (e.g. `initStudioInvoices()`) is called from the main module's bootstrap routine.
 * **Relative Import Paths**: Verify that relative import paths (e.g. `../api/` vs `./`) are adjusted correctly relative to the new file's directory location.
+
+## 3. Import Integrity during Refactoring
+* **Verify Unused Imports Strategically**: When optimizing imports in a refactored file (e.g., removing functions that have been outsourced to another module), never assume that because a function or variable is no longer called in the modified code, it is safe to remove its import.
+* **Scope Scan**: Always do a full text search in the file for the imported symbol to ensure it is not used in other unmodified functions (e.g. settings, API helpers, or default constants) before deleting the import.
+
