@@ -641,11 +641,8 @@ async function handleGenerateManualInvoice() {
         const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
         const factuurNummerFilename = factuurNummer.replace('.', '-');
         
-        const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-        const billingMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
-        
-        const cleanKlantnaam = clientName.replace(/[^a-zA-Z0-9]/g, ' ').trim().replace(/\s+/g, '-').toLowerCase();
-        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${cleanKlantnaam} ${billingMaandNaam} '${invoiceYear2}`;
+        const cleanBookingDescForFilename = bookingDesc.replace(/[^a-zA-Z0-9\s_-]/g, ' ').trim().replace(/\s+/g, ' ');
+        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${cleanBookingDescForFilename}`;
 
         const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
