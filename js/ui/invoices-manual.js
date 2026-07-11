@@ -1,6 +1,6 @@
 import { fetchWithRetry } from '../utils/network.js';
 import { accessToken } from '../api/auth.js';
-import { clearSheetCaches } from '../api/storage.js';
+import { SPREADSHEET_ID, clearSheetCaches } from '../api/storage.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
