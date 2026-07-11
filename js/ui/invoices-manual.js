@@ -118,21 +118,26 @@ async function fetchSavedClientsFromSheet() {
             });
             if (!createRes.ok) return [];
 
-            // Add headers
-            await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D1?valueInputOption=USER_ENTERED`, {
+            // Add headers and seed default clients
+            const initialValues = [
+                ["Klantnaam", "T.a.v.", "Adres", "Woonplaats"],
+                ...DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city])
+            ];
+            await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D${initialValues.length}?valueInputOption=USER_ENTERED`, {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    values: [["Klantnaam", "T.a.v.", "Adres", "Woonplaats"]]
+                    values: initialValues
                 })
             });
-            return [];
+            savedClients = [...DEFAULT_CLIENTS];
+            return savedClients;
         }
 
-        const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:D`, {
+        const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D`, {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         if (!dataRes.ok) return [];
@@ -140,7 +145,24 @@ async function fetchSavedClientsFromSheet() {
         const dataJson = await dataRes.json();
         const rows = dataJson.values || [];
 
-        savedClients = rows.map(r => ({
+        // If sheet is empty or only has header row, seed it with the default clients
+        if (rows.length <= 1) {
+            const initialValues = DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city]);
+            await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:D${initialValues.length + 1}?valueInputOption=USER_ENTERED`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    values: initialValues
+                })
+            });
+            savedClients = [...DEFAULT_CLIENTS];
+            return savedClients;
+        }
+
+        savedClients = rows.slice(1).map(r => ({
             name: r[0] || '',
             attention: r[1] || '',
             address: r[2] || '',
@@ -206,21 +228,11 @@ function renderSavedClientsDropdown() {
     if (!clientSelect) return;
 
     let html = '<option value="">-- Selecteer relatie --</option>';
-    
-    // Add default hardcoded clients
-    html += '<optgroup label="Vaste relaties">';
-    DEFAULT_CLIENTS.forEach((c, idx) => {
-        html += `<option value="default-${idx}">${c.name}</option>`;
-    });
-    html += '</optgroup>';
 
-    // Add saved clients from sheet
     if (savedClients.length > 0) {
-        html += '<optgroup label="Eigen relaties (Google Sheet)">';
         savedClients.forEach((c, idx) => {
             html += `<option value="saved-${idx}">${c.name}</option>`;
         });
-        html += '</optgroup>';
     }
 
     html += '<option value="custom">Nieuw / Aangepast...</option>';
@@ -237,14 +249,7 @@ function handleClientSelectChange(e) {
 
     if (!clientName || !clientAttention || !clientAddress || !clientCity) return;
 
-    if (val.startsWith('default-')) {
-        const idx = parseInt(val.split('-')[1]);
-        const client = DEFAULT_CLIENTS[idx];
-        clientName.value = client.name;
-        clientAttention.value = client.attention;
-        clientAddress.value = client.address;
-        clientCity.value = client.city;
-    } else if (val.startsWith('saved-')) {
+    if (val.startsWith('saved-')) {
         const idx = parseInt(val.split('-')[1]);
         const client = savedClients[idx];
         clientName.value = client.name;
@@ -252,7 +257,7 @@ function handleClientSelectChange(e) {
         clientAddress.value = client.address;
         clientCity.value = client.city;
     } else {
-        // custom or empty
+        // custom or select
         clientName.value = '';
         clientAttention.value = '';
         clientAddress.value = '';
