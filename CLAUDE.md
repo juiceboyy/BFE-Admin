@@ -42,24 +42,32 @@ js/
   │   ├── extract.js         # Client-side PDF text extraction using PDF.js & regex parsing for fast matches
   │   ├── gemini.js          # Client-side proxy to scanReceipt Netlify function
   │   ├── inventaris-kandidaten.js # Extracts purchase transactions >€450 and proxies to Gemini for classification
-  │   ├── storage-queries.js # Google Sheet CRUD for monthly/yearly totals, cloud memory, and Trend-archive
+  │   ├── storage-queries-fiscal.js # Google Sheet queries for monthly/yearly totals, trends, and inventory
+  │   ├── storage-queries-invoices.js # Google Sheet queries for invoice target row, seq numbering, and cloud memory
   │   ├── storage.js         # Low-level Google Drive (scan/upload/rename) and Sheet (insert/dynamic headers) I/O
   │   ├── tax-advisor.js     # Client-side proxy for interactive Gemini fiscal advice
   │   └── tax-collector.js   # Fetches and aggregates Sheet rows, utilizing the SUM-formula Totalen row
   ├── store/
   │   └── fiscal-state.js    # Central state store (observer pattern) for the fiscal year-end intake process
   ├── ui/
+  │   ├── templates/
+  │   │   └── fiscal-intake-template.js # HTML structure for the fiscal year-end intake tabs
   │   ├── btw.js             # Form & ledger table for manual quarterly BTW filing simulation
   │   ├── dashboard.js       # Real-time state metrics for monthly sales, expenses, and pending scanning queue
-  │   ├── fiscal-intake.js   # Multi-step intake flow: bank statements OCR, private deposits CSV parser, inventory CRUD
+  │   ├── fiscal-intake.js   # Controller for intake flow: synchronisation, bank statements OCR, private deposits CSV matching
+  │   ├── fiscal-inventaris.js # Controller for durable asset management, manual additions, and matcher candidate actions
   │   ├── fiscal-report.js   # Renders P&L, balance sheets, dynamic Tax Spiekbriefje, and Trend exporter
+  │   ├── invoices-studio.js # Controls rent invoicing, default rent templates, and rent table rendering
+  │   ├── invoices.js        # Controls MZO lesson invoicing, calendar sync, and invoicing queues
   │   ├── navigation.js      # Simple client-side tab switcher (Scanner vs Fiscal Intake)
   │   ├── scanner-helpers.js # UI data formatting, sheet row construction mapping, and save-execution pipelines
   │   ├── scanner-row.js     # Template generator for scanner batch queue rows (including date validations)
   │   └── scanner.js         # Controls scanner queues, Drive scanning, file uploads, and sequential Sheet saving
   └── utils/
+      ├── csv-parser.js      # Bank transaction CSV parser matching private IBAN deposits
       ├── date.js            # Date parsing, active bookkeeping period validations, global active month state
       ├── network.js         # Fetch wrapper with exponential backoff & retries for Google API requests
+      ├── pdf-generator.js   # Generates A4 invoice HTML DOM elements and compiles/uploads sandboxed PDFs
       └── tax-calculator.js  # Tax math, linear asset depreciation, and Dutch tax rate sheets (2023–2026)
 netlify/functions/
   ├── classifyInventaris.js  # Serverless function to classify durable assets using Gemini 3.5 Flash
@@ -74,7 +82,7 @@ netlify/functions/
 |---|---|---|
 | `SPREADSHEET_ID` | `js/api/storage.js` | Google Sheet containing monthly transaction records (`119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg`) |
 | `DRIVE_FOLDER_ID` | `js/api/storage.js` | Target Google Drive folder where processed receipt PDFs/images are stored (`1NBCQ89t1soAvZ315_UA-p-lF340qkraH`) |
-| `TREND_SPREADSHEET_ID` | `js/api/storage-queries.js` | Trend & Inventory archive Google Sheet (`1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI`) |
+| `TREND_SPREADSHEET_ID` | `js/api/storage-queries-fiscal.js` | Trend & Inventory archive Google Sheet (`1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI`) |
 | `CLIENT_ID` | `js/api/auth.js` | Google Identity Services OAuth Client ID for authenticating BFE Admin |
 | `SPREADSHEET_IDS` | `js/ui/fiscal-intake.js` | Year-specific spreadsheet template mappings (2023, 2024, 2025, 2026) |
 

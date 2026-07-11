@@ -1,5 +1,5 @@
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile } from '../api/storage.js';
-import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries.js';
+import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {
@@ -44,6 +44,64 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
     const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
 
     if (mode === 'verkoop') {
+        const factuurBedrag = parseFloat(formData.factuurBedrag) || 0;
+        let btw = parseFloat(formData.btw);
+        if (isNaN(btw) || btw === null) {
+            btw = (parseFloat(itemData.btwLaag) || 0) + (parseFloat(itemData.btwHoog) || 0);
+        }
+        
+        const baseExcl = factuurBedrag - btw;
+
+        let btwLaag = 0;
+        let btwHoog = 0;
+        let omzetLaag = 0;
+        let omzetHoog = 0;
+        let omzetNul = 0;
+
+        if (btw === 0) {
+            omzetNul = factuurBedrag;
+        } else {
+            // Calculate implied rate.
+            const rate = baseExcl > 0 ? (btw / baseExcl) : 0;
+            
+            if (rate >= 0.15 && rate <= 0.25) {
+                // 21% BTW (Hoog)
+                btwHoog = btw;
+                omzetHoog = baseExcl;
+            } else if (rate >= 0.05 && rate < 0.15) {
+                // 9% BTW (Laag)
+                btwLaag = btw;
+                omzetLaag = baseExcl;
+            } else {
+                // Fallback to itemData/AI proportions, scaled to match the actual btw and factuurBedrag
+                const aiBtwLaag = parseFloat(itemData.btwLaag) || 0;
+                const aiBtwHoog = parseFloat(itemData.btwHoog) || 0;
+                const aiBtwTotal = aiBtwLaag + aiBtwHoog;
+
+                if (aiBtwTotal > 0) {
+                    btwLaag = (aiBtwLaag / aiBtwTotal) * btw;
+                    btwHoog = (aiBtwHoog / aiBtwTotal) * btw;
+                } else {
+                    btwHoog = btw;
+                }
+
+                const aiOmzetLaag = parseFloat(itemData.omzetLaag) || 0;
+                const aiOmzetHoog = parseFloat(itemData.omzetHoog) || 0;
+                const aiOmzetNul = parseFloat(itemData.omzetNul) || 0;
+                const aiOmzetTotal = aiOmzetLaag + aiOmzetHoog + aiOmzetNul;
+
+                if (aiOmzetTotal > 0) {
+                    omzetLaag = (aiOmzetLaag / aiOmzetTotal) * baseExcl;
+                    omzetHoog = (aiOmzetHoog / aiOmzetTotal) * baseExcl;
+                    omzetNul = (aiOmzetNul / aiOmzetTotal) * baseExcl;
+                } else {
+                    if (btwHoog > 0) omzetHoog = baseExcl;
+                    else if (btwLaag > 0) omzetLaag = baseExcl;
+                    else omzetNul = baseExcl;
+                }
+            }
+        }
+
         if (headers.length > 0) {
             rowValues = new Array(headers.length).fill("");
             const setVal = (keys, val) => { const i = getIdx(keys); if (i !== -1) rowValues[i] = val; };
@@ -52,17 +110,16 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
             setVal(['factuur', 'nr', 'nummer'], factuurnummer);
             setVal(['omschrijving', 'beschrijving'], formData.omschrijving);
             setVal(['klant', 'relatie', 'naam', 'debiteur'], formData.leverancier);
-            setVal(['totaal', 'bedrag incl', 'factuurbedrag', 'incl'], formData.factuurBedrag);
-            setVal(['btw laag', 'btw 9', 'btw l'], parseFloat(itemData.btwLaag) || 0);
-            setVal(['btw hoog', 'btw 21', 'btw h'], parseFloat(itemData.btwHoog) || 0);
-            setVal(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9'], parseFloat(itemData.omzetLaag) || 0);
-            setVal(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21'], parseFloat(itemData.omzetHoog) || 0);
-            setVal(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0'], parseFloat(itemData.omzetNul) || 0);
+            setVal(['totaal', 'bedrag incl', 'factuurbedrag', 'incl'], factuurBedrag);
+            setVal(['btw laag', 'btw 9', 'btw l'], btwLaag);
+            setVal(['btw hoog', 'btw 21', 'btw h'], btwHoog);
+            setVal(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9'], omzetLaag);
+            setVal(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21'], omzetHoog);
+            setVal(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0'], omzetNul);
         } else {
             rowValues = [
-                formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, formData.factuurBedrag,
-                parseFloat(itemData.btwLaag) || 0, parseFloat(itemData.btwHoog) || 0,
-                parseFloat(itemData.omzetLaag) || 0, parseFloat(itemData.omzetHoog) || 0, parseFloat(itemData.omzetNul) || 0,
+                formData.datum, factuurnummer, formData.omschrijving, formData.leverancier, factuurBedrag,
+                btwLaag, btwHoog, omzetLaag, omzetHoog, omzetNul,
                 "", "", ""
             ];
         }

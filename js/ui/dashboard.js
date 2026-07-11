@@ -3,7 +3,7 @@
  * Beheert de real-time updates van het Session Dashboard.
  */
 
-import { getMonthlyTotals } from '../api/storage-queries.js';
+import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
 import { getTargetDateInfo } from '../utils/date.js';
 
 export function invalidateDashboardCache() {

@@ -1,5 +1,6 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { loadCloudMemory, getNextInvoiceNumberFromCloud, getMonthlyTotals, clearQueryCaches } from '../api/storage-queries.js';
+import { loadCloudMemory, getNextInvoiceNumberFromCloud, clearQueryCaches } from '../api/storage-queries-invoices.js';
+import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
 import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';

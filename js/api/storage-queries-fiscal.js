@@ -4,15 +4,6 @@ import { SPREADSHEET_ID } from './storage.js';
 
 const TREND_SPREADSHEET_ID = '1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI';
 
-// Per-session caches — cleared when the user changes the fiscal period.
-let _cloudMemoryCache = null;              // null = uncached
-let _invoiceSeqCache  = {};               // `${sheetName}:${year}` → last-issued seq number
-
-export function clearQueryCaches() {
-    _cloudMemoryCache = null;
-    _invoiceSeqCache  = {};
-}
-
 /**
  * Voegt een rij toe aan het centrale Trend-archief spreadsheet.
  * @param {string|number} year - Het boekjaar
@@ -52,130 +43,16 @@ export async function appendToTrendSheet(year, trendData) {
     return await response.json();
 }
 
-export async function loadCloudMemory() {
-    if (_cloudMemoryCache !== null) return _cloudMemoryCache;
-    try {
-        const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const json = await res.json();
-        const memory = {};
-        if (json.values && json.values.length > 1) {
-            for (let i = 1; i < json.values.length; i++) {
-                const row = json.values[i];
-                if (row && row[0]) {
-                    const key = row[0].toLowerCase().trim();
-                    if (!memory[key]) memory[key] = [];
-
-                    const newItem = {
-                        omschrijving: row[1] || '',
-                        btwTarief: row[2] || 0
-                    };
-
-                    const exists = memory[key].some(item => item.omschrijving === newItem.omschrijving && item.btwTarief == newItem.btwTarief);
-                    if (!exists) memory[key].push(newItem);
-                }
-            }
-        }
-        _cloudMemoryCache = memory;
-        return memory;
-    } catch (e) {
-        console.error("Fout bij laden cloud memory:", e);
-        return {};
-    }
-}
-
-export async function saveCloudMemory(leverancier, omschrijving, tarief) {
-    if (!accessToken) return;
-    _cloudMemoryCache = null; // Invalidate so the next batch picks up the new entry
-    try {
-        const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Leveranciers'!A:C:append?valueInputOption=USER_ENTERED`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ values: [[leverancier, omschrijving, tarief]] })
-        });
-        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
-    } catch (error) {
-        if (error.message === 'TOKEN_EXPIRED') throw error;
-        console.error('Fout bij opslaan cloud memory:', error);
-    }
-}
-
-export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
-    const cacheKey = `${targetSheet}:${targetYear}`;
-
-    // After the first read, just increment locally — no further Sheets reads needed.
-    if (_invoiceSeqCache[cacheKey] !== undefined) {
-        _invoiceSeqCache[cacheKey]++;
-        return `${targetYear}.${String(_invoiceSeqCache[cacheKey]).padStart(3, '0')}`;
-    }
-
-    if (!accessToken) {
-        _invoiceSeqCache[cacheKey] = 1;
-        return `${targetYear}.001`;
-    }
-
-    const fetchMaxFromSheet = async (sheet) => {
-        try {
-            const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheet}'!B:B`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (!response.ok) return null;
-            const data = await response.json();
-            if (!data.values) return null;
-            let maxSeq = null;
-            for (const row of data.values) {
-                const val = row[0];
-                if (val && typeof val === 'string' && val.startsWith(`${targetYear}.`)) {
-                    const parts = val.split('.');
-                    if (parts.length === 2) {
-                        const seq = parseInt(parts[1], 10);
-                        if (!isNaN(seq) && (maxSeq === null || seq > maxSeq)) maxSeq = seq;
-                    }
-                }
-            }
-            return maxSeq;
-        } catch (error) {
-            console.error('Error fetching max seq:', error);
-            return null;
-        }
-    };
-
-    let maxSeq = await fetchMaxFromSheet(targetSheet);
-    if (maxSeq !== null) {
-        _invoiceSeqCache[cacheKey] = maxSeq + 1;
-        return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-    }
-    if (targetSheet.startsWith('Jan')) {
-        _invoiceSeqCache[cacheKey] = 1;
-        return `${targetYear}.001`;
-    }
-    if (prevSheet) {
-        maxSeq = await fetchMaxFromSheet(prevSheet);
-        if (maxSeq !== null) {
-            _invoiceSeqCache[cacheKey] = maxSeq + 1;
-            return `${targetYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-        }
-    }
-    _invoiceSeqCache[cacheKey] = 1;
-    return `${targetYear}.001`;
-}
-
 export async function getMonthlyTotals(sheetName) {
     let totaalOmzet = 0;
     let totaalBtw = 0;
 
-    // 1. De juiste check voor jouw app (kijkt naar accessToken)
     if (typeof accessToken === 'undefined' || !accessToken) {
         console.error("Niet ingelogd bij Google (geen accessToken).");
         return { totaalOmzet, totaalBtw };
     }
 
     try {
-        // 2. De juiste verbinding die we eerder succesvol gebruikten
         const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
@@ -193,7 +70,6 @@ export async function getMonthlyTotals(sheetName) {
         const isVerkoop = sheetName.toLowerCase().includes('verkoop');
         const getIdx = (keywords) => row0.findIndex(h => keywords.some(kw => h.includes(kw)));
 
-        // 3. EXACTE KOLOM KOPPELINGEN
         let idxBtwLaag = -1, idxBtwHoog = -1, idxBtwInkoop = -1;
         let idxOmzetLaag = -1, idxOmzetHoog = -1, idxOmzetNul = -1, idxInkoopExcl = -1;
 
@@ -216,12 +92,10 @@ export async function getMonthlyTotals(sheetName) {
             return parseFloat(cleaned) || 0;
         };
 
-        // 4. DE BEREKENING MET DE REM OP TOTALEN
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length === 0) continue;
 
-            // Zodra we in kolom A (Datum) het woord "Totaal" of "Totalen" zien, stop direct!
             const colA = String(row[0] || '').toLowerCase().trim();
             if (colA.includes('totaal') || colA.includes('totalen')) {
                 break; 
@@ -259,8 +133,6 @@ export async function getMonthlyTotals(sheetName) {
 
 /**
  * Haalt alle inventaris-items op uit het Inventaris-tabblad van het Trend-spreadsheet.
- * Verwacht kolommen A:F = ID, datum/aanschafjaar, omschrijving, aanschafwaarde, afschrijvingsJaren, restwaarde.
- * @returns {Promise<Array<{id, datum, omschrijving, aanschafwaarde, afschrijvingsJaren, restwaarde}>>}
  */
 export async function fetchInventarisFromSheet() {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
@@ -279,26 +151,21 @@ export async function fetchInventarisFromSheet() {
     const data = await response.json();
     const rows = data.values || [];
 
-    // Handles Dutch formatting: "1.234,56" → 1234.56, "1234,56" → 1234.56, "1234.56" → 1234.56
     const parseAmount = (val) => {
         if (!val) return 0;
         let s = String(val).trim().replace(/[€\s]/g, '');
         const lastComma = s.lastIndexOf(',');
         const lastDot   = s.lastIndexOf('.');
         if (lastComma > lastDot) {
-            // Dutch: thousands dot, decimal comma  →  "1.234,56"
             s = s.replace(/\./g, '').replace(',', '.');
         } else {
-            // English or no separator: remove thousand commas
             s = s.replace(/,/g, '');
         }
         return parseFloat(s) || 0;
     };
 
-    // Sla de headerrij over en filter lege rijen
-    // Kolomvolgorde: A=ID, B=Datum/Aanschafjaar, C=Omschrijving, D=Aanschafwaarde, E=Afschrijvingsjaren, F=Restwaarde
     return rows.slice(1)
-        .filter(row => row && row[2])   // rij is geldig als C (omschrijving) gevuld is
+        .filter(row => row && row[2])
         .map(row => ({
             id:                row[0] || '',
             datum:             row[1] || '',
@@ -311,13 +178,10 @@ export async function fetchInventarisFromSheet() {
 
 /**
  * Voegt een inventaris-item toe aan het Inventaris-tabblad van het Trend-spreadsheet.
- * @param {{omschrijving, datum, aanschafwaarde, afschrijvingsJaren, restwaarde}} item
  */
 export async function addInventarisItemToSheet(item) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
-    // Column order must match fetchInventarisFromSheet: A=ID, B=datum, C=omschrijving, D=aanschafwaarde, E=afschrijvingsJaren, F=restwaarde
-    // Accept both UI naming conventions (aankoopJaar/aankoopBedrag/afschrijvingsDuur) and legacy names (datum/aanschafwaarde/afschrijvingsJaren).
     const row = [[
         item.id             || '',
         item.aankoopJaar    || item.datum              || '',
@@ -348,13 +212,10 @@ export async function addInventarisItemToSheet(item) {
 
 /**
  * Verwijdert een inventaris-item uit het Inventaris-tabblad van het Trend-spreadsheet.
- * Strategie: fetch → filter → clear → write-back (veilig voor kleine datasets).
- * @param {number|string} itemId - Het ID uit kolom A van het te verwijderen item
  */
 export async function deleteInventarisItemFromSheet(itemId) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
-    // a) Haal alle rijen op
     const fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A:F`;
     const fetchResp = await fetchWithRetry(fetchUrl, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -367,11 +228,9 @@ export async function deleteInventarisItemFromSheet(itemId) {
     const data = await fetchResp.json();
     const rows = data.values || [];
 
-    // b) Filter de te verwijderen rij uit de datarijen (sla headerrij over)
     const dataRows = rows.slice(1);
     const filtered = dataRows.filter(row => String(row[0]) !== String(itemId));
 
-    // c) Wis het volledige databereik
     const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A2:F:clear`;
     const clearResp = await fetchWithRetry(clearUrl, {
         method: 'POST',
@@ -387,7 +246,6 @@ export async function deleteInventarisItemFromSheet(itemId) {
         throw new Error(err?.error?.message || `HTTP ${clearResp.status}`);
     }
 
-    // d) Schrijf de gefilterde rijen terug (alleen als er rijen zijn)
     if (filtered.length > 0) {
         const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${TREND_SPREADSHEET_ID}/values/Inventaris!A2?valueInputOption=USER_ENTERED`;
         const writeResp = await fetchWithRetry(writeUrl, {
@@ -424,10 +282,7 @@ export async function getYearlyTotals(year) {
         btwInkoop  += inkoop.totaalBtw;
     }
 
-    // Privé-administratie correcties:
-    // Alle omzet komt binnen op privérekening → volledige omzet incl. BTW is privéonttrekking in geld
     const priveOnttrekkingenGeld = omzetEx + btwVerkoop;
-    // Zakelijke kosten betaald via privérekening → inkoop incl. BTW is privéstorting in natura
     const priveStortingenNatura  = inkoopEx + btwInkoop;
 
     const r = (val) => Math.round(val * 100) / 100;

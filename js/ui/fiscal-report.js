@@ -1,5 +1,5 @@
 import { fiscalState } from '../store/fiscal-state.js';
-import { appendToTrendSheet } from '../api/storage-queries.js';
+import { appendToTrendSheet } from '../api/storage-queries-fiscal.js';
 
 /**
  * Renders the final Fiscal Report and Cheat Sheet into the provided container.
