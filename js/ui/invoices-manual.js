@@ -82,98 +82,121 @@ export async function loadManualClientsAfterAuth() {
         renderSavedClientsDropdown();
     } catch (e) {
         console.error("Fout bij laden klanten na inloggen:", e);
-        renderSavedClientsDropdown();
+        clientSelect.innerHTML = `
+            <option value="">⚠️ Fout bij laden: ${e.message}</option>
+            <option value="custom">Nieuw / Aangepast...</option>
+        `;
     }
 }
 
 async function fetchSavedClientsFromSheet() {
     if (!accessToken) return [];
 
-    try {
-        const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        if (!metaRes.ok) return [];
-        
-        const metaData = await metaRes.json();
-        const sheetExists = (metaData.sheets || []).some(s => s.properties.title === 'Klanten');
+    const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!metaRes.ok) {
+        const errorText = await metaRes.text();
+        throw new Error(`Google Sheets metadata kon niet worden geladen: ${metaRes.status} ${errorText}`);
+    }
+    
+    const metaData = await metaRes.json();
+    const sheetExists = (metaData.sheets || []).some(s => s.properties.title === 'Klanten');
 
-        if (!sheetExists) {
-            // Create tab 'Klanten'
-            const createRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    requests: [
-                        {
-                            addSheet: {
-                                properties: { title: 'Klanten' }
-                            }
+    if (!sheetExists) {
+        // Create tab 'Klanten'
+        const createRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                requests: [
+                    {
+                        addSheet: {
+                            properties: { title: 'Klanten' }
                         }
-                    ]
-                })
-            });
-            if (!createRes.ok) return [];
-
-            // Add headers and seed default clients
-            const initialValues = [
-                ["Klantnaam", "T.a.v.", "Adres", "Woonplaats"],
-                ...DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city])
-            ];
-            await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D${initialValues.length}?valueInputOption=USER_ENTERED`, {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    values: initialValues
-                })
-            });
-            savedClients = [...DEFAULT_CLIENTS];
-            return savedClients;
-        }
-
-        const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
+                    }
+                ]
+            })
         });
-        if (!dataRes.ok) return [];
-        
-        const dataJson = await dataRes.json();
-        const rows = dataJson.values || [];
-
-        // If sheet is empty or only has header row, seed it with the default clients
-        if (rows.length <= 1) {
-            const initialValues = DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city]);
-            await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:D${initialValues.length + 1}?valueInputOption=USER_ENTERED`, {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    values: initialValues
-                })
-            });
-            savedClients = [...DEFAULT_CLIENTS];
-            return savedClients;
+        if (!createRes.ok) {
+            const errorText = await createRes.text();
+            throw new Error(`Klanten tabblad kon niet worden aangemaakt: ${createRes.status} ${errorText}`);
         }
 
-        savedClients = rows.slice(1).map(r => ({
+        // Add headers and seed default clients
+        const initialValues = [
+            ["Klantnaam", "T.a.v.", "Adres", "Woonplaats"],
+            ...DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city])
+        ];
+        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D${initialValues.length}?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                values: initialValues
+            })
+        });
+        if (!seedRes.ok) {
+            const errorText = await seedRes.text();
+            throw new Error(`Klanten tabblad kon niet worden gevuld: ${seedRes.status} ${errorText}`);
+        }
+        savedClients = [...DEFAULT_CLIENTS];
+        return savedClients;
+    }
+
+    const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!dataRes.ok) {
+        const errorText = await dataRes.text();
+        throw new Error(`Klantgegevens konden niet worden opgehaald: ${dataRes.status} ${errorText}`);
+    }
+    
+    const dataJson = await dataRes.json();
+    const rows = dataJson.values || [];
+
+    let existingClients = [];
+    if (rows.length > 1) {
+        existingClients = rows.slice(1).map(r => ({
             name: r[0] || '',
             attention: r[1] || '',
             address: r[2] || '',
             city: r[3] || ''
         })).filter(c => c.name !== '');
-
-        return savedClients;
-    } catch (e) {
-        console.error("Error in fetchSavedClientsFromSheet:", e);
-        return [];
     }
+
+    // Check which defaults are missing from the sheet
+    const missingDefaults = DEFAULT_CLIENTS.filter(def => 
+        !existingClients.some(ext => ext.name.toLowerCase().trim() === def.name.toLowerCase().trim())
+    );
+
+    if (missingDefaults.length > 0) {
+        // Appends the missing defaults to the sheet
+        const appendValues = missingDefaults.map(c => [c.name, c.attention, c.address, c.city]);
+        const appendRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D:append?valueInputOption=USER_ENTERED`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                values: appendValues
+            })
+        });
+        if (!appendRes.ok) {
+            const errorText = await appendRes.text();
+            throw new Error(`Toevoegen van vaste relaties mislukt: ${appendRes.status} ${errorText}`);
+        }
+        existingClients.push(...missingDefaults);
+    }
+
+    savedClients = existingClients;
+    return savedClients;
 }
 
 async function saveClientToSheetApi(client) {
