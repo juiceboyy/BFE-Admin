@@ -7,26 +7,7 @@ import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 
 // Pre-programmed default clients
-export const DEFAULT_CLIENTS = [
-    {
-        name: "Muziekcentrum Zuidoost",
-        attention: "Boekhouding",
-        address: "Hofgeest 139",
-        city: "1102EG Amsterdam ZO"
-    },
-    {
-        name: "Studio Multi Acoustics",
-        attention: "Gijs Hietkamp",
-        address: "Van Hogendorpstraat 136",
-        city: "2515NX Den Haag"
-    },
-    {
-        name: "Oh Snap!",
-        attention: "Tommy Everts",
-        address: "Minister Talmalaan 23",
-        city: "2285 EB Rijswijk"
-    }
-];
+
 
 let savedClients = [];
 let manualItems = [
@@ -126,26 +107,22 @@ async function fetchSavedClientsFromSheet() {
             throw new Error(`Klanten tabblad kon niet worden aangemaakt: ${createRes.status} ${errorText}`);
         }
 
-        // Add headers and seed default clients
-        const initialValues = [
-            ["Klantnaam", "T.a.v.", "Adres", "Woonplaats"],
-            ...DEFAULT_CLIENTS.map(c => [c.name, c.attention, c.address, c.city])
-        ];
-        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D${initialValues.length}?valueInputOption=USER_ENTERED`, {
+        // Add headers to newly created Customers sheet
+        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D1?valueInputOption=USER_ENTERED`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                values: initialValues
+                values: [["Klantnaam", "T.a.v.", "Adres", "Woonplaats"]]
             })
         });
         if (!seedRes.ok) {
             const errorText = await seedRes.text();
-            throw new Error(`Klanten tabblad kon niet worden gevuld: ${seedRes.status} ${errorText}`);
+            throw new Error(`Klanten tabblad headers konden niet worden aangemaakt: ${seedRes.status} ${errorText}`);
         }
-        savedClients = [...DEFAULT_CLIENTS];
+        savedClients = [];
         return savedClients;
     }
 
