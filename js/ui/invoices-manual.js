@@ -170,30 +170,7 @@ async function fetchSavedClientsFromSheet() {
         })).filter(c => c.name !== '');
     }
 
-    // Check which defaults are missing from the sheet
-    const missingDefaults = DEFAULT_CLIENTS.filter(def => 
-        !existingClients.some(ext => ext.name.toLowerCase().trim() === def.name.toLowerCase().trim())
-    );
 
-    if (missingDefaults.length > 0) {
-        // Appends the missing defaults to the sheet
-        const appendValues = missingDefaults.map(c => [c.name, c.attention, c.address, c.city]);
-        const appendRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D:append?valueInputOption=USER_ENTERED`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                values: appendValues
-            })
-        });
-        if (!appendRes.ok) {
-            const errorText = await appendRes.text();
-            throw new Error(`Toevoegen van vaste relaties mislukt: ${appendRes.status} ${errorText}`);
-        }
-        existingClients.push(...missingDefaults);
-    }
 
     savedClients = existingClients;
     return savedClients;
