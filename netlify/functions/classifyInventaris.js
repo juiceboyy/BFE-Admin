@@ -71,7 +71,7 @@ Geef alleen de items terug die WEL geactiveerd moeten worden.
 INKOOPRIJEN:
 ${rijsamenvatting}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
     const payload = {
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },

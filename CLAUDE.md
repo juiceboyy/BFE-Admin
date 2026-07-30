@@ -2,7 +2,7 @@
 
 ## What This Is
 
-**BFE Admin** — accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Features receipt and bank statement scanning (Gemini OCR), automatic durable asset classification, quarterly BTW (VAT) tracking, and fiscal year-end reporting. All AI logic is unified under Google's **Gemini 3.5 Flash** model. Data is persisted in Google Sheets; uploaded receipts and documents are stored in Google Drive.
+**BFE Admin** — accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Features receipt and bank statement scanning (Gemini OCR), automatic durable asset classification, quarterly BTW (VAT) tracking, and fiscal year-end reporting. All AI logic is unified under Google's **Gemini 3.6 Flash** model. Data is persisted in Google Sheets; uploaded receipts and documents are stored in Google Drive.
 
 ## Running the App
 
@@ -70,10 +70,10 @@ js/
       ├── pdf-generator.js   # Generates A4 invoice HTML DOM elements and compiles/uploads sandboxed PDFs
       └── tax-calculator.js  # Tax math, linear asset depreciation, and Dutch tax rate sheets (2023–2026)
 netlify/functions/
-  ├── classifyInventaris.js  # Serverless function to classify durable assets using Gemini 3.5 Flash
-  ├── fiscalAdvisor.js       # Serverless function injecting tax context to Gemini 3.5 Flash for Dutch tax advice
-  ├── scanBankStatement.js   # Serverless function extracting begin/end bank balance from PDF using Gemini 3.5 Flash
-  └── scanReceipt.js         # Serverless function extracting metadata from receipts using Gemini 3.5 Flash
+  ├── classifyInventaris.js  # Serverless function to classify durable assets using Gemini 3.6 Flash
+  ├── fiscalAdvisor.js       # Serverless function injecting tax context to Gemini 3.6 Flash for Dutch tax advice
+  ├── scanBankStatement.js   # Serverless function extracting begin/end bank balance from PDF using Gemini 3.6 Flash
+  └── scanReceipt.js         # Serverless function extracting metadata from receipts using Gemini 3.6 Flash
 ```
 
 ### Key Constants Hardcoded in Source
