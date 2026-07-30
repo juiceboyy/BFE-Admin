@@ -162,7 +162,9 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
 }
 
 export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo, driveFileId = null) {
-    const newName = `${factuurnummer} - ${formData.leverancier}`;
+    const newName = (currentMode === 'verkoop' && file && file.name) 
+        ? file.name.replace(/\.pdf$/i, '') 
+        : `${factuurnummer} - ${formData.leverancier}`;
     if (driveFileId) {
         // File is already in Drive — rename it to mark as processed
         await renameDriveFile(driveFileId, newName);
