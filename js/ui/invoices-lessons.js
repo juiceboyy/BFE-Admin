@@ -322,8 +322,9 @@ async function handleGenerateInvoice() {
         const calendarYear2 = String(calendarYear).slice(-2);
 
         const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
+        const factuurNummerFilename = factuurNummer.replace('.', '-');
         const sheetOmschrijving = `lesgeven ${calendarMaandNaam} '${calendarYear2}`;
-        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummer} ${sheetOmschrijving}`;
+        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
         const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });

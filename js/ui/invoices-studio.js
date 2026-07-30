@@ -226,8 +226,9 @@ async function handleGenerateRentInvoices() {
             const calendarMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
             const calendarYear2 = String(invoiceD.getFullYear()).slice(-2);
             
+            const factuurNummerFilename = factuurNummer.replace('.', '-');
             const sheetOmschrijving = `${group.sheetDescription} ${calendarMaandNaam} '${calendarYear2}`;
-            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummer} ${sheetOmschrijving}`;
+            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
             const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
             const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
