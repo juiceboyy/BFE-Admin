@@ -182,7 +182,7 @@ async function handleGenerateRentInvoices() {
             // Clear sheet caches so we get fresh data
             clearSheetCaches();
 
-            // Deriving target sheet
+            // Deriving target sheet from invoice date (factuurdatum)
             const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
             const invoiceD = new Date(invoiceDateVal);
             const targetMonthIndex = invoiceD.getMonth();
@@ -222,12 +222,14 @@ async function handleGenerateRentInvoices() {
                 }
             });
 
-            const factuurNummerFilename = factuurNummer.replace('.', '-');
             const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-            const calendarMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
-            const calendarYear2 = String(invoiceD.getFullYear()).slice(-2);
+            const targetPeriodDate = getGlobalTargetDate();
+            const calendarMaandNaam = MONTH_NAMES_DUTCH[targetPeriodDate.getMonth()];
+            const calendarYear2 = String(targetPeriodDate.getFullYear()).slice(-2);
             
-            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${group.fileNamePrefix} ${calendarMaandNaam} '${calendarYear2}`;
+            const factuurNummerFilename = factuurNummer.replace('.', '-');
+            const sheetOmschrijving = `${group.sheetDescription} ${calendarMaandNaam} '${calendarYear2}`;
+            const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
             const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
             const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
@@ -236,7 +238,7 @@ async function handleGenerateRentInvoices() {
             const formData = {
                 datum: invoiceDateVal,
                 leverancier: group.clientName,
-                omschrijving: `${group.sheetDescription} ${calendarMaandNaam} ${invoiceD.getFullYear()}`,
+                omschrijving: sheetOmschrijving,
                 factuurBedrag: total,
                 btw: btwAmount
             };

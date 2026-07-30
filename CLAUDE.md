@@ -2,7 +2,7 @@
 
 ## What This Is
 
-**BFE Admin** — accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Features receipt and bank statement scanning (Gemini OCR), automatic durable asset classification, quarterly BTW (VAT) tracking, and fiscal year-end reporting. All AI logic is unified under Google's **Gemini 3.5 Flash** model. Data is persisted in Google Sheets; uploaded receipts and documents are stored in Google Drive.
+**BFE Admin** — accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Features receipt and bank statement scanning (Gemini OCR), automatic durable asset classification, quarterly BTW (VAT) tracking, and fiscal year-end reporting. All AI logic is unified under Google's **Gemini 3.6 Flash** model. Data is persisted in Google Sheets; uploaded receipts and documents are stored in Google Drive.
 
 ## Running the App
 
@@ -70,10 +70,10 @@ js/
       ├── pdf-generator.js   # Generates A4 invoice HTML DOM elements and compiles/uploads sandboxed PDFs
       └── tax-calculator.js  # Tax math, linear asset depreciation, and Dutch tax rate sheets (2023–2026)
 netlify/functions/
-  ├── classifyInventaris.js  # Serverless function to classify durable assets using Gemini 3.5 Flash
-  ├── fiscalAdvisor.js       # Serverless function injecting tax context to Gemini 3.5 Flash for Dutch tax advice
-  ├── scanBankStatement.js   # Serverless function extracting begin/end bank balance from PDF using Gemini 3.5 Flash
-  └── scanReceipt.js         # Serverless function extracting metadata from receipts using Gemini 3.5 Flash
+  ├── classifyInventaris.js  # Serverless function to classify durable assets using Gemini 3.6 Flash
+  ├── fiscalAdvisor.js       # Serverless function injecting tax context to Gemini 3.6 Flash for Dutch tax advice
+  ├── scanBankStatement.js   # Serverless function extracting begin/end bank balance from PDF using Gemini 3.6 Flash
+  └── scanReceipt.js         # Serverless function extracting metadata from receipts using Gemini 3.6 Flash
 ```
 
 ### Key Constants Hardcoded in Source
@@ -81,7 +81,8 @@ netlify/functions/
 | Constant | Value / Location | Description |
 |---|---|---|
 | `SPREADSHEET_ID` | `js/api/storage.js` | Google Sheet containing monthly transaction records (`119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg`) |
-| `DRIVE_FOLDER_ID` | `js/api/storage.js` | Target Google Drive folder where processed receipt PDFs/images are stored (`1NBCQ89t1soAvZ315_UA-p-lF340qkraH`) |
+| `DRIVE_FOLDER_ID` | `js/api/storage.js` | Target Google Drive folder where incoming receipts/scans are stored (`1NBCQ89t1soAvZ315_UA-p-lF340qkraH`) |
+| `DRIVE_FACTUREN_FOLDER_ID` | `js/api/storage-drive.js` | Target Google Drive folder where generated sales invoices are stored (`145y8NI0LhwytJ-i22xwxRkKxTMGyy5pR`) |
 | `TREND_SPREADSHEET_ID` | `js/api/storage-queries-fiscal.js` | Trend & Inventory archive Google Sheet (`1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI`) |
 | `CLIENT_ID` | `js/api/auth.js` | Google Identity Services OAuth Client ID for authenticating BFE Admin |
 | `SPREADSHEET_IDS` | `js/ui/fiscal-intake.js` | Year-specific spreadsheet template mappings (2023, 2024, 2025, 2026) |

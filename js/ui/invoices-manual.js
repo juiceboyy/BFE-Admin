@@ -662,12 +662,11 @@ async function handleGenerateManualInvoice() {
 
         const invoiceElement = buildInvoiceDOM(invoiceDOMConfig);
 
-        // Filename format: BFE26FR 2026-004 omschrijving
+        // Filename format: BFE26FR 2026-054 <omschrijving voor spreadsheet>
         const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
         const factuurNummerFilename = factuurNummer.replace('.', '-');
-        
-        const cleanBookingDescForFilename = bookingDesc.replace(/[^a-zA-Z0-9\s_-]/g, ' ').trim().replace(/\s+/g, ' ');
-        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${cleanBookingDescForFilename}`;
+        const sheetOmschrijving = bookingDesc.trim();
+        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
         const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
@@ -676,7 +675,7 @@ async function handleGenerateManualInvoice() {
         const formData = {
             datum: invoiceDateVal,
             leverancier: clientName,
-            omschrijving: bookingDesc,
+            omschrijving: sheetOmschrijving,
             factuurBedrag: invoiceTotal,
         };
 

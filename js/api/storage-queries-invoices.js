@@ -94,7 +94,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
             const row = rows[i];
             const factVal = row[factuurIdx];
             if (!factVal) continue;
-            const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+            const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
             if (match && parseInt(match[1]) === targetYear) {
                 const seq = parseInt(match[2]);
                 if (seq > maxSeq) maxSeq = seq;
@@ -158,7 +158,7 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
                 for (let i = 1; i < (totalenRowIdx !== -1 ? totalenRowIdx : rows.length); i++) {
                     const factVal = rows[i][factuurIdx];
                     if (!factVal) continue;
-                    const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+                    const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
                     if (match && parseInt(match[1]) === currentYear) {
                         const seq = parseInt(match[2]);
                         if (maxSeq === null || seq > maxSeq) {
@@ -193,7 +193,7 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
 
                         const factVal = prevRows[i][factuurIdx];
                         if (!factVal) continue;
-                        const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+                        const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
                         if (match && parseInt(match[1]) === currentYear) {
                             const seq = parseInt(match[2]);
                             if (maxSeq === null || seq > maxSeq) {

@@ -21,8 +21,8 @@ export const handler = async (event, context) => {
             };
         }
 
-        // Gebruik de stabiele URL voor Gemini 3.5 Flash
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+        // Gebruik de stabiele URL voor Gemini 3.6 Flash
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
         // Zorg ervoor dat base64Data géén data prefix bevat
         if (base64Data.includes(',')) {
@@ -65,10 +65,11 @@ export const handler = async (event, context) => {
 
         // Error handling: Google API fouten
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData?.error?.message || (typeof errorData?.error === 'string' ? errorData.error : `Gemini API fout (${response.status})`);
             return {
                 statusCode: 500,
-                body: JSON.stringify(errorData)
+                body: JSON.stringify({ error: errorMessage })
             };
         }
 
