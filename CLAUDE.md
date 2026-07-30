@@ -81,7 +81,8 @@ netlify/functions/
 | Constant | Value / Location | Description |
 |---|---|---|
 | `SPREADSHEET_ID` | `js/api/storage.js` | Google Sheet containing monthly transaction records (`119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg`) |
-| `DRIVE_FOLDER_ID` | `js/api/storage.js` | Target Google Drive folder where processed receipt PDFs/images are stored (`1NBCQ89t1soAvZ315_UA-p-lF340qkraH`) |
+| `DRIVE_FOLDER_ID` | `js/api/storage.js` | Target Google Drive folder where incoming receipts/scans are stored (`1NBCQ89t1soAvZ315_UA-p-lF340qkraH`) |
+| `DRIVE_FACTUREN_FOLDER_ID` | `js/api/storage-drive.js` | Target Google Drive folder where generated sales invoices are stored (`145y8NI0LhwytJ-i22xwxRkKxTMGyy5pR`) |
 | `TREND_SPREADSHEET_ID` | `js/api/storage-queries-fiscal.js` | Trend & Inventory archive Google Sheet (`1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI`) |
 | `CLIENT_ID` | `js/api/auth.js` | Google Identity Services OAuth Client ID for authenticating BFE Admin |
 | `SPREADSHEET_IDS` | `js/ui/fiscal-intake.js` | Year-specific spreadsheet template mappings (2023, 2024, 2025, 2026) |

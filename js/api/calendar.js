@@ -147,7 +147,7 @@ export function parseEventsForInvoicing(events, searchKeyword) {
  */
 function checkAlreadyInvoiced(description) {
     if (!description) return false;
-    return /gefactureerd\s+\d{4}\.\d{3}/i.test(description);
+    return /gefactureerd\s+\d{4}[.-]\d{3}/i.test(description);
 }
 
 /**

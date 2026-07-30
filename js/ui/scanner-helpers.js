@@ -1,4 +1,4 @@
-import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile } from '../api/storage.js';
+import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile, getFacturenFolderId, DRIVE_FOLDER_ID } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
 
 export function prepareItemData(mode, aiData, memory) {
@@ -167,7 +167,8 @@ export async function processItemSave(file, formData, itemData, currentMode, fac
         // File is already in Drive — rename it to mark as processed
         await renameDriveFile(driveFileId, newName);
     } else {
-        await uploadToDrive(file, newName);
+        const targetFolderId = (currentMode === 'verkoop') ? await getFacturenFolderId() : DRIVE_FOLDER_ID;
+        await uploadToDrive(file, newName, targetFolderId);
     }
 
     // Haal de dynamische sheet headers op

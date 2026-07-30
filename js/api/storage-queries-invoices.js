@@ -73,7 +73,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
     if (_invoiceSeqCache[cacheKey]) {
         const nextSeq = _invoiceSeqCache[cacheKey] + 1;
         _invoiceSeqCache[cacheKey] = nextSeq;
-        return `${targetYear}.${String(nextSeq).padStart(3, '0')}`;
+        return `${targetYear}-${String(nextSeq).padStart(3, '0')}`;
     }
 
     let maxSeq = 0;
@@ -94,7 +94,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
             const row = rows[i];
             const factVal = row[factuurIdx];
             if (!factVal) continue;
-            const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+            const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
             if (match && parseInt(match[1]) === targetYear) {
                 const seq = parseInt(match[2]);
                 if (seq > maxSeq) maxSeq = seq;
@@ -113,7 +113,7 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
     const nextSeq = maxSeq + 1;
     _invoiceSeqCache[cacheKey] = nextSeq;
 
-    return `${targetYear}.${String(nextSeq).padStart(3, '0')}`;
+    return `${targetYear}-${String(nextSeq).padStart(3, '0')}`;
 }
 
 export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, currentYear) {
@@ -158,7 +158,7 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
                 for (let i = 1; i < (totalenRowIdx !== -1 ? totalenRowIdx : rows.length); i++) {
                     const factVal = rows[i][factuurIdx];
                     if (!factVal) continue;
-                    const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+                    const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
                     if (match && parseInt(match[1]) === currentYear) {
                         const seq = parseInt(match[2]);
                         if (maxSeq === null || seq > maxSeq) {
@@ -173,7 +173,7 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
     // 2. Bepaal het factuurnummer
     let factuurNummer = '';
     if (maxSeq !== null) {
-        factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+        factuurNummer = `${currentYear}-${String(maxSeq + 1).padStart(3, '0')}`;
     } else {
         // Als er niks in de huidige maand is gevonden, check de vorige maand
         const prevResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${prevSheet}'!A:Z`, {
@@ -193,7 +193,7 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
 
                         const factVal = prevRows[i][factuurIdx];
                         if (!factVal) continue;
-                        const match = String(factVal).match(/(\d{4})\.(\d{3})/);
+                        const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
                         if (match && parseInt(match[1]) === currentYear) {
                             const seq = parseInt(match[2]);
                             if (maxSeq === null || seq > maxSeq) {
@@ -204,12 +204,12 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
                 }
             }
             if (maxSeq !== null) {
-                factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
+                factuurNummer = `${currentYear}-${String(maxSeq + 1).padStart(3, '0')}`;
             } else {
-                factuurNummer = `${currentYear}.001`;
+                factuurNummer = `${currentYear}-001`;
             }
         } else {
-            factuurNummer = `${currentYear}.001`;
+            factuurNummer = `${currentYear}-001`;
         }
     }
 

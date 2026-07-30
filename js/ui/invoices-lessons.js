@@ -322,8 +322,8 @@ async function handleGenerateInvoice() {
         const calendarYear2 = String(calendarYear).slice(-2);
 
         const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
-        const factuurNummerFilename = factuurNummer.replace('.', '-');
-        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} lesgeven ${calendarMaandNaam} '${calendarYear2}`;
+        const sheetOmschrijving = `lesgeven ${calendarMaandNaam} '${calendarYear2}`;
+        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummer} ${sheetOmschrijving}`;
 
         const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
@@ -331,7 +331,7 @@ async function handleGenerateInvoice() {
         const formData = {
             datum: invoiceDateVal,
             leverancier: 'MZO',
-            omschrijving: `lesgeven ${calendarMaandNaam} ${calendarYear}`,
+            omschrijving: sheetOmschrijving,
             factuurBedrag: invoiceTotal,
         };
 

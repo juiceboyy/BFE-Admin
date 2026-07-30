@@ -2,60 +2,17 @@ import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
 
 export const DRIVE_FOLDER_ID = '1NBCQ89t1soAvZ315_UA-p-lF340qkraH';
+export const DRIVE_FACTUREN_FOLDER_ID = '145y8NI0LhwytJ-i22xwxRkKxTMGyy5pR';
 
-let _facturenFolderIdCache = null;
-
-// Files saved by this app start with YYYY.### (e.g. "2026.042 - Supplier")
-const PROCESSED_NAME_RE = /^\d{4}\.\d{3}/;
+// Files saved by this app start with YYYY-###, YYYY.### or BFE26FR...
+const PROCESSED_NAME_RE = /^(\d{4}[.-]\d{3}|BFE\d{2}FR)/;
 
 /**
- * Zoekt of maakt de 'Facturen' map in Google Drive voor uitgaande verkoopfacturen.
+ * Retourneert de 'Factuur' map ID in Google Drive voor uitgaande verkoopfacturen.
  * @returns {Promise<string>}
  */
 export async function getFacturenFolderId() {
-    if (_facturenFolderIdCache) return _facturenFolderIdCache;
-    if (!accessToken) throw new Error("Niet ingelogd bij Google.");
-
-    try {
-        const q = encodeURIComponent("name = 'Facturen' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
-        const response = await fetchWithRetry(
-            `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
-            { headers: { 'Authorization': `Bearer ${accessToken}` } }
-        );
-
-        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
-        if (response.ok) {
-            const data = await response.json();
-            if (data.files && data.files.length > 0) {
-                _facturenFolderIdCache = data.files[0].id;
-                return _facturenFolderIdCache;
-            }
-        }
-
-        // Als er nog geen map 'Facturen' is in Drive, maak deze dan automatisch aan
-        const createResponse = await fetchWithRetry('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name: 'Facturen',
-                mimeType: 'application/vnd.google-apps.folder'
-            })
-        });
-
-        if (createResponse.ok) {
-            const folderData = await createResponse.json();
-            _facturenFolderIdCache = folderData.id;
-            return _facturenFolderIdCache;
-        }
-
-    } catch (err) {
-        console.error('Fout bij ophalen/aanmaken Facturen map:', err);
-    }
-
-    return DRIVE_FOLDER_ID;
+    return DRIVE_FACTUREN_FOLDER_ID;
 }
 
 /**
