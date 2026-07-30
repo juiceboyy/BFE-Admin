@@ -182,11 +182,11 @@ async function handleGenerateRentInvoices() {
             // Clear sheet caches so we get fresh data
             clearSheetCaches();
 
-            // Deriving target sheet
+            // Deriving target sheet from invoice date (factuurdatum)
             const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
-            const targetPeriodDate = getGlobalTargetDate();
-            const targetMonthIndex = targetPeriodDate.getMonth();
-            const currentYear = targetPeriodDate.getFullYear();
+            const invoiceD = new Date(invoiceDateVal);
+            const targetMonthIndex = invoiceD.getMonth();
+            const currentYear = invoiceD.getFullYear();
             const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
             
             const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
