@@ -184,9 +184,9 @@ async function handleGenerateRentInvoices() {
 
             // Deriving target sheet
             const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
-            const invoiceD = new Date(invoiceDateVal);
-            const targetMonthIndex = invoiceD.getMonth();
-            const currentYear = invoiceD.getFullYear();
+            const targetPeriodDate = getGlobalTargetDate();
+            const targetMonthIndex = targetPeriodDate.getMonth();
+            const currentYear = targetPeriodDate.getFullYear();
             const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
             
             const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
@@ -223,8 +223,9 @@ async function handleGenerateRentInvoices() {
             });
 
             const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-            const calendarMaandNaam = MONTH_NAMES_DUTCH[invoiceD.getMonth()];
-            const calendarYear2 = String(invoiceD.getFullYear()).slice(-2);
+            const targetPeriodDate = getGlobalTargetDate();
+            const calendarMaandNaam = MONTH_NAMES_DUTCH[targetPeriodDate.getMonth()];
+            const calendarYear2 = String(targetPeriodDate.getFullYear()).slice(-2);
             
             const factuurNummerFilename = factuurNummer.replace('.', '-');
             const sheetOmschrijving = `${group.sheetDescription} ${calendarMaandNaam} '${calendarYear2}`;
