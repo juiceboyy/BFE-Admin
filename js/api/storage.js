@@ -9,9 +9,48 @@ export const SPREADSHEET_ID = '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg';
 const _headerCache = new Map(); // sheetName → string[]
 const _rowCache    = new Map(); // sheetName → next available row number
 
+let _allSheetTitlesCache = null;
+
 export function clearSheetCaches() {
     _headerCache.clear();
     _rowCache.clear();
+    _allSheetTitlesCache = null;
+}
+
+export async function resolveRealSheetName(sheetName) {
+    if (!sheetName) return sheetName;
+    if (!_allSheetTitlesCache && accessToken) {
+        try {
+            const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                _allSheetTitlesCache = (data.sheets || []).map(s => s.properties?.title).filter(Boolean);
+            }
+        } catch (e) {
+            console.warn("Kon spreadsheet metadata niet inladen voor sheet matching:", e);
+        }
+    }
+    if (!_allSheetTitlesCache || _allSheetTitlesCache.length === 0) return sheetName;
+
+    // Exact match (case-insensitive)
+    const exact = _allSheetTitlesCache.find(t => t.toLowerCase() === sheetName.toLowerCase());
+    if (exact) return exact;
+
+    // Soft match (e.g. "August Verkoop" -> "Aug Verkoop")
+    const parts = sheetName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        const monthPart = parts[0].toLowerCase().slice(0, 3);
+        const typePart = parts[parts.length - 1].toLowerCase();
+        const matched = _allSheetTitlesCache.find(t => {
+            const tLower = t.toLowerCase();
+            return tLower.startsWith(monthPart) && tLower.includes(typePart);
+        });
+        if (matched) return matched;
+    }
+
+    return sheetName;
 }
 
 /**
@@ -21,6 +60,7 @@ export function clearSheetCaches() {
  */
 export async function insertRowInSheet(sheetName, data, targetRowOverride = null) {
     if (!accessToken) throw new Error("Niet ingelogd bij Google.");
+    sheetName = await resolveRealSheetName(sheetName);
 
     try {
         let targetRow;
@@ -139,8 +179,9 @@ export async function insertRowInSheet(sheetName, data, targetRowOverride = null
 }
 
 export async function getSheetHeaders(sheetName) {
-    if (_headerCache.has(sheetName)) return _headerCache.get(sheetName);
     if (!accessToken) return [];
+    sheetName = await resolveRealSheetName(sheetName);
+    if (_headerCache.has(sheetName)) return _headerCache.get(sheetName);
     try {
         const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A1:Z1`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }

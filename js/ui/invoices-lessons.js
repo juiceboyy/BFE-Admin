@@ -1,5 +1,5 @@
 import { fetchCalendarEvents, parseEventsForInvoicing, updateCalendarEventInvoiceStatus } from '../api/calendar.js';
-import { getGlobalTargetDate, getTargetDateInfo } from '../utils/date.js';
+import { getGlobalTargetDate, getTargetDateInfo, MONTH_NAMES } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { clearSheetCaches } from '../api/storage.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
@@ -261,7 +261,6 @@ async function handleGenerateInvoice() {
     try {
         clearSheetCaches();
 
-        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
         const invoiceD = new Date(invoiceDateVal);
         const targetMonthIndex = invoiceD.getMonth();
         const currentYear = invoiceD.getFullYear();
