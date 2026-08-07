@@ -1,4 +1,4 @@
-import { getGlobalTargetDate } from '../utils/date.js';
+import { getGlobalTargetDate, MONTH_NAMES } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { clearSheetCaches } from '../api/storage.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
@@ -182,8 +182,6 @@ async function handleGenerateRentInvoices() {
             // Clear sheet caches so we get fresh data
             clearSheetCaches();
 
-            // Deriving target sheet from invoice date (factuurdatum)
-            const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
             const invoiceD = new Date(invoiceDateVal);
             const targetMonthIndex = invoiceD.getMonth();
             const currentYear = invoiceD.getFullYear();

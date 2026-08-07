@@ -1,6 +1,7 @@
 import { fetchWithRetry } from '../utils/network.js';
 import { accessToken } from '../api/auth.js';
 import { SPREADSHEET_ID, clearSheetCaches } from '../api/storage.js';
+import { MONTH_NAMES } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
@@ -603,7 +604,6 @@ async function handleGenerateManualInvoice() {
     try {
         clearSheetCaches();
 
-        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
         const invoiceD = new Date(invoiceDateVal);
         const targetMonthIndex = invoiceD.getMonth();
         const currentYear = invoiceD.getFullYear();

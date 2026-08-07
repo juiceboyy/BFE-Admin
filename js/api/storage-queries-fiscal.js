@@ -1,6 +1,7 @@
 import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
 import { SPREADSHEET_ID } from './storage.js';
+import { MONTH_NAMES } from '../utils/date.js';
 
 const TREND_SPREADSHEET_ID = '1nWQOkMInrHgo5c1l-FdjM4EoCbPlv86YwEft1OEROfI';
 
@@ -265,14 +266,12 @@ export async function deleteInventarisItemFromSheet(itemId) {
 }
 
 export async function getYearlyTotals(year) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'August', 'Sep', 'Okt', 'Nov', 'Dec'];
-
     let omzetEx  = 0;
     let btwVerkoop = 0;
     let inkoopEx = 0;
     let btwInkoop  = 0;
 
-    for (const month of months) {
+    for (const month of MONTH_NAMES) {
         const verkoop = await getMonthlyTotals(`${month} Verkoop`);
         const inkoop  = await getMonthlyTotals(`${month} Inkoop`);
 

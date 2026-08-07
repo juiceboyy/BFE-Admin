@@ -1,6 +1,6 @@
 import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
-import { SPREADSHEET_ID } from './storage.js';
+import { SPREADSHEET_ID, resolveRealSheetName } from './storage.js';
 
 // Per-session caches — cleared when the user changes the fiscal period.
 let _cloudMemoryCache = null;              // null = uncached
@@ -118,6 +118,8 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 
 export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, currentYear) {
     if (!accessToken) throw new Error('Niet ingelogd met Google.');
+    targetSheet = await resolveRealSheetName(targetSheet);
+    prevSheet = await resolveRealSheetName(prevSheet);
 
     // 1. Fetch de huidige sheet om de 'Totalen'-rij en de headers te scannen
     const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${targetSheet}'!A:Z`, {
