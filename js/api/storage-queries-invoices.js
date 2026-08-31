@@ -68,48 +68,78 @@ export async function saveCloudMemory(leverancier, omschrijving, tarief) {
     }
 }
 
+export async function getMaxSequenceNumberForType(type, targetYear) {
+    if (!accessToken) return 0;
+    const yearNum = parseInt(targetYear, 10);
+    const targetType = String(type).toLowerCase().includes('verkoop') ? 'verkoop' : 'inkoop';
+
+    try {
+        // 1. Haal alle tabbladen op via spreadsheet metadata
+        const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!metaRes.ok) return 0;
+        const metaData = await metaRes.json();
+        const allTitles = (metaData.sheets || []).map(s => s.properties?.title).filter(Boolean);
+
+        // Filter op relevante tabbladen (bijv. alle 'Inkoop' of alle 'Verkoop' tabbladen)
+        const relevantSheets = allTitles.filter(t => t.toLowerCase().includes(targetType));
+        if (relevantSheets.length === 0) return 0;
+
+        // 2. Batch-ophalen van alle relevante tabbladen in 1 enkel verzoek
+        const params = new URLSearchParams();
+        relevantSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
+
+        const batchRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchGet?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!batchRes.ok) return 0;
+        const batchData = await batchRes.json();
+        const valueRanges = batchData.valueRanges || [];
+
+        let maxSeq = 0;
+
+        for (const rangeData of valueRanges) {
+            const rows = rangeData.values || [];
+            if (rows.length < 2) continue;
+
+            const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
+            const factuurIdx = headers.findIndex(h => h.includes('factuurnummer') || h === 'factuur#' || h === 'factuur nr' || h.includes('factuur') || h.includes('bon'));
+            if (factuurIdx === -1) continue;
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const colA = String(row[0] || '').toLowerCase().trim();
+                if (colA.includes('totaal') || colA.includes('totalen')) break;
+
+                const factVal = row[factuurIdx];
+                if (!factVal) continue;
+                const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
+                if (match && parseInt(match[1], 10) === yearNum) {
+                    const seq = parseInt(match[2], 10);
+                    if (seq > maxSeq) maxSeq = seq;
+                }
+            }
+        }
+
+        return maxSeq;
+    } catch (e) {
+        console.error('Fout bij ophalen max volgnummer:', e);
+        return 0;
+    }
+}
+
 export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
-    const cacheKey = `${targetSheet}:${targetYear}`;
+    const type = String(targetSheet).toLowerCase().includes('verkoop') ? 'verkoop' : 'inkoop';
+    const cacheKey = `${type}:${targetYear}`;
+
     if (_invoiceSeqCache[cacheKey]) {
         const nextSeq = _invoiceSeqCache[cacheKey] + 1;
         _invoiceSeqCache[cacheKey] = nextSeq;
         return `${targetYear}.${String(nextSeq).padStart(3, '0')}`;
     }
 
-    let maxSeq = 0;
-
-    const scanSheet = async (sheetName) => {
-        const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${sheetName}'!A:Z`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const rows = data.values || [];
-        if (rows.length === 0) return;
-        const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
-        const factuurIdx = headers.findIndex(h => h.includes('factuurnummer') || h === 'factuur#' || h === 'factuur nr' || h.includes('factuur'));
-        if (factuurIdx === -1) return;
-
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const factVal = row[factuurIdx];
-            if (!factVal) continue;
-            const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
-            if (match && parseInt(match[1]) === targetYear) {
-                const seq = parseInt(match[2]);
-                if (seq > maxSeq) maxSeq = seq;
-            }
-        }
-    };
-
-    // Scan eerst de huidige maand
-    await scanSheet(targetSheet);
-
-    // Als er nog niks in de huidige maand staat, scan de vorige maand
-    if (maxSeq === 0) {
-        await scanSheet(prevSheet);
-    }
-
+    const maxSeq = await getMaxSequenceNumberForType(type, targetYear);
     const nextSeq = maxSeq + 1;
     _invoiceSeqCache[cacheKey] = nextSeq;
 
@@ -119,9 +149,8 @@ export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targ
 export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, currentYear) {
     if (!accessToken) throw new Error('Niet ingelogd met Google.');
     targetSheet = await resolveRealSheetName(targetSheet);
-    prevSheet = await resolveRealSheetName(prevSheet);
 
-    // 1. Fetch de huidige sheet om de 'Totalen'-rij en de headers te scannen
+    // 1. Fetch de huidige sheet om de 'Totalen'-rij en headers te bepalen
     const response = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${targetSheet}'!A:Z`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
@@ -129,14 +158,12 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
     if (response.status === 401) throw new Error('TOKEN_EXPIRED');
 
     let targetRowIndex = 2; // Default naar rij 2 (direct onder headers) als de sheet leeg is
-    let maxSeq = null;
 
     if (response.ok) {
         const data = await response.json();
         const rows = data.values || [];
 
         if (rows.length > 0) {
-            // Vind de 'Totalen'-rij
             let totalenRowIdx = -1;
             for (let i = 0; i < rows.length; i++) {
                 const colA = String(rows[i][0] || '').toLowerCase().trim();
@@ -146,74 +173,16 @@ export async function findInvoiceTargetRowAndNumber(targetSheet, prevSheet, curr
                 }
             }
 
-            // Bepaal de invoegrij: direct vóór de 'Totalen'-rij, of anders onderaan
             if (totalenRowIdx !== -1) {
-                targetRowIndex = totalenRowIdx + 1; // 1-indexed Sheets row
+                targetRowIndex = totalenRowIdx + 1;
             } else {
                 targetRowIndex = rows.length + 1;
             }
-
-            // Scan voor het hoogste factuurnummer in de huidige maand
-            const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
-            const factuurIdx = headers.findIndex(h => h.includes('factuurnummer') || h === 'factuur#' || h === 'factuur nr' || h.includes('factuur'));
-            if (factuurIdx !== -1) {
-                for (let i = 1; i < (totalenRowIdx !== -1 ? totalenRowIdx : rows.length); i++) {
-                    const factVal = rows[i][factuurIdx];
-                    if (!factVal) continue;
-                    const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
-                    if (match && parseInt(match[1]) === currentYear) {
-                        const seq = parseInt(match[2]);
-                        if (maxSeq === null || seq > maxSeq) {
-                            maxSeq = seq;
-                        }
-                    }
-                }
-            }
         }
     }
 
-    // 2. Bepaal het factuurnummer
-    let factuurNummer = '';
-    if (maxSeq !== null) {
-        factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-    } else {
-        // Als er niks in de huidige maand is gevonden, check de vorige maand
-        const prevResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'${prevSheet}'!A:Z`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-
-        if (prevResponse.ok) {
-            const prevData = await prevResponse.json();
-            const prevRows = prevData.values || [];
-            if (prevRows.length > 0) {
-                const headers = prevRows[0].map(h => String(h || '').toLowerCase().trim());
-                const factuurIdx = headers.findIndex(h => h.includes('factuurnummer') || h === 'factuur#' || h === 'factuur nr' || h.includes('factuur'));
-                if (factuurIdx !== -1) {
-                    for (let i = 1; i < prevRows.length; i++) {
-                        const colA = String(prevRows[i][0] || '').toLowerCase().trim();
-                        if (colA.includes('totaal') || colA.includes('totalen')) break;
-
-                        const factVal = prevRows[i][factuurIdx];
-                        if (!factVal) continue;
-                        const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
-                        if (match && parseInt(match[1]) === currentYear) {
-                            const seq = parseInt(match[2]);
-                            if (maxSeq === null || seq > maxSeq) {
-                                maxSeq = seq;
-                            }
-                        }
-                    }
-                }
-            }
-            if (maxSeq !== null) {
-                factuurNummer = `${currentYear}.${String(maxSeq + 1).padStart(3, '0')}`;
-            } else {
-                factuurNummer = `${currentYear}.001`;
-            }
-        } else {
-            factuurNummer = `${currentYear}.001`;
-        }
-    }
+    // 2. Bepaal het factuurnummer via de centrale volgnummer-logica
+    const factuurNummer = await getNextInvoiceNumberFromCloud(targetSheet, prevSheet, currentYear);
 
     return { targetRowIndex, factuurNummer };
 }
