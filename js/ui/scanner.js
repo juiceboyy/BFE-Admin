@@ -1,13 +1,13 @@
 import { analyzeReceipt } from '../api/gemini.js';
-import { loadCloudMemory, getNextInvoiceNumberFromCloud, clearQueryCaches } from '../api/storage-queries-invoices.js';
+import { loadCloudMemory, clearQueryCaches } from '../api/storage-queries-invoices.js';
 import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
 import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
 import { getBatchRowHTML } from './scanner-row.js';
-import { prepareItemData, getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
+import { prepareItemData } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
 import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID, clearSheetCaches } from '../api/storage.js';
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+import { checkForDuplicate, clearDuplicateCheckerCache } from '../utils/duplicate-checker.js';
+import { saveBatchItem as executeSaveBatchItem, saveAllBatchItems } from './scanner-save.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -42,7 +42,6 @@ export function initScanner() {
         const item = batchQueue.find(i => i.id === itemId);
         if (!item) return;
         item.selected = checkbox.checked;
-        // Update row opacity and save button in-place to preserve any user edits in the other fields
         const row = document.getElementById(`batch-row-${itemId}`);
         if (row) row.classList.toggle('opacity-40', !item.selected);
         const saveBtn = document.getElementById(`btn-save-${itemId}`);
@@ -50,20 +49,18 @@ export function initScanner() {
     });
 
     // --- Period Selector Setup ---
-    // We zoeken de 2e knop in de header (voorheen "Nieuwe Btw-aangifte")
-    const btnPeriod = document.querySelectorAll('header button')[1];
+    const btnPeriod = document.getElementById('period-btn') || document.querySelectorAll('header button')[1];
     if (btnPeriod) {
         const updateBtnText = () => {
             const d = getGlobalTargetDate();
             const monthYear = d.toLocaleString('nl-NL', { month: 'long', year: 'numeric' });
-            // Hoofdletter voor de maand (bijv. "Februari 2026")
             const formattedDate = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
             
             btnPeriod.innerHTML = `<i data-lucide="calendar" class="w-4 h-4"></i> Periode: ${formattedDate}`;
             if (window.lucide) window.lucide.createIcons();
         };
         
-        updateBtnText(); // Initialiseer direct op opstarten
+        updateBtnText();
 
         btnPeriod.addEventListener('click', () => {
             const currentD = getGlobalTargetDate();
@@ -76,9 +73,9 @@ export function initScanner() {
                     const newDate = new Date(year, parseInt(month) - 1, 1);
                     setGlobalTargetDate(newDate);
                     updateBtnText();
-                    // Clear sheet caches so the new period's data is fetched fresh
                     clearSheetCaches();
                     clearQueryCaches();
+                    clearDuplicateCheckerCache();
                     invalidateDashboardCache();
                     setMode(currentMode);
                 }
@@ -177,12 +174,10 @@ async function setMode(mode) {
             if (dashTotal) dashTotal.innerText = formatEur(totals.totaalOmzet);
             if (dashVat) dashVat.innerText = formatEur(totals.totaalBtw);
 
-            // Force the labels to change so there is no confusion
             const vatCard = document.getElementById('dash-vat')?.parentElement;
             if (vatCard) vatCard.querySelector('span.text-xs').innerText = 'Af te dragen BTW';
         });
     } else {
-        // Voor inkoop, willen we ook de cloud data herladen.
         updateRealBtwBalans();
     }
 }
@@ -205,9 +200,18 @@ async function processQueue() {
             item.data = prepareItemData(currentMode, aiData, currentMemory);
             item.status = 'success';
 
-            // Auto-deselect if the parsed date falls outside the active fiscal period
             const dateInfo = getTargetDateInfo(currentMode);
-            item.selected = !item.data.datum || isDateValidForPeriod(item.data.datum, dateInfo.targetYear, dateInfo.targetMonthNum);
+            const isPeriodValid = !item.data.datum || isDateValidForPeriod(item.data.datum, dateInfo.targetYear, dateInfo.targetMonthNum);
+
+            // Automatische duplicaat-detectie tegen wachtrij en Sheets
+            const dupCheck = await checkForDuplicate(item, batchQueue, dateInfo.targetSheet);
+            if (dupCheck.isDuplicate) {
+                item.isDuplicate = true;
+                item.duplicateReason = dupCheck.reason;
+                item.selected = false; // Automatisch uitvinken bij duplicaat
+            } else {
+                item.selected = isPeriodValid;
+            }
         } catch (err) {
             item.status = 'error';
             item.data = { error: err.message };
@@ -218,97 +222,20 @@ async function processQueue() {
 }
 
 export async function saveBatchItem(id) {
-    const item = batchQueue.find(i => i.id === id);
-    if (!item) return;
-
-    const setBtnState = (loading, icon = 'save', isErr = false) => {
-        const btn = document.getElementById(`btn-save-${id}`);
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.innerHTML = loading ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>' : `<i data-lucide="${icon}" class="w-4 h-4"></i>`;
-        btn.classList.toggle('text-red-500', isErr);
-        if (window.lucide) window.lucide.createIcons();
-    };
-
-    // --- Amount validation (before spinner) ---
-    // Vergoeding (excl. BTW) is always derived: factuurBedrag − btw.
-    // If btw > factuurBedrag the implied vergoeding is negative, which is impossible.
-    if (currentMode === 'inkoop') {
-        const preCheck = getFormDataFromDOM(id);
-        const vergoedingVal = preCheck.factuurBedrag - preCheck.btw;
-        const calculatedTotal = vergoedingVal + preCheck.btw; // == preCheck.factuurBedrag
-        const difference = Math.abs(calculatedTotal - preCheck.factuurBedrag);
-        if (preCheck.factuurBedrag > 0 && (vergoedingVal < -0.02 || difference > 0.02)) {
-            alert(
-                `Fout in bedragen!\n\n` +
-                `Vergoeding (${vergoedingVal.toFixed(2)}) + BTW (${preCheck.btw.toFixed(2)}) = ${calculatedTotal.toFixed(2)}.\n` +
-                `Dit komt niet overeen met het ingevulde Factuurbedrag (${preCheck.factuurBedrag.toFixed(2)}).\n\n` +
-                `Corrigeer de bedragen voordat je opslaat.`
-            );
-            return;
-        }
-    }
-
-    setBtnState(true);
-
-    try {
-        const formData = getFormDataFromDOM(id);
-        const dateInfo = getTargetDateInfo(currentMode);
-
-        if (!isDateValidForPeriod(formData.datum, dateInfo.targetYear, dateInfo.targetMonthNum)) {
-            if (!confirm(`⚠️ WAARSCHUWING: De datum (${formData.datum}) valt buiten de boekhoudperiode (${dateInfo.targetSheet}).\n\nDoorgaan?`)) return setBtnState(false);
-        }
-
-        const factuurnummer = await getNextInvoiceNumberFromCloud(dateInfo.targetSheet, dateInfo.prevSheet, dateInfo.targetYear);
-        const factuurInput = document.getElementById(`factuurnummer-${id}`);
-        if (factuurInput) factuurInput.value = factuurnummer;
-
-        await processItemSave(item.file, formData, item.data || {}, currentMode, factuurnummer, dateInfo, item.driveFileId || null);
-
-        item.status = 'saved';
-        invalidateDashboardCache();
-        renderBatchTable();
-
-        // Force a refresh of the monthly VAT balance from Sheets now that a new item is saved.
-        if (currentMode === 'inkoop') {
-            updateRealBtwBalans();
-        }
-    } catch (error) {
-        console.error("Fout bij opslaan:", error);
-        setBtnState(false, 'alert-circle', true);
-        const btn = document.getElementById(`btn-save-${id}`);
-        if (btn) btn.title = error.message;
-        alert(`Er ging iets mis: ${error.message}`);
-    }
+    const dateInfo = getTargetDateInfo(currentMode);
+    await executeSaveBatchItem(id, batchQueue, currentMode, dateInfo, renderBatchTable);
 }
-// Maak globaal beschikbaar voor de onclick handlers
 window.saveBatchItem = saveBatchItem;
 
 export async function saveAllSuccessItems() {
-    const btn = document.getElementById('save-all-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig...';
-        if (window.lucide) window.lucide.createIcons();
-    }
-
-    // Only save items the user has selected; sequential with a pause to respect the Sheets quota
-    const itemsToSave = batchQueue.filter(i => i.status === 'success' && i.selected !== false);
-    for (const item of itemsToSave) {
-        await saveBatchItem(item.id);
-        await delay(1000);
-    }
-
-    // Remove unselected items from the local queue — Drive files are left untouched
-    // so they will be picked up again during the next month's scan.
-    batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved');
-    renderBatchTable();
-
-    if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<i data-lucide="save-all" class="w-4 h-4"></i> Alles Opslaan';
-        if (window.lucide) window.lucide.createIcons();
-    }
+    const dateInfo = getTargetDateInfo(currentMode);
+    await saveAllBatchItems(
+        batchQueue, 
+        currentMode, 
+        dateInfo, 
+        renderBatchTable, 
+        () => { batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved'); }
+    );
 }
 window.saveAllSuccessItems = saveAllSuccessItems;
 

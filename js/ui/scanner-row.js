@@ -27,8 +27,12 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
         omschrijvingInput = `<input type="text" id="omschrijving-${item.id}" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm " value="${item.data && item.data.omschrijving ? item.data.omschrijving : ''}"  placeholder="Omschrijving">`;
     }
 
+    const rowBgClass = item.isDuplicate 
+        ? 'bg-amber-50/70 hover:bg-amber-100/60' 
+        : 'bg-white hover:bg-gray-50';
+
     return `
-        <tr id="batch-row-${item.id}" class="bg-white border-b hover:bg-gray-50 transition-colors${isDeselected ? ' opacity-40' : ''}">
+        <tr id="batch-row-${item.id}" class="${rowBgClass} border-b transition-colors${isDeselected ? ' opacity-40' : ''}">
             <td class="px-4 py-3 align-middle text-center">
                 <input type="checkbox" class="queue-item-select w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     data-item-id="${item.id}"
@@ -41,7 +45,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
                 </div>
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-                ${getStatusBadge(item.status)}
+                ${getStatusBadge(item)}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
                 <input type="date" id="datum-${item.id}" class="w-full p-2 border rounded outline-none ${dateClasses}" 
@@ -68,7 +72,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-center">
                 <button id="btn-save-${item.id}" onclick="saveBatchItem(${item.id})"
-                    class="p-1 ${item.status === 'saved' ? 'text-green-500 cursor-default' : 'text-green-600 hover:text-green-800'} disabled:text-gray-300 transition-colors"
+                    class="p-1 ${item.status === 'saved' ? 'text-emerald-500 cursor-default' : 'text-emerald-600 hover:text-emerald-800'} disabled:text-gray-300 transition-colors"
                     ${(item.status !== 'success' && item.status !== 'saved') || isDeselected ? 'disabled' : ''}
                     ${item.status === 'saved' ? 'disabled' : ''}
                     title="${item.status === 'saved' ? 'Opgeslagen' : isDeselected ? 'Uitgeschakeld' : 'Opslaan'}">
@@ -83,13 +87,29 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
         </tr>`;
 }
 
-function getStatusBadge(status) {
-    switch(status) {
-        case 'pending': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Wachtend...</span>';
-        case 'processing': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⏳ Scannen...</span>';
-        case 'success': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">✅ Klaar</span>';
-        case 'error': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">❌ Fout</span>';
-        case 'saved': return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">💾 Opgeslagen</span>';
+function getStatusBadge(item) {
+    if (typeof item === 'string') {
+        const status = item;
+        switch(status) {
+            case 'pending': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Wachtend</span>';
+            case 'processing': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">Scannen...</span>';
+            case 'success': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Gereed</span>';
+            case 'error': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">Fout</span>';
+            case 'saved': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-600 text-white">Opgeslagen</span>';
+            default: return '';
+        }
+    }
+
+    if (item.isDuplicate) {
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-900 border border-amber-300 cursor-help" title="${item.duplicateReason || 'Mogelijk duplicaat'}">Duplicaat</span>`;
+    }
+
+    switch(item.status) {
+        case 'pending': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Wachtend</span>';
+        case 'processing': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">Scannen...</span>';
+        case 'success': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Gereed</span>';
+        case 'error': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">Fout</span>';
+        case 'saved': return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-600 text-white">Opgeslagen</span>';
         default: return '';
     }
 }
