@@ -5,36 +5,38 @@ import { initFiscalIntake, loadInventarisAfterAuth } from './ui/fiscal-intake.js
 import { initInvoicesModule } from './ui/invoices.js';
 import { loadManualClientsAfterAuth } from './ui/invoices-manual.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
-import { autoRepairJulyReceipts } from './utils/receipt-repair.js';
+import { reconcileDriveWithSheets } from './utils/receipt-repair.js';
 
-window.handleRepairJuly = async function() {
+window.handleReconcileDrive = async function() {
     const btn = document.getElementById('repair-july-btn');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Bezig...';
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Drive Synchroniseren...';
         if (window.lucide) window.lucide.createIcons();
     }
 
     try {
-        const res = await autoRepairJulyReceipts(2026);
+        const res = await reconcileDriveWithSheets(2026);
         if (res.status === 'succes') {
-            const lines = res.corrections.map(c => `• ${c.oldNumber} ➔ ${c.newNumber} (${c.vendor || 'Leverancier'})`).join('\n');
-            const driveMsg = res.driveRenames.length > 0 
-                ? `\n\nGoogle Drive:\n${res.driveRenames.length} bestand(en) automatisch hernoemd in Drive.` 
-                : '\n\nGoogle Drive:\nGeen hernoemingen vereist.';
-            alert(`Juli bonnummers succesvol hersteld!\n\nHoogste nummer t/m juni: 2026.${String(res.maxSeqBeforeJuly).padStart(3, '0')}\n\nAangepaste rijen in '${res.julySheetTitle}':\n${lines}${driveMsg}`);
+            const lines = res.renames.slice(0, 15).map(r => `• ${r.oldName} ➔ ${r.newName} (${r.sheet})`).join('\n');
+            const moreText = res.renames.length > 15 ? `\n...en nog ${res.renames.length - 15} bestanden.` : '';
+            alert(
+                `Google Drive succesvol gesynchroniseerd met Google Sheets!\n\n` +
+                `Totaal bestanden gecontroleerd: ${res.totalDriveFiles}\n` +
+                `Aangepaste bestandsnamen: ${res.renamesCount}\n\n` +
+                `${lines}${moreText}`
+            );
             if (btn) btn.classList.add('hidden');
-            invalidateDashboardCache();
         } else {
-            alert(res.message);
+            alert(res.message || "Synchronisatie voltooid.");
         }
     } catch (err) {
-        console.error("Herstelfout:", err);
-        alert(`Fout bij automatisch herstel: ${err.message}`);
+        console.error("Fout bij synchroniseren Drive:", err);
+        alert(`Fout: ${err.message}`);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i data-lucide="wrench" class="w-3.5 h-3.5"></i> Herstel Juli Bonnen';
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync Drive Bestandsnamen';
             if (window.lucide) window.lucide.createIcons();
         }
     }
