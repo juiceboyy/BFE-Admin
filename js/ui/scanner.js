@@ -50,8 +50,7 @@ export function initScanner() {
     });
 
     // --- Period Selector Setup ---
-    // We zoeken de 2e knop in de header (voorheen "Nieuwe Btw-aangifte")
-    const btnPeriod = document.querySelectorAll('header button')[1];
+    const btnPeriod = document.getElementById('period-btn') || document.querySelectorAll('header button')[1];
     if (btnPeriod) {
         const updateBtnText = () => {
             const d = getGlobalTargetDate();
