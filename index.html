@@ -530,22 +530,24 @@
                 </button>
             </div>
 
-            <!-- Scanning Progress Indicator -->
-            <div id="reconcile-progress-container" class="p-8 flex flex-col items-center justify-center space-y-4">
-                <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 animate-pulse">
-                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+            <!-- Top Live Scanning Banner -->
+            <div id="reconcile-live-bar" class="hidden px-6 py-2.5 bg-purple-50 border-b border-purple-100 flex items-center justify-between text-xs text-purple-900">
+                <div class="flex items-center gap-2.5 flex-1 min-w-0 pr-4">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-purple-700 shrink-0"></i>
+                    <span id="reconcile-progress-text" class="font-medium truncate">Bezig met scannen...</span>
                 </div>
-                <div class="text-center">
-                    <p id="reconcile-progress-text" class="text-sm font-medium text-gray-800">Bestanden voorbereiden...</p>
-                    <p class="text-xs text-gray-400 mt-1">PDF's worden één voor één geanalyseerd met Gemini AI</p>
-                </div>
-                <div class="w-full max-w-md bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div id="reconcile-progress-bar" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-32 bg-purple-200 rounded-full h-1.5 overflow-hidden">
+                        <div id="reconcile-progress-bar" class="bg-purple-700 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <button id="btn-stop-reconcile-scan" class="px-2 py-1 bg-white border border-purple-200 hover:bg-purple-100 text-purple-800 rounded font-medium text-[11px] transition-colors">
+                        Stop Scan
+                    </button>
                 </div>
             </div>
 
             <!-- Table & Filters View -->
-            <div id="reconcile-table-container" class="flex-1 overflow-hidden flex flex-col hidden">
+            <div id="reconcile-table-container" class="flex-1 overflow-hidden flex flex-col">
                 <!-- Filters Bar -->
                 <div class="px-6 py-3 border-b border-gray-100 flex items-center justify-between bg-white text-xs">
                     <div class="flex items-center gap-2">
@@ -584,19 +586,23 @@
                             </tr>
                         </thead>
                         <tbody id="reconcile-table-body" class="divide-y divide-gray-100">
-                            <!-- Dynamically generated rows -->
+                            <tr>
+                                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">
+                                    Scannen starten...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <!-- Modal Footer -->
-            <div id="reconcile-actions" class="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between hidden">
+            <div id="reconcile-actions" class="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
                 <button class="close-reconcile-modal px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
                     Sluiten
                 </button>
                 <button id="btn-execute-reconcile" 
-                    class="px-5 py-2.5 bg-black text-white text-sm font-medium rounded-xl shadow-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                    class="px-5 py-2.5 bg-black text-white text-sm font-medium rounded-xl shadow-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
                     <i data-lucide="check-check" class="w-4 h-4"></i> Hernoem Geselecteerde Bestanden
                 </button>
             </div>

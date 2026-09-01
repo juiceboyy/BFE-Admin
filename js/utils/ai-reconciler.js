@@ -14,7 +14,6 @@ import { normalizeVendorName, parseAmount, parseDateInfo } from './duplicate-che
 export async function fetchAllInkoopSheetRecords(targetYear = 2026) {
     if (!accessToken) throw new Error("Niet ingelogd met Google.");
 
-    // 1. Metadata ophalen
     const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title`, {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -25,7 +24,6 @@ export async function fetchAllInkoopSheetRecords(targetYear = 2026) {
     const inkoopSheets = allTitles.filter(t => t.toLowerCase().includes('inkoop'));
     if (inkoopSheets.length === 0) return [];
 
-    // 2. Batch-ophalen van alle rijen
     const params = new URLSearchParams();
     inkoopSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
 
@@ -85,12 +83,13 @@ export async function fetchAllInkoopSheetRecords(targetYear = 2026) {
 }
 
 /**
- * Scant alle PDF-bestanden in Drive met Gemini AI en koppelt deze aan Google Sheets.
+ * Scant alle PDF-bestanden in Drive met Gemini AI en streamt per bon direct de match.
  * @param {number} targetYear 
- * @param {Function} progressCallback 
+ * @param {Function} onItemCallback 
+ * @param {Function} shouldCancelFn 
  * @returns {Promise<Object>}
  */
-export async function runAiAuditAndReconciliation(targetYear = 2026, progressCallback = null) {
+export async function runAiAuditAndReconciliation(targetYear = 2026, onItemCallback = null, shouldCancelFn = null) {
     if (!accessToken) throw new Error("Niet ingelogd met Google.");
 
     // 1. Haal alle Sheet records en cloud-memory op
@@ -113,13 +112,17 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
     const total = driveFiles.length;
 
     for (let idx = 0; idx < total; idx++) {
+        if (shouldCancelFn && shouldCancelFn()) {
+            break;
+        }
+
         const file = driveFiles[idx];
-        if (progressCallback) {
-            progressCallback({
+        if (onItemCallback) {
+            onItemCallback({
+                type: 'start_file',
                 current: idx + 1,
                 total,
-                fileName: file.name,
-                status: 'scanning'
+                fileName: file.name
             });
         }
 
@@ -154,10 +157,9 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
                 if (!isVendorMatch || !isAmountMatch) continue;
 
                 // STRIKTE MAAND-BEWAKING:
-                // Een factuur uit maart mag NOOIT gekoppeld worden aan een sheet uit juni of juli (bij bijv. vaste Apple abonnementen)
+                // Een factuur uit maart mag NOOIT gekoppeld worden aan een sheet uit juni of juli
                 if (aiDateInfo && rec.dateInfo) {
                     if (aiDateInfo.month !== rec.dateInfo.month) {
-                        // Maanden verschillen -> categorisch afwijzen voor deze regel
                         continue;
                     }
 
@@ -195,7 +197,7 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
                 ? `${bestMatch.factuurnummer} - ${bestMatch.vendor || aiVendor}${ext}`
                 : file.name;
 
-            results.push({
+            const resultItem = {
                 fileId: file.id,
                 currentName: file.name,
                 proposedName,
@@ -209,11 +211,22 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
                 tier: bestTier,
                 matchReason,
                 selected: bestTier === 'groen'
-            });
+            };
+
+            results.push(resultItem);
+
+            if (onItemCallback) {
+                onItemCallback({
+                    type: 'file_matched',
+                    item: resultItem,
+                    current: idx + 1,
+                    total
+                });
+            }
 
         } catch (err) {
             console.error(`Fout bij analyseren ${file.name}:`, err);
-            results.push({
+            const errorItem = {
                 fileId: file.id,
                 currentName: file.name,
                 proposedName: file.name,
@@ -222,7 +235,17 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
                 tier: 'rood',
                 matchReason: `AI Scan fout: ${err.message}`,
                 selected: false
-            });
+            };
+            results.push(errorItem);
+
+            if (onItemCallback) {
+                onItemCallback({
+                    type: 'file_matched',
+                    item: errorItem,
+                    current: idx + 1,
+                    total
+                });
+            }
         }
     }
 

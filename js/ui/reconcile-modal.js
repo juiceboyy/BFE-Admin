@@ -5,6 +5,7 @@ import { invalidateDashboardCache } from './dashboard.js';
 let _reconcileData = [];
 let _activeFilter = 'all'; // 'all' | 'groen' | 'oranje' | 'rood'
 let _isScanning = false;
+let _cancelScan = false;
 
 export function initReconcileModal() {
     const modal = document.getElementById('reconcile-modal');
@@ -15,8 +16,13 @@ export function initReconcileModal() {
         btn.addEventListener('click', closeReconcileModal);
     });
 
-    // Start scan knop
+    // Start & Stop knoppen
     document.getElementById('btn-start-reconcile-scan')?.addEventListener('click', startAuditScan);
+    document.getElementById('btn-stop-reconcile-scan')?.addEventListener('click', () => {
+        _cancelScan = true;
+        const text = document.getElementById('reconcile-progress-text');
+        if (text) text.innerText = 'Scannen wordt gestopt...';
+    });
 
     // Filterknoppen
     document.querySelectorAll('.reconcile-filter-btn').forEach(btn => {
@@ -65,41 +71,50 @@ export function closeReconcileModal() {
 async function startAuditScan() {
     if (_isScanning) return;
     _isScanning = true;
+    _cancelScan = false;
+    _reconcileData = [];
 
-    const progressContainer = document.getElementById('reconcile-progress-container');
+    const liveBar = document.getElementById('reconcile-live-bar');
     const progressBar = document.getElementById('reconcile-progress-bar');
     const progressText = document.getElementById('reconcile-progress-text');
-    const tableContainer = document.getElementById('reconcile-table-container');
-    const actionContainer = document.getElementById('reconcile-actions');
 
-    if (progressContainer) progressContainer.classList.remove('hidden');
-    if (tableContainer) tableContainer.classList.add('hidden');
-    if (actionContainer) actionContainer.classList.add('hidden');
+    if (liveBar) liveBar.classList.remove('hidden');
+    if (liveBar) liveBar.classList.add('flex');
+    renderTable();
 
     try {
-        const res = await runAiAuditAndReconciliation(2026, (p) => {
-            if (progressBar) {
-                const pct = Math.round((p.current / p.total) * 100);
-                progressBar.style.width = `${pct}%`;
-            }
-            if (progressText) {
-                progressText.innerText = `Scannen document ${p.current} van ${p.total}: ${p.fileName}`;
-            }
-        });
+        await runAiAuditAndReconciliation(
+            2026,
+            (evt) => {
+                if (evt.type === 'start_file') {
+                    if (progressText) progressText.innerText = `Scannen document ${evt.current} van ${evt.total}: ${evt.fileName}`;
+                    if (progressBar) progressBar.style.width = `${Math.round((evt.current / evt.total) * 100)}%`;
+                } else if (evt.type === 'file_matched') {
+                    _reconcileData.push(evt.item);
+                    renderTable();
+                }
+            },
+            () => _cancelScan
+        );
 
-        _reconcileData = res.matches || [];
-        renderTable();
-
-        if (progressContainer) progressContainer.classList.add('hidden');
-        if (tableContainer) tableContainer.classList.remove('hidden');
-        if (actionContainer) actionContainer.classList.remove('hidden');
+        if (progressText) {
+            progressText.innerText = _cancelScan 
+                ? `Scannen onderbroken (${_reconcileData.length} documenten verwerkt)`
+                : `Scannen voltooid! ${_reconcileData.length} documenten geanalyseerd.`;
+        }
+        if (progressBar) progressBar.style.width = '100%';
 
     } catch (err) {
         console.error("Reconciliatie scan fout:", err);
         alert(`Er ging iets mis tijdens de AI scan: ${err.message}`);
-        if (progressContainer) progressContainer.classList.add('hidden');
     } finally {
         _isScanning = false;
+        setTimeout(() => {
+            if (!_isScanning && liveBar) {
+                liveBar.classList.add('hidden');
+                liveBar.classList.remove('flex');
+            }
+        }, 4000);
     }
 }
 
@@ -120,7 +135,6 @@ function getFilteredData() {
 }
 
 function renderTable() {
-    // Update badge tellers
     const countAll = _reconcileData.length;
     const countGroen = _reconcileData.filter(i => i.tier === 'groen').length;
     const countOranje = _reconcileData.filter(i => i.tier === 'oranje').length;
@@ -143,11 +157,12 @@ function renderTableRows() {
     const filtered = getFilteredData();
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">Geen documenten in deze categorie.</td></tr>`;
+        const msg = _isScanning ? 'Eerste documenten worden geanalyseerd...' : 'Geen documenten in deze categorie.';
+        tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">${msg}</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = filtered.map((item, idx) => {
+    tbody.innerHTML = filtered.map((item) => {
         const badge = getTierBadge(item.tier);
         const matchInfo = item.matchedRecord 
             ? `<div class="font-medium text-gray-900">${item.matchedRecord.sheet}: Factuur ${item.matchedRecord.factuurnummer}</div><div class="text-xs text-gray-500">€ ${item.matchedRecord.amount.toFixed(2)} (${item.matchedRecord.datum})</div>`
@@ -181,7 +196,7 @@ function renderTableRows() {
         `;
     }).join('');
 
-    // Bind checkbox event listeners
+    // Bind checkbox listeners
     tbody.querySelectorAll('.reconcile-row-select').forEach(cb => {
         cb.addEventListener('change', (e) => {
             const fileId = e.target.getAttribute('data-file-id');
