@@ -26,14 +26,6 @@ if (document.readyState === 'loading') {
 // Initialiseer Authenticatie en data fetching
 // De callback wordt uitgevoerd zodra de gebruiker succesvol is ingelogd
 initAuth(async () => {
-    // Toon de AI Reconciliatie knop zodra ingelogd
-    const reconcileBtn = document.getElementById('btn-open-reconcile-modal');
-    if (reconcileBtn) {
-        reconcileBtn.classList.remove('hidden');
-        reconcileBtn.classList.add('flex');
-        if (window.lucide) window.lucide.createIcons();
-    }
-
     // Forceer een directe verversing van het dashboard na inloggen
     invalidateDashboardCache();
     loadInventarisAfterAuth();
