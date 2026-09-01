@@ -191,39 +191,33 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, onItemCallb
                 bestMatch.matched = true;
             }
 
-            const cleanFileName = file.name.replace(/\.pdf$/i, '');
+            const currentNumberMatch = file.name.match(/^(\d{4}[.-]\d{3})/);
+            const currentNumber = currentNumberMatch ? currentNumberMatch[1].replace('-', '.') : null;
+            const proposedNumber = bestMatch ? bestMatch.factuurnummer.replace('-', '.') : null;
             const ext = file.name.toLowerCase().endsWith('.pdf') ? '.pdf' : '';
             const proposedName = bestMatch 
                 ? `${bestMatch.factuurnummer} - ${bestMatch.vendor || aiVendor}${ext}`
                 : file.name;
+            const numberIsUnchanged = Boolean(currentNumber && proposedNumber && currentNumber === proposedNumber);
 
             const resultItem = {
                 fileId: file.id,
                 currentName: file.name,
                 proposedName,
-                aiData: {
-                    vendor: aiVendor,
-                    amount: aiAmount,
-                    date: aiDate,
-                    desc: aiData.omschrijving || ''
-                },
+                currentNumber,
+                proposedNumber,
+                numberIsUnchanged,
+                aiData: { vendor: aiVendor, amount: aiAmount, date: aiDate, desc: aiData.omschrijving || '' },
                 matchedRecord: bestMatch,
                 tier: bestTier,
                 matchReason,
-                selected: bestTier === 'groen'
+                selected: bestTier === 'groen' && !numberIsUnchanged
             };
-
             results.push(resultItem);
 
             if (onItemCallback) {
-                onItemCallback({
-                    type: 'file_matched',
-                    item: resultItem,
-                    current: idx + 1,
-                    total
-                });
+                onItemCallback({ type: 'file_matched', item: resultItem, current: idx + 1, total });
             }
-
         } catch (err) {
             console.error(`Fout bij analyseren ${file.name}:`, err);
             const errorItem = {
@@ -239,12 +233,7 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, onItemCallb
             results.push(errorItem);
 
             if (onItemCallback) {
-                onItemCallback({
-                    type: 'file_matched',
-                    item: errorItem,
-                    current: idx + 1,
-                    total
-                });
+                onItemCallback({ type: 'file_matched', item: errorItem, current: idx + 1, total });
             }
         }
     }

@@ -37,7 +37,11 @@ export function initReconcileModal() {
         const checked = e.target.checked;
         const filtered = getFilteredData();
         filtered.forEach(item => {
-            item.selected = checked;
+            if (checked) {
+                item.selected = !item.numberIsUnchanged && Boolean(item.matchedRecord);
+            } else {
+                item.selected = false;
+            }
         });
         renderTableRows();
         updateActionButtons();
@@ -163,7 +167,7 @@ function renderTableRows() {
     }
 
     tbody.innerHTML = filtered.map((item) => {
-        const badge = getTierBadge(item.tier);
+        const badge = getTierBadge(item);
         const matchInfo = item.matchedRecord 
             ? `<div class="font-medium text-gray-900">${item.matchedRecord.sheet}: Factuur ${item.matchedRecord.factuurnummer}</div><div class="text-xs text-gray-500">€ ${item.matchedRecord.amount.toFixed(2)} (${item.matchedRecord.datum})</div>`
             : `<span class="text-xs text-red-500 font-medium">Geen boeking gevonden</span>`;
@@ -211,8 +215,11 @@ function renderTableRows() {
     if (window.lucide) window.lucide.createIcons();
 }
 
-function getTierBadge(tier) {
-    switch (tier) {
+function getTierBadge(item) {
+    if (item.numberIsUnchanged) {
+        return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">Al Correct</span>';
+    }
+    switch (item.tier) {
         case 'groen':
             return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-300">Exact Match</span>';
         case 'oranje':
