@@ -4,7 +4,7 @@ import { SPREADSHEET_ID } from '../api/storage.js';
 import { DRIVE_FOLDER_ID, downloadDriveFileAsBlob, renameDriveFile } from '../api/storage-drive.js';
 import { analyzeReceipt } from '../api/gemini.js';
 import { loadCloudMemory } from '../api/storage-queries-invoices.js';
-import { normalizeVendorName, parseAmount, normalizeDate } from './duplicate-checker.js';
+import { normalizeVendorName, parseAmount, parseDateInfo } from './duplicate-checker.js';
 
 /**
  * Haalt alle inkoop-boekingen op uit Google Sheets over het hele boekjaar.
@@ -64,6 +64,7 @@ export async function fetchAllInkoopSheetRecords(targetYear = 2026) {
             const amount = amountIdx !== -1 ? parseAmount(row[amountIdx]) : 0;
             const datum = dateIdx !== -1 ? String(row[dateIdx] || '').trim() : '';
             const desc = descIdx !== -1 ? String(row[descIdx] || '').trim() : '';
+            const dateInfo = parseDateInfo(datum, sheetTitle);
 
             sheetRecords.push({
                 sheet: sheetTitle,
@@ -73,7 +74,7 @@ export async function fetchAllInkoopSheetRecords(targetYear = 2026) {
                 normVendor: normalizeVendorName(vendor),
                 amount,
                 datum,
-                normDate: normalizeDate(datum),
+                dateInfo,
                 desc,
                 matched: false
             });
@@ -132,7 +133,7 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
             const normAiVendor = normalizeVendorName(aiVendor);
             const aiAmount = parseAmount(aiData.factuurBedrag || aiData.totaalBedrag || 0);
             const aiDate = aiData.datum || '';
-            const normAiDate = normalizeDate(aiDate);
+            const aiDateInfo = parseDateInfo(aiDate);
 
             // Matching tegen Google Sheets records
             let bestMatch = null;
@@ -150,25 +151,37 @@ export async function runAiAuditAndReconciliation(targetYear = 2026, progressCal
 
                 const isAmountMatch = Math.abs(rec.amount - aiAmount) < 0.05;
 
-                if (isVendorMatch && isAmountMatch) {
-                    // Controleer datum overeenkomst
-                    const isExactDate = normAiDate && rec.normDate && (
-                        normAiDate === rec.normDate ||
-                        aiDate === rec.datum ||
-                        normAiDate.endsWith(rec.normDate) ||
-                        rec.normDate.endsWith(normAiDate)
-                    );
+                if (!isVendorMatch || !isAmountMatch) continue;
 
-                    if (isExactDate) {
+                // STRIKTE MAAND-BEWAKING:
+                // Een factuur uit maart mag NOOIT gekoppeld worden aan een sheet uit juni of juli (bij bijv. vaste Apple abonnementen)
+                if (aiDateInfo && rec.dateInfo) {
+                    if (aiDateInfo.month !== rec.dateInfo.month) {
+                        // Maanden verschillen -> categorisch afwijzen voor deze regel
+                        continue;
+                    }
+
+                    // Zelfde maand: controleer dag
+                    if (aiDateInfo.day === rec.dateInfo.day) {
                         bestMatch = rec;
                         bestTier = 'groen';
-                        matchReason = 'Exacte overeenkomst op leverancier, bedrag en factuurdatum';
+                        matchReason = `Exacte overeenkomst op leverancier, bedrag en datum (${aiDateInfo.isoDate})`;
                         break;
-                    } else if (bestTier !== 'groen') {
+                    } else if (Math.abs(aiDateInfo.day - rec.dateInfo.day) <= 3) {
+                        if (bestTier !== 'groen') {
+                            bestMatch = rec;
+                            bestTier = 'oranje';
+                            matchReason = `Zelfde maand (${rec.sheet}) met kleine dagafwijking (Sheet: ${rec.datum}, AI: ${aiDate})`;
+                        }
+                    } else if (bestTier === 'rood') {
                         bestMatch = rec;
                         bestTier = 'oranje';
-                        matchReason = `Match op leverancier en bedrag (Sheet datum: ${rec.datum}, AI datum: ${aiDate})`;
+                        matchReason = `Match op leverancier en bedrag in ${rec.sheet}`;
                     }
+                } else if (isVendorMatch && isAmountMatch && bestTier === 'rood') {
+                    bestMatch = rec;
+                    bestTier = 'oranje';
+                    matchReason = `Match op leverancier en bedrag (${rec.sheet})`;
                 }
             }
 
