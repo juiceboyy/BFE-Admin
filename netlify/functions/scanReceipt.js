@@ -34,7 +34,37 @@ export const handler = async (event, context) => {
         if (mode === 'verkoop') {
             systemPrompt = `Je bent een accountant die een UITGAANDE verkoopfactuur analyseert. Jij (de afzender) bent Big Fish Entertainment of Ronald van Holst. Gebruik NOOIT deze namen als klant. De klantNaam is degene AAN WIE de factuur is gericht (vaak onder kopjes als "Factuur voor:" of "Aan:"). Voor de omschrijving: Omdat verkoopfacturen vaak meerdere regels hebben, bedenk zelf een korte, logische samenvatting (bijv. "Huur werkruimte en opslag"). Neem niet letterlijk alle regels over. CRUCIAAL: De omschrijving mag NOOIT worden afgekapt met puntjes (...). Gebruik in plaats daarvan gangbare afkortingen (zoals 'mgmt', 'werkzk', 'vh', 'div', 'adm') om de lengte binnen een acceptabele grens (maximaal 50-60 tekens) te houden. De datum MOET ALTIJD in het format YYYY-MM-DD zijn (bijv. 2026-02-28). Gebruik NOOIT tekst zoals "feb" of "maart". Als je de datum niet exact weet, gebruik dan de laatste dag van de gevonden maand. BELANGRIJK: Je MOET uitsluitend een geldig JSON object returnen dat EXACT deze structuur volgt. Zorg dat de omschrijving altijd is ingevuld met een logische samenvatting van de factuurregels: { "factuurnummer": "...", "datum": "YYYY-MM-DD", "klantNaam": "...", "omschrijving": "Jouw samenvatting hier", "totaalBedrag": 0.00, "btwLaag": 0.00, "btwHoog": 0.00, "omzetLaag": 0.00, "omzetHoog": 0.00, "omzetNul": 0.00 }`;
         } else {
-            systemPrompt = `Je bent een Nederlandse accountant. Haal factuurnummer, datum (YYYY-MM-DD), naamLeverancier, omschrijving, factuurBedrag, btwBedrag uit deze bon. CRUCIAAL: De omschrijving mag NOOIT worden afgekapt met puntjes (...). Gebruik in plaats daarvan gangbare afkortingen (zoals 'mgmt', 'werkzk', 'vh', 'div', 'adm') om de lengte binnen een acceptabele grens (maximaal 50-60 tekens) te houden. De datum MOET ALTIJD in het format YYYY-MM-DD zijn (bijv. 2026-02-28). Gebruik NOOIT tekst zoals "feb" of "maart". Als je de datum niet exact weet, gebruik dan de laatste dag van de gevonden maand. \nBELANGRIJK: Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}. \nAls je de leverancier op de bon herkent in dit geheugen, kijk dan goed naar de specifieke producten op de bon. Kies de "omschrijving" uit het geheugen die het beste past bij deze producten. Als de producten nieuw zijn voor deze leverancier, bedenk dan zelf een duidelijke nieuwe omschrijving. \nZoek het absolute eindtotaal van de bon (het volledige bedrag inclusief eventuele btw en onbelaste artikelen, wat de klant daadwerkelijk heeft moeten betalen). Return dit als getal in de key factuurBedrag. \nTel alle btw-bedragen op de bon (zowel hoog als laag) bij elkaar op tot één absoluut totaal en return dit als getal in btwBedrag. Return UITSLUITEND een geldig JSON object.\n\nUITZONDERING VOOR ING BANKAFSCHRIFTEN:\nAls je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrijvingen):\n\nFocus UITSLUITEND op de eerste pagina van het document, de rest mag je negeren.\n\nVul "Tesla" in als naamLeverancier.\n\n4. Om het factuurBedrag te bepalen: negeer de losse transacties in de tabel. Zoek op de eerste pagina specifiek naar het kopje "Totaal af (EUR)". Het getal dat daar direct onder of naast staat (bijvoorbeeld 158,60) is het absolute eindbedrag. Gebruik dit getal als het factuurBedrag and negeer eventuele mintekens.\n\nEr staat geen btw op een bankafschrift. Bereken dit zelf door uit te gaan van 21% btw. De formule voor het btwBedrag is: (factuurBedrag * 21) / 121. Rond dit af op 2 decimalen.\n\nBedenk een logische omschrijving (bijvoorbeeld "Tesla Supercharging" of "Tesla Afschrijving").\n\n7. Bepaal over welke maand het afschrift gaat en gebruik altijd de LAATSTE DAG VAN DIE MAAND als de datum (format: YYYY-MM-DD).\n8. Laat het factuurnummer altijd helemaal leeg (return een lege string "" of null). Verzin zelf geen nummers, dit wordt door een ander systeem afgehandeld.`;
+            systemPrompt = `Je bent een Nederlandse accountant die inkoopfacturen en bonnen analyseert.
+Haal de volgende velden uit deze bon of factuur:
+1. datum: De officiële FACTUURDATUM / UITGIFTEDATUM in het formaat YYYY-MM-DD (bijv. 2026-07-03).
+   CRUCIAAL: Gebruik ALTIJD de factuurdatum / aankoopdatum en NOOIT de vervaldatum, uiterste betaaldatum, incassodatum of leverdatum.
+2. naamLeverancier: De officiële handelsnaam van het bedrijf / de organisatie die de factuur heeft uitgereikt (de leverancier). Nooit de naam van de klant (Ronald van Holst / Big Fish Entertainment).
+3. omschrijving: Een beknopte, duidelijke omschrijving van de gekochte goederen/diensten. De omschrijving mag NOOIT worden afgekapt met puntjes (...). Gebruik gangbare afkortingen om binnen 50-60 tekens te blijven.
+   Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}.
+   Als de leverancier voorkomt in het geheugen, kies dan de best passende omschrijving voor deze specifieke aankoop.
+4. factuurBedrag: Het exacte TOTAALBEDRAG van de factuur inclusief btw (het totale te betalen/voldane bedrag onderaan de bon). Return dit als getal (float).
+5. btwBedrag: Het totale btw-bedrag (zowel 9% als 21% samen) op de factuur. Return dit als getal (float).
+6. factuurnummer: Het factuurnummer dat op de bon van de leverancier staat (indien aanwezig).
+
+UITZONDERING VOOR ING BANKAFSCHRIFTEN:
+Als je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrijvingen):
+- Focus UITSLUITEND op de eerste pagina van het document.
+- Vul "Tesla" in als naamLeverancier.
+- Zoek naar het kopje "Totaal af (EUR)" voor het factuurBedrag (negeer mintekens).
+- Bereken het btwBedrag als: (factuurBedrag * 21) / 121 (afgerond op 2 decimalen).
+- Omschrijving: "Tesla Supercharging".
+- Datum: Altijd de LAATSTE DAG VAN DE BETREFFENDE MAAND (YYYY-MM-DD).
+- factuurnummer: Laat leeg ("").
+
+BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
+{
+  "factuurnummer": "...",
+  "datum": "YYYY-MM-DD",
+  "naamLeverancier": "...",
+  "omschrijving": "...",
+  "factuurBedrag": 0.00,
+  "btwBedrag": 0.00
+}`;
         }
 
         // Fetch request body volgens Gemini v1beta specificatie

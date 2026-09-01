@@ -23,39 +23,92 @@ export function normalizeVendorName(str) {
         .trim();
 }
 
+const MONTH_MAP = {
+    'jan': 1, 'feb': 2, 'mrt': 3, 'mar': 3, 'apr': 4,
+    'mei': 5, 'may': 5, 'jun': 6, 'june': 6, 'juli': 7,
+    'jul': 7, 'july': 7, 'aug': 8, 'sep': 9, 'okt': 10,
+    'oct': 10, 'nov': 11, 'dec': 12
+};
+
 /**
- * Normaliseert een datum string naar YYYY-MM-DD of DD-MM.
+ * Parseert een datum string en retourneert gestandaardiseerde componenten.
  * @param {string} dateStr 
- * @returns {string}
+ * @param {string} sheetNameOpt 
+ * @returns {{day: number, month: number, year: number, isoDate: string}|null}
  */
-export function normalizeDate(dateStr) {
-    if (!dateStr) return '';
+export function parseDateInfo(dateStr, sheetNameOpt = '') {
+    if (!dateStr) return null;
     const str = String(dateStr).trim().toLowerCase();
-    
-    // ISO format: 2026-07-03
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-        return str;
+
+    // 1. ISO format: YYYY-MM-DD
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10);
+        const day = parseInt(isoMatch[3], 10);
+        return {
+            year,
+            month,
+            day,
+            isoDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        };
     }
-    
-    // Dutch sheet format: "3-jul" of "03-jul-2026"
-    const months = {
-        'jan': '01', 'feb': '02', 'mrt': '03', 'mar': '03', 'apr': '04',
-        'mei': '05', 'may': '05', 'jun': '06', 'june': '06', 'juli': '07',
-        'jul': '07', 'july': '07', 'aug': '08', 'sep': '09', 'okt': '10',
-        'oct': '10', 'nov': '11', 'dec': '12'
-    };
-    
+
+    // 2. Formaat: "7-mrt", "07-jul-2026", "7/3/2026", "7-3"
     const parts = str.split(/[-/\s.]+/);
     if (parts.length >= 2) {
-        const day = parts[0].padStart(2, '0');
+        const p0 = parseInt(parts[0], 10);
+        let month = null;
+
+        // Kijk of parts[1] een maandnaam is
         const monthKey = parts[1].slice(0, 4);
-        const monthNum = months[monthKey] || Object.keys(months).find(k => monthKey.startsWith(k)) ? months[Object.keys(months).find(k => monthKey.startsWith(k))] : null;
-        if (monthNum) {
-            return `${day}-${monthNum}`;
+        for (const [k, v] of Object.entries(MONTH_MAP)) {
+            if (monthKey.startsWith(k)) {
+                month = v;
+                break;
+            }
+        }
+
+        // Of een numerieke maand
+        if (!month && !isNaN(parseInt(parts[1], 10))) {
+            month = parseInt(parts[1], 10);
+        }
+
+        if (!isNaN(p0) && month) {
+            const day = p0;
+            const year = (parts.length >= 3 && !isNaN(parseInt(parts[2], 10))) ? parseInt(parts[2], 10) : 2026;
+            return {
+                year,
+                month,
+                day,
+                isoDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            };
         }
     }
-    
-    return str;
+
+    // 3. Fallback: haal maand uit tabbladnaam (bijv. "June Inkoop" of "Mrt Inkoop")
+    if (sheetNameOpt) {
+        const sheetLower = sheetNameOpt.toLowerCase();
+        for (const [k, v] of Object.entries(MONTH_MAP)) {
+            if (sheetLower.startsWith(k) || sheetLower.includes(` ${k} `) || sheetLower.startsWith(`${k} `)) {
+                const dayMatch = str.match(/(\d{1,2})/);
+                const day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+                return {
+                    year: 2026,
+                    month: v,
+                    day,
+                    isoDate: `2026-${String(v).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                };
+            }
+        }
+    }
+
+    return null;
+}
+
+export function normalizeDate(dateStr, sheetNameOpt = '') {
+    const info = parseDateInfo(dateStr, sheetNameOpt);
+    return info ? info.isoDate : '';
 }
 
 /**
