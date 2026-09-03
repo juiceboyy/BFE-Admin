@@ -157,12 +157,17 @@ function renderMonthTableHTML(maanden, totals) {
         const hasWarning = m.verkoop.hasDiscrepancy || (!m.verkoopFound && !m.inkoopFound);
         
         let statusBadge = `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-normal">OK</span>`;
-        if (m.verkoop.hasDiscrepancy) {
+        if (m.verkoop.hasDiscrepancy || m.inkoop?.hasDiscrepancy) {
+            const isV = m.verkoop.hasDiscrepancy;
+            const diff = isV ? m.verkoop.discrepancyDiff : m.inkoop.discrepancyDiff;
+            const titleMsg = isV
+                ? `Verkoop Totalen-rij is ${fmt(m.verkoop.omzetEx)}, losse facturen tellen op tot ${fmt(m.verkoop.calculatedSum)} (verschil ${fmt(diff)})`
+                : `Inkoop Totalen-rij is ${fmt(m.inkoop.voorbelasting)} BTW, losse bonnen tellen op tot ${fmt(m.inkoop.calculatedVoorbelasting)} (verschil ${fmt(diff)})`;
             statusBadge = `
                 <span class="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-medium cursor-help"
-                      title="Sheet Totalen-rij geeft ${fmt(m.verkoop.omzetEx)}, maar de som van losse facturen is ${fmt(m.verkoop.calculatedSum)} (verschil ${fmt(m.verkoop.discrepancyDiff)}).">
+                      title="${titleMsg}">
                     <i data-lucide="alert-triangle" class="w-3 h-3 text-amber-600"></i>
-                    Verschil ${fmt(m.verkoop.discrepancyDiff)}
+                    Verschil ${fmt(diff)}
                 </span>`;
         } else if (!m.verkoopFound && !m.inkoopFound) {
             statusBadge = `<span class="text-[11px] text-gray-400 italic">Geen tabs</span>`;

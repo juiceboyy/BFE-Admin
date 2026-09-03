@@ -71,7 +71,7 @@ export function processVerkoopRange(rangeData, rawTitle, result, mObj) {
             totRowBtwL = idxBtwLaag !== -1 ? parseEuro(row[idxBtwLaag]) : 0;
             totRowBtwH = idxBtwHoog !== -1 ? parseEuro(row[idxBtwHoog]) : 0;
             hasTotaalRow = true;
-            continue;
+            break; // Stop direct bij Totalen-rij conform CLAUDE.md regel 2
         }
 
         const omzetL = idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
@@ -138,36 +138,55 @@ export function processInkoopRange(rangeData, rawTitle, result, mObj) {
     const idxBtw = getIdx(['btw', 'voorbelasting']);
     const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
 
-    let maandKostenEx = 0, maandVoorbelasting = 0, rowCount = 0;
+    let sumKostenEx = 0, sumVoorbelasting = 0, rowCount = 0;
+    let totKostenEx = 0, totVoorbelasting = 0;
+    let hasTotaalRow = false;
 
     for (let i = 1; i < rangeData.values.length; i++) {
         const row = rangeData.values[i];
         if (!row || row.length === 0) continue;
 
         const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
-        if (isTotalRow) continue;
+        if (isTotalRow) {
+            totVoorbelasting = idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0;
+            totKostenEx = idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0;
+            hasTotaalRow = true;
+            break; // Stop direct bij Totalen-rij conform CLAUDE.md regel 2
+        }
 
         const voorbelasting = idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0;
         const kostenExcl = idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0;
 
         if (voorbelasting !== 0 || kostenExcl !== 0 || (idxLeverancier !== -1 && row[idxLeverancier])) {
             rowCount++;
-            maandKostenEx += kostenExcl;
-            maandVoorbelasting += voorbelasting;
+            sumKostenEx += kostenExcl;
+            sumVoorbelasting += voorbelasting;
 
             const leverancier = idxLeverancier !== -1 && row[idxLeverancier] ? String(row[idxLeverancier]).trim() : 'Onbekend';
             result.kosten.perLeverancier[leverancier] = (result.kosten.perLeverancier[leverancier] || 0) + kostenExcl;
         }
     }
 
-    result.kosten.totaal += maandKostenEx;
-    result.voorbelasting.totaal += maandVoorbelasting;
+    const officialKostenEx = hasTotaalRow ? totKostenEx : sumKostenEx;
+    const officialVoorbelasting = hasTotaalRow ? totVoorbelasting : sumVoorbelasting;
+
+    result.kosten.totaal += officialKostenEx;
+    result.voorbelasting.totaal += officialVoorbelasting;
 
     if (mObj) {
+        const diffKosten = hasTotaalRow ? round2(totKostenEx - sumKostenEx) : 0;
+        const diffBtw = hasTotaalRow ? round2(totVoorbelasting - sumVoorbelasting) : 0;
+        const hasDiscrepancy = hasTotaalRow && (Math.abs(diffKosten) > 0.05 || Math.abs(diffBtw) > 0.05) && rowCount > 0;
+
         mObj.inkoop = {
-            kostenEx: round2(maandKostenEx),
-            voorbelasting: round2(maandVoorbelasting),
-            count: rowCount
+            kostenEx: round2(officialKostenEx),
+            voorbelasting: round2(officialVoorbelasting),
+            count: rowCount,
+            hasTotaalRow,
+            calculatedKosten: round2(sumKostenEx),
+            calculatedVoorbelasting: round2(sumVoorbelasting),
+            hasDiscrepancy,
+            discrepancyDiff: Math.abs(diffBtw) > 0.05 ? diffBtw : diffKosten
         };
     }
 }

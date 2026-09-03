@@ -46,7 +46,12 @@ export async function collectYearData(year, spreadsheetId) {
             inkoop: {
                 kostenEx: 0,
                 voorbelasting: 0,
-                count: 0
+                count: 0,
+                hasTotaalRow: false,
+                calculatedKosten: 0,
+                calculatedVoorbelasting: 0,
+                hasDiscrepancy: false,
+                discrepancyDiff: 0
             },
             omzetEx: 0,
             kostenEx: 0,
