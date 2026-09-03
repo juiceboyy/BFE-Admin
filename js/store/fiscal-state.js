@@ -126,11 +126,12 @@ class FiscalState {
 
     addInventarisItem(item) {
         this.state.inventaris.push({
-            id: Date.now(),
+            id: item.id || Date.now(),
             omschrijving: item.omschrijving || '',
             aankoopJaar: item.aankoopJaar || new Date().getFullYear(),
             aankoopBedrag: item.aankoopBedrag || 0,
             afschrijvingsDuur: item.afschrijvingsDuur || 5,
+            restwaarde: item.restwaarde ?? 0,
             boekwaardeVorigJaar: item.boekwaardeVorigJaar || 0
         });
         this.notify();

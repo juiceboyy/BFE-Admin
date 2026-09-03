@@ -133,13 +133,18 @@ export function getFiscalIntakeHTML(state, classes) {
 
             <!-- 4. Duurzame Activa (Inventaris) -->
             <section class="${sectionClass}">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
                         <i data-lucide="package" class="w-5 h-5 text-blue-500"></i> 4. Duurzame Activa &amp; Afschrijvingen
                     </h3>
-                    <button id="btn-add-inventaris" class="bg-black text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Item toevoegen
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-zoek-kandidaten" class="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-600"></i> Uitgaven analyseren
+                        </button>
+                        <button id="btn-add-inventaris" class="bg-black text-white px-3.5 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1 shadow-2xs">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Item toevoegen
+                        </button>
+                    </div>
                 </div>
                 
                 <p class="text-xs text-gray-500 mb-5">
@@ -150,10 +155,10 @@ export function getFiscalIntakeHTML(state, classes) {
                 <div id="inventaris-kandidaten" class="hidden mb-6 p-5 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 border border-blue-100 rounded-xl">
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-sm font-semibold text-blue-900 flex items-center gap-1.5">
-                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i> AI Matcher: Mogelijke inventaris-kandidaten gevonden
+                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i> AI Matcher: Mogelijke inventaris-kandidaten (&gt; €450)
                         </h4>
-                        <button id="btn-zoek-kandidaten" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-colors">
-                            Zoek in Sheets
+                        <button id="btn-close-kandidaten" class="text-xs text-gray-400 hover:text-gray-600 p-1 rounded-md transition-colors" title="Resultaten verbergen">
+                            <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
                     </div>
                     <div id="kandidaten-lijst" class="grid grid-cols-1 sm:grid-cols-2 gap-4">

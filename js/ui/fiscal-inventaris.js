@@ -1,7 +1,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { addInventarisItemToSheet, deleteInventarisItemFromSheet } from '../api/storage-queries-fiscal.js';
-import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
-import { SPREADSHEET_IDS } from './fiscal-intake.js';
+import { handleInventarisMatcherClick } from './fiscal-inventaris-matcher.js';
 
 export function renderInventarisTable() {
     const tbody = document.getElementById('inventaris-tbody');
@@ -218,120 +217,8 @@ export async function handleInventarisClick(e) {
         return true;
     }
 
-    const addKandidaatBtn = target.closest('[data-action="add-kandidaat"]');
-    if (addKandidaatBtn && !addKandidaatBtn.disabled) {
-        const kaart = addKandidaatBtn.closest('[data-kandidaat]');
-        const kandidaat = JSON.parse(decodeURIComponent(kaart.dataset.kandidaat));
-        const year = parseInt(fiscalState.getState().year, 10);
-
-        const newItem = {
-            id:               Date.now(),
-            omschrijving:     kandidaat.omschrijving,
-            aankoopJaar:      year,
-            aankoopBedrag:    kandidaat.aankoopBedrag,
-            afschrijvingsDuur: kandidaat.afschrijvingsDuur || 5,
-            restwaarde:       0,
-        };
-
-        const originalHtml = addKandidaatBtn.innerHTML;
-        addKandidaatBtn.textContent = 'Toevoegen...';
-        addKandidaatBtn.disabled = true;
-
-        try {
-            await addInventarisItemToSheet(newItem);
-            const current = fiscalState.getState().inventaris;
-            fiscalState.setTopLevel('inventaris', [...current, newItem]);
-            renderInventarisTable();
-            kaart.remove();
-            if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
-                document.getElementById('inventaris-kandidaten').classList.add('hidden');
-            }
-        } catch (err) {
-            console.error('Fout bij opslaan kandidaat in sheet:', err);
-            alert(`Kon kandidaat niet toevoegen aan Google Sheets: ${err.message}`);
-            addKandidaatBtn.innerHTML = originalHtml;
-            addKandidaatBtn.disabled = false;
-            if (window.lucide) window.lucide.createIcons();
-        }
-        return true;
-    }
-
-    const skipKandidaatBtn = target.closest('[data-action="skip-kandidaat"]');
-    if (skipKandidaatBtn) {
-        skipKandidaatBtn.closest('[data-kandidaat]').remove();
-        if (!document.querySelector('#kandidaten-lijst [data-kandidaat]')) {
-            document.getElementById('inventaris-kandidaten').classList.add('hidden');
-        }
-        return true;
-    }
-
-    const zoekBtn = target.closest('#btn-zoek-kandidaten');
-    if (zoekBtn) {
-        const state = fiscalState.getState();
-        const year = state.year;
-        const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
-
-        if (!spreadsheetId) {
-            alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
-            return true;
-        }
-
-        const originalHtml = zoekBtn.innerHTML;
-        zoekBtn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Analyseren...';
-        zoekBtn.disabled = true;
-        if (window.lucide) window.lucide.createIcons();
-
-        try {
-            const kandidaten = await getInventarisKandidaten(year, spreadsheetId);
-
-            const kandidatenWrapper = document.getElementById('inventaris-kandidaten');
-            const kandidatenLijst   = document.getElementById('kandidaten-lijst');
-
-            if (kandidaten.length === 0) {
-                kandidatenLijst.innerHTML = `<p class="text-sm text-gray-400 italic">Geen activeerbare investeringen gevonden boven €450 in ${year}.</p>`;
-                kandidatenWrapper.classList.remove('hidden');
-            } else {
-                const bestaand = state.inventaris;
-                const beoordeeld = kandidaten.map(k => ({
-                    ...k,
-                    alBestaand: bestaand.some(b =>
-                        b.omschrijving.toLowerCase() === k.omschrijving.toLowerCase() &&
-                        Math.abs(b.aankoopBedrag - k.aankoopBedrag) < 1
-                    )
-                }));
-
-                const fmt = (n) => Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                kandidatenLijst.innerHTML = beoordeeld.map(k => k.alBestaand
-                    ? `<div class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl opacity-50">
-                            <i data-lucide="check-circle" class="w-4 h-4 text-gray-400 shrink-0"></i>
-                            <span class="text-sm text-gray-400 line-through">${k.omschrijving}</span>
-                            <span class="text-xs text-gray-400 ml-auto">€${fmt(k.aankoopBedrag)} — al in inventaris</span>
-                       </div>`
-                    : `<div data-kandidaat="${encodeURIComponent(JSON.stringify(k))}"
-                             class="flex items-start justify-between gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                            <div class="flex-1 min-w-0">
-                                <p class="font-semibold text-sm text-gray-800">${k.omschrijving}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">${k.leverancier}${k.datum ? ' · ' + k.datum : ''} · €${fmt(k.aankoopBedrag)} · ${k.afschrijvingsDuur} jaar afschrijving</p>
-                                <p class="text-xs text-blue-600 mt-1 italic">${k.reden}</p>
-                            </div>
-                            <div class="flex gap-2 shrink-0">
-                                <button data-action="add-kandidaat" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">Toevoegen</button>
-                                <button data-action="skip-kandidaat" class="text-xs bg-white hover:bg-gray-100 text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors">Overslaan</button>
-                            </div>
-                        </div>
-                    `).join('');
-                kandidatenWrapper.classList.remove('hidden');
-            }
-
-        } catch (err) {
-            alert(`Fout bij zoeken naar kandidaten: ${err.message}`);
-        } finally {
-            zoekBtn.innerHTML = originalHtml;
-            zoekBtn.disabled = false;
-            if (window.lucide) window.lucide.createIcons();
-        }
-        return true;
-    }
+    const handledMatcher = await handleInventarisMatcherClick(e);
+    if (handledMatcher) return true;
 
     return false;
 }
