@@ -23,6 +23,12 @@ npm install -g netlify-cli
 netlify dev
 ```
 
+### Syntax Verification (Linting)
+Since there is no bundler or build step, always run syntax validation across all JS files prior to committing:
+```bash
+find js netlify -name "*.js" -exec node -c {} +
+```
+
 ### Required Environment Variables (.env)
 - `GEMINI_API_KEY` — Loaded by all backend functions (`netlify/functions/scanReceipt.js`, `scanBankStatement.js`, `fiscalAdvisor.js`, and `classifyInventaris.js`)
 

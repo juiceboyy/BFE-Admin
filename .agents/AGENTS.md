@@ -38,6 +38,14 @@ When splitting monolithic modules into smaller focused files (like separating St
 * **Verify Unused Imports Strategically**: When optimizing imports in a refactored file (e.g., removing functions that have been outsourced to another module), never assume that because a function or variable is no longer called in the modified code, it is safe to remove its import.
 * **Scope Scan**: Always do a full text search in the file for the imported symbol to ensure it is not used in other unmodified functions (e.g. settings, API helpers, or default constants) before deleting the import.
 
+## 4. Mandatory Syntax Verification Before Commit
+Because this codebase runs pure vanilla ES modules without a bundler or compiler, a syntax error (like a misplaced or missing bracket) stops the entire application from bootstrapping at runtime.
+* **Always run syntax lint prior to commit**:
+  ```bash
+  find js netlify -name "*.js" -exec node -c {} +
+  ```
+  Never commit or push code without this command passing cleanly with return code 0.
+
 # CLAUDE.md
 
 ## What This Is
