@@ -1,3 +1,5 @@
+const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
+
 /**
  * Returns the HTML template literal for the fiscal intake UI.
  * @param {Object} state - The current fiscalState state.
@@ -6,6 +8,7 @@
  */
 export function getFiscalIntakeHTML(state, classes) {
     const { inputClass, labelClass, sectionClass, headerClass } = classes;
+    const privateIban = localStorage.getItem('bfe_private_iban') || DEFAULT_PRIVATE_IBAN;
 
     return `
         <div id="intake-form-wrapper" class="max-w-4xl mx-auto pb-12">
@@ -80,20 +83,21 @@ export function getFiscalIntakeHTML(state, classes) {
                 <h3 class="${headerClass}">
                     <i data-lucide="user-minus" class="w-5 h-5 text-blue-500"></i> 3. Privéstortingen &amp; Onttrekkingen
                 </h3>
-                <p class="text-xs text-gray-500 mb-5">
-                    Als eenmanszaak worden alle inkomsten rechtstreeks op je privé-rekening ontvangen (onttrekking in geld). Zakelijke kosten die privé zijn betaald, zijn stortingen in natura.
+                <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+                    Alle inkomsten worden rechtstreeks op je privérekening ontvangen (onttrekking in geld). Vanaf die privérekening maak je geld over naar de zakelijke ING-rekening (voor o.a. de autolease). Om deze privéstortingen in geld automatisch te berekenen, upload je hier het <strong>CSV-transactieoverzicht van de zakelijke ING-rekening</strong> over het boekjaar, of vul je het bedrag rechts direct in.
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label class="${labelClass}">Privé IBAN (voor automatische CSV-scan)</label>
-                        <input type="text" id="prive-iban-input" class="${inputClass} mb-4" placeholder="NL99 INGB 0000 0000 00" value="${localStorage.getItem('bfe_private_iban') || ''}">
+                        <label class="${labelClass}">Privé IBAN tegenrekening (voor automatische CSV-scan)</label>
+                        <input type="text" id="prive-iban-input" class="${inputClass} mb-3 font-mono text-xs" placeholder="NL47INGB0005023386" value="${privateIban}">
                         
-                        <label class="${labelClass}">CSV Bankafschrift upload (Matchen met privé IBAN)</label>
+                        <label class="${labelClass}">CSV transacties zakelijke ING-rekening (optioneel)</label>
                         <label class="flex flex-col items-center justify-center w-full h-24 border border-dashed border-gray-200 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                             <div class="flex flex-col items-center gap-1 text-gray-400">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-                                <span class="text-xs font-medium">Selecteer CSV bestand</span>
+                                <span class="text-xs font-medium">Selecteer CSV van zakelijke rekening</span>
+                                <span class="text-[10px] text-gray-400">Mijn ING Zakelijk &rarr; Downloaden &rarr; CSV over ${state.year || 'boekjaar'}</span>
                             </div>
                             <input id="csv-stortingen-upload" type="file" accept=".csv" class="hidden">
                         </label>
@@ -102,18 +106,26 @@ export function getFiscalIntakeHTML(state, classes) {
 
                     <div class="space-y-4">
                         <div>
-                            <label class="${labelClass}">Privéstortingen in geld (automatisch berekend of handmatig)</label>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="${labelClass} mb-0">Privéstortingen in geld</label>
+                                <span class="text-[10px] text-gray-400">Via CSV of handmatig</span>
+                            </div>
                             <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                 <input type="number" step="0.01" data-section="prive" data-bind="stortingenInGeld" class="${inputClass} pl-8" value="${state.prive.stortingenInGeld}">
                             </div>
+                            <p class="text-[11px] text-gray-400 mt-1">Totaal van overboekingen van privé naar de zakelijke rekening in ${state.year || 'dit jaar'}.</p>
                         </div>
                         <div>
-                            <label class="${labelClass}">Privé-onttrekkingen in geld (omzet ontvangen op privé-rekening)</label>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="${labelClass} mb-0">Privé-onttrekkingen in geld</label>
+                                <span class="text-[10px] text-gray-400">Berekend uit omzet</span>
+                            </div>
                             <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                 <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
                             </div>
+                            <p class="text-[11px] text-gray-400 mt-1">Gefactureerde omzet die rechtstreeks op je privérekening is ontvangen.</p>
                         </div>
                     </div>
                 </div>

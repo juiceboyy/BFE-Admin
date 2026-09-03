@@ -16,9 +16,15 @@ export const SPREADSHEET_IDS = {
     2026: '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg',
 };
 
+export const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
+
 export function initFiscalIntake() {
     const container = document.getElementById('view-fiscal');
     if (!container) return;
+
+    if (!localStorage.getItem('bfe_private_iban')) {
+        localStorage.setItem('bfe_private_iban', DEFAULT_PRIVATE_IBAN);
+    }
 
     renderStructure(container);
     setupEventListeners(container);
@@ -108,7 +114,7 @@ function setupEventListeners(container) {
                     reader.onerror = reject;
                 });
 
-                const iban = (document.getElementById('prive-iban-input')?.value || '').trim();
+                const iban = (document.getElementById('prive-iban-input')?.value || localStorage.getItem('bfe_private_iban') || DEFAULT_PRIVATE_IBAN).trim();
                 if (!iban) {
                     resultEl.className = 'text-xs font-medium text-amber-600';
                     resultEl.textContent = 'Vul eerst je privé IBAN in hierboven.';
@@ -120,14 +126,14 @@ function setupEventListeners(container) {
 
                 if (!parsed) {
                     resultEl.className = 'text-xs font-medium text-red-500';
-                    resultEl.textContent = 'CSV kon niet worden ingelezen. Controleer het formaat.';
+                    resultEl.textContent = 'CSV kon niet worden ingelezen. Controleer of het een geldig CSV-bestand is.';
                     target.value = '';
                     return;
                 }
 
                 if (parsed.count === 0) {
                     resultEl.className = 'text-xs font-medium text-amber-600';
-                    resultEl.textContent = `Geen bijschrijvingen gevonden van ${iban}. Controleer het IBAN.`;
+                    resultEl.textContent = `Geen overboekingen gevonden vanaf tegenrekening ${iban}. Controleer of dit het CSV-bestand van de zakelijke ING-rekening is.`;
                     target.value = '';
                     return;
                 }
@@ -138,7 +144,7 @@ function setupEventListeners(container) {
 
                 const fmtCurr = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
                 resultEl.className = 'text-xs font-medium text-emerald-600';
-                resultEl.textContent = `${fmtCurr(parsed.totaal)} gevonden uit ${parsed.count} transactie${parsed.count !== 1 ? 's' : ''} ↳ ingevuld`;
+                resultEl.textContent = `${parsed.count} overboeking(en) vanaf ${iban} gevonden (totaal ${fmtCurr(parsed.totaal)}) en automatisch ingevuld.`;
 
             } catch (err) {
                 resultEl.className = 'text-xs font-medium text-red-500';
