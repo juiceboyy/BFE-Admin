@@ -35,11 +35,16 @@ Boekhoudconventie:
 - BTW-aangifte: kwartaal — Q1: 30 april | Q2: 31 juli | Q3: 31 oktober | Q4: 31 januari
 - BTW-correctie privégebruik (auto, telefoon) uiterlijk 31 december verwerken
 
-## Auto — Volkswagen ID.3
-- Zakelijke leaseauto (Mobility Service Nederland)
-- Cataloguswaarde: **€42.881** | Eerste toelating: 2021 → bijtellingspercentage: **8%**
-- **Vaste jaarlijkse bijtelling: €3.430,48** — telt als privéonttrekking in natura, verhoogt fiscale winst
-- Alle autokosten (lease, laden, parkeren, onderhoud) zijn zakelijk aftrekbaar
+## Auto — Volkswagen ID.3 (Zakelijke Operational Lease bij Mobility Service Nederland)
+- Alle autokosten (lease, laden, parkeren, onderhoud) zijn zakelijk aftrekbaar. Facturen worden voldaan vanaf de zakelijke ING-rekening (gevoed via privéstortingen).
+- **Voertuig 1 (tot 19-09-2025):** VW ID.3 (eerste toelating 2021, kenteken J-615-RT). Cataloguswaarde €42.881, 8% vaste bijtelling (€3.430,48/jaar). Ingeleverd op 19 september 2025 (in 2025 actief van 1 jan t/m 18 sep = 261 dagen, pro-rata €2.453,03).
+- **Voertuig 2 (vanaf 19-09-2025):** VW ID.3 (eerste toelating / Deel 1: 18-09-2025). Cataloguswaarde €36.850. Ingangsdatum lease: 19 september 2025 (in 2025 actief van 19 sep t/m 31 dec = 104 dagen, pro-rata €1.882,54).
+  - EV-bijtellingsstaffel 2025: 17% over de eerste €30.000 (€5.100) + 22% over het meerdere boven €30.000 (€6.850 × 22% = €1.507) = €6.607,00 op jaarbasis.
+- **Fiscale bijtelling per boekjaar:**
+  - 2023 & 2024: **€3.430,48**
+  - 2025 (wisseljaar): **€4.335,57** (261/365 × €3.430,48 + 104/365 × €6.607,00)
+  - 2026 en later: **€6.607,00**
+- De bijtelling telt als privéonttrekking in natura en verhoogt de fiscale winst. Gebruik altijd de exacte bijtelling uit context.bijtelling.
 
 ## Afschrijvingen
 - Methode: **lineair, 5 jaar** als standaard
@@ -54,7 +59,7 @@ Boekhoudconventie:
 
 ## IB-Berekening Volgorde
 1. Brutowinst = Omzet (excl. BTW) − Kosten − Afschrijvingen
-2. + Bijtelling auto: **+€3.430,48** (vast, elk jaar)
+2. + Bijtelling auto: overgenomen uit meegestuurde context.bijtelling (bijv. €3.430,48 voor ≤2024, €4.335,57 voor 2025, €6.607,00 voor ≥2026)
 3. − Zelfstandigenaftrek (zie tarieven boekjaar; vereist urencriterium ≥ 1.225 uur)
 4. × (1 − MKB%) = Belastbare Winst Box 1 (zie tarieven boekjaar)
 5. × IB-tarief Box 1 = geschatte IB (zie tarieven boekjaar)

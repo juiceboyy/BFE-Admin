@@ -122,9 +122,14 @@ The OAuth 2.0 access token lives in a module-level variable in `auth.js`. There 
   - **21% (High)** — Music tuition for students >21 years, commercial production services, merchandise, general expenses.
   - **0% (Zero / Reversed)** — Foreign transactions and VAT reverse charges (*verleggingsregelingen*).
 - **Auto van de Zaak (VW ID.3)**:
-  - Catalog Value: **€42.881**
-  - First admission: 2021 → Addition rate: **8%**
-  - **Fixed annual addition (bijtelling): €3.430,48** added directly to fiscal profit (and treated as a private withdrawal in-kind on the balance sheet).
+  - **Operational Lease**: Mobility Service Nederland. Invoices paid from ING business account funded by private transfers.
+  - **Voertuig 1 (tot 19-09-2025)**: Catalog Value €42.881, first admission 2021 (kenteken J-615-RT) → addition rate: 8% (€3.430,48/yr). Handed in on 19 September 2025.
+  - **Voertuig 2 (vanaf 19-09-2025)**: Catalog Value €36.850, first admission (Deel 1) 18-09-2025, start lease 19-09-2025. Addition rate: 17% up to €30.000 (€5.100) + 22% above €30.000 (€1.507) = €6.607,00/yr.
+  - **Fiscale bijtelling per boekjaar**:
+    - **≤ 2024**: €3.430,48
+    - **2025 (Wisseljaar)**: 261 days old (€2.453,03) + 104 days new (€1.882,54) = **€4.335,57**
+    - **≥ 2026**: **€6.607,00**
+  - Added directly to fiscal profit and treated as a private withdrawal in-kind on the balance sheet.
 - **Durable Assets Depreciation (*Afschrijving*)**:
   - Threshold: Invoices **> €450 excl. BTW** representing assets with a lifetime > 1 year must be activated as durable inventory (*inventaris*) rather than expensed directly.
   - Method: Linear depreciation over **5 years** to residual value (0 by default).

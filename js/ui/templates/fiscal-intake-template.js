@@ -1,3 +1,5 @@
+import { getDefaultCarBijtelling, getCarBijtellingDescription } from '../../utils/tax-calculator.js';
+
 const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
 
 /**
@@ -9,6 +11,11 @@ const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
 export function getFiscalIntakeHTML(state, classes) {
     const { inputClass, labelClass, sectionClass, headerClass } = classes;
     const privateIban = localStorage.getItem('bfe_private_iban') || DEFAULT_PRIVATE_IBAN;
+    const defaultBijtelling = getDefaultCarBijtelling(state.year);
+    const bijtellingVal = state.balans?.bijtellingAuto !== undefined && state.balans?.bijtellingAuto !== null && state.balans?.bijtellingAuto !== ''
+        ? state.balans.bijtellingAuto
+        : defaultBijtelling;
+    const bijtellingDesc = getCarBijtellingDescription(state.year);
 
     return `
         <div id="intake-form-wrapper" class="max-w-4xl mx-auto pb-12">
@@ -220,10 +227,10 @@ export function getFiscalIntakeHTML(state, classes) {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label class="${labelClass}">Fiscale bijtelling auto van de zaak (in geld)</label>
-                        <p class="text-xs text-gray-400 mb-1.5">Bijv. bijtelling lease-auto VW ID.3 (€3.430,48)</p>
+                        <p class="text-xs text-gray-400 mb-1.5">${bijtellingDesc}</p>
                         <div class="relative">
                             <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                            <input type="number" step="0.01" data-section="balans" data-bind="bijtellingAuto" class="${inputClass} pl-8" value="${state.balans?.bijtellingAuto ?? 3430.48}">
+                            <input type="number" step="0.01" data-section="balans" data-bind="bijtellingAuto" class="${inputClass} pl-8" value="${bijtellingVal}">
                         </div>
                     </div>
                     <div>

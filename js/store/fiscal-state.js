@@ -1,3 +1,5 @@
+import { getDefaultCarBijtelling } from '../utils/tax-calculator.js';
+
 const STORAGE_PREFIX = 'bfe_fiscal_';
 const ACTIVE_YEAR_KEY = 'bfe_active_year';
 
@@ -5,11 +7,11 @@ const initialState = {
     year: new Date().getFullYear().toString(),
     sheetData: null,
     bank: { beginSaldo: 0, eindSaldo: 0 },
-    // VW ID.3 — kenteken J-615-RT, eerste toelating 2021 (bron: CLAUDE.md)
+    // VW ID.3 zakelijke operational lease (Mobility Service Nederland)
+    // Voertuig 1 (oud, t/m 18-09-2025): cat. €42.881, 8% vaste bijtelling (€3.430,48/jr)
+    // Voertuig 2 (nieuw, vanaf 19-09-2025): cat. €36.850, 17% tot €30k + 22% boven €30k (€6.607,00/jr)
     auto: {
-        zakelijkGebruik: true,
-        catalogusWaarde: 42881,
-        bijtellingsPercentage: 8
+        zakelijkGebruik: true
     },
     // Inventaris wordt uitsluitend geladen vanuit Google Sheets (SSOT). Nooit opslaan in localStorage.
     inventaris: [],
@@ -61,8 +63,12 @@ class FiscalState {
         this.state.inventaris = [];
 
         // Migratie: catalogusWaarde van auto als die nog op 0 staat
-        if (this.state.auto.catalogusWaarde === 0 && defaultState.auto.catalogusWaarde > 0) {
+        if (this.state.auto && this.state.auto.catalogusWaarde === 0 && defaultState.auto?.catalogusWaarde > 0) {
             this.state.auto.catalogusWaarde = defaultState.auto.catalogusWaarde;
+        }
+        // Migratie: oude hardcoded 3430.48 bijtelling voor 2025 of later updaten naar nieuwe berekende staffel
+        if (this.state.balans && this.state.balans.bijtellingAuto === 3430.48 && parseInt(this.state.year, 10) >= 2025) {
+            this.state.balans.bijtellingAuto = getDefaultCarBijtelling(this.state.year);
         }
         // Migratie: prive.stortingen → prive.stortingenInGeld (hernoemd)
         if (this.state.prive && 'stortingen' in this.state.prive) {
@@ -107,10 +113,14 @@ class FiscalState {
         if (key === 'year' && value !== this.state.year) {
             // Sla huidig jaar op en laad het nieuwe jaar (of start vers)
             this._save();
-            this.state = this._load(value) ?? {
+            const loaded = this._load(value);
+            this.state = loaded ?? {
                 ...JSON.parse(JSON.stringify(this._defaultState)),
                 year: String(value)
             };
+            if (this.state.balans && this.state.balans.bijtellingAuto === 3430.48 && parseInt(this.state.year, 10) >= 2025) {
+                this.state.balans.bijtellingAuto = getDefaultCarBijtelling(this.state.year);
+            }
         } else {
             this.state[key] = value;
         }

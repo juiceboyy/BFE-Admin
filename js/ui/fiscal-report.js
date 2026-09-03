@@ -156,7 +156,7 @@ Hier zijn mijn definitieve berekende cijfers voor het jaar ${calculatedData.year
 - Omzet (excl. BTW): ${fmt(calculatedData.omzet)}
 - Zakelijke Kosten (excl. afschrijvingen): ${fmt(calculatedData.kosten)}
 - Afschrijvingen: ${fmt(calculatedData.totaleAfschrijving)}
-- Bijtelling Auto (VW ID.3): ${fmt(calculatedData.bijtelling)}
+- Bijtelling Auto (VW ID.3${calculatedData.year === 2025 ? ' wissel' : (calculatedData.year >= 2026 ? ' 2025' : '')}): ${fmt(calculatedData.bijtelling)}
 - Fiscale Winst (Box 1): ${fmt(calculatedData.fiscaleWinst)}
 - Privé-onttrekkingen: ${fmt(calculatedData.balans.totaleOnttrekkingen)}${adviceSection}
 
@@ -172,7 +172,7 @@ function _initCopyPromptButton(containerElement, calculatedData, aiAdvice) {
     btn.addEventListener('click', async () => {
         try {
             await navigator.clipboard.writeText(_copyPromptToClipboard(calculatedData, aiAdvice));
-            btn.textContent = '✅ Prompt gekopieerd! Plak dit in je AI.';
+            btn.textContent = 'Prompt gekopieerd! Plak dit in je AI.';
             setTimeout(() => { btn.textContent = originalLabel; }, 3000);
         } catch {
             alert('Klembord niet toegankelijk. Controleer de browsermachtigingen.');

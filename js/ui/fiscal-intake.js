@@ -164,10 +164,15 @@ function setupEventListeners(container) {
 
             if (section) {
                 fiscalState.setNested(section, key, val);
-            } else {
-                if (key === 'year') clearChatHistory();
+                if (key === 'year') {
+                    clearChatHistory();
+                    fiscalState.setTopLevel(key, val);
+                    renderStructure(container);
+                    renderInventarisTable();
+                    restoreSyncSummary(container);
+                    return;
+                }
                 fiscalState.setTopLevel(key, val);
-            }
         }
 
         // Dynamic Inventaris Table
