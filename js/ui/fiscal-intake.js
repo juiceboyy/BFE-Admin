@@ -1,13 +1,12 @@
 import { fiscalState } from '../store/fiscal-state.js';
-import { collectYearData } from '../api/tax-collector.js';
-import { getYearlyTotals, fetchInventarisFromSheet, addInventarisItemToSheet, deleteInventarisItemFromSheet } from '../api/storage-queries-fiscal.js';
+import { fetchInventarisFromSheet } from '../api/storage-queries-fiscal.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice, clearChatHistory } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
-import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 import { parsePriveStortingenCSV } from '../utils/csv-parser.js';
 import { getFiscalIntakeHTML } from './templates/fiscal-intake-template.js';
 import { renderInventarisTable, handleInventarisClick, updateInventarisRijBerekening } from './fiscal-inventaris.js';
+import { handleSyncSheets, restoreSyncSummary } from './fiscal-sync.js';
 
 export const SPREADSHEET_IDS = {
     2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
@@ -16,8 +15,6 @@ export const SPREADSHEET_IDS = {
     2026: '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg',
 };
 
-
-
 export function initFiscalIntake() {
     const container = document.getElementById('view-fiscal');
     if (!container) return;
@@ -25,6 +22,7 @@ export function initFiscalIntake() {
     renderStructure(container);
     setupEventListeners(container);
     renderInventarisTable();
+    restoreSyncSummary(container);
 }
 
 export async function loadInventarisAfterAuth() {
@@ -44,7 +42,6 @@ export async function loadInventarisAfterAuth() {
 
     try {
         const items = await fetchInventarisFromSheet();
-        // Vertaal sheet-velden naar lokale state-velden
         const mapped = items.map((item, idx) => ({
             id:               parseInt(item.id, 10) || (idx + 1),
             omschrijving:     item.omschrijving,
@@ -63,7 +60,6 @@ export async function loadInventarisAfterAuth() {
 function renderStructure(container) {
     const state = fiscalState.getState();
     
-    // Tailwind Design System helpers
     const classes = {
         inputClass: "w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm",
         labelClass: "block text-xs font-medium text-gray-500 mb-1.5",
@@ -76,14 +72,11 @@ function renderStructure(container) {
     if (window.lucide) window.lucide.createIcons();
 }
 
-
-
 function setupEventListeners(container) {
-    // Two-way Data Binding via Event Delegation (inclusief bank upload)
     container.addEventListener('change', async (e) => {
         const target = e.target;
 
-        // Bank statement upload — delegated zodat het na renderStructure blijft werken
+        // Bank statement upload
         if (target.id === 'bank-statement-upload') {
             const file = target.files?.[0];
             if (!file) return;
@@ -105,7 +98,6 @@ function setupEventListeners(container) {
                     reader.onerror = reject;
                 });
 
-                // Gebruik fetch direct (geen retry) zodat de response body leesbaar blijft bij errors
                 const response = await fetch('/.netlify/functions/scanBankStatement', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -148,7 +140,7 @@ function setupEventListeners(container) {
             return;
         }
 
-        // Privé IBAN opslaan (jaar-onafhankelijk)
+        // Privé IBAN opslaan
         if (target.id === 'prive-iban-input') {
             localStorage.setItem('bfe_private_iban', target.value.trim());
             return;
@@ -196,14 +188,13 @@ function setupEventListeners(container) {
                     return;
                 }
 
-                // State + DOM bijwerken
                 fiscalState.setNested('prive', 'stortingenInGeld', parsed.totaal);
                 const amountInput = container.querySelector('[data-section="prive"][data-bind="stortingenInGeld"]');
                 if (amountInput) amountInput.value = parsed.totaal;
 
-                const fmt = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+                const fmtCurr = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
                 resultEl.className = 'text-xs font-medium text-emerald-600';
-                resultEl.textContent = `${fmt(parsed.totaal)} gevonden uit ${parsed.count} transactie${parsed.count !== 1 ? 's' : ''} ↳ ingevuld`;
+                resultEl.textContent = `${fmtCurr(parsed.totaal)} gevonden uit ${parsed.count} transactie${parsed.count !== 1 ? 's' : ''} ↳ ingevuld`;
 
             } catch (err) {
                 resultEl.className = 'text-xs font-medium text-red-500';
@@ -235,7 +226,6 @@ function setupEventListeners(container) {
             const key = target.dataset.invKey;
             let val = target.type === 'number' ? parseFloat(target.value) || 0 : target.value;
             fiscalState.updateInventarisItem(id, key, val);
-            // Herbereken alleen de berekende kolommen voor deze rij (geen volledige re-render)
             updateInventarisRijBerekening(id);
         }
     });
@@ -257,65 +247,15 @@ function setupEventListeners(container) {
 
         const syncBtn = target.closest('#btn-sync-sheets');
         if (syncBtn) {
-            const year = fiscalState.getState().year;
-            if (!year) return alert("Vul eerst een boekjaar in.");
-
             const originalHtml = syncBtn.innerHTML;
             const setSpinner = (label) => {
                 syncBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${label}`;
                 if (window.lucide) window.lucide.createIcons();
             };
             syncBtn.disabled = true;
-            setSpinner('Ophalen jaarafsluiting...');
 
             try {
-                const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
-                if (!spreadsheetId) return alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
-
-                // Stap 1: geaggregeerde jaar-totalen (12 × 2 maandtabs)
-                setSpinner('Maandtabs ophalen (1/2)...');
-                const totals = await getYearlyTotals(year);
-
-                // Stap 2: jaar-niveau data voor de fiscale berekening
-                setSpinner('Jaarrekening ophalen (2/2)...');
-                const data = await collectYearData(year, spreadsheetId);
-
-                // State bijwerken
-                fiscalState.setTopLevel('sheetData', data);
-                fiscalState.setNested('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
-                fiscalState.setNested('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
-
-                // DOM inputs bijwerken (data-section / data-bind, geen vaste IDs)
-                const setInput = (section, bind, value) => {
-                    const el = container.querySelector(`[data-section="${section}"][data-bind="${bind}"]`);
-                    if (el) el.value = value;
-                };
-                setInput('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
-                setInput('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
-
-                // Samenvatting tonen
-                const summary = document.getElementById('sync-summary');
-                const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-
-                summary.innerHTML = `
-                    <div class="font-medium flex items-center gap-2 mb-2">
-                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Data gesynchroniseerd voor ${year}
-                    </div>
-                    <ul class="list-disc list-inside space-y-1 ml-1 text-emerald-700">
-                        <li>Netto-omzet: <span class="font-semibold">${fmt(totals.omzetEx)}</span></li>
-                        <li>Kosten excl. BTW: <span class="font-semibold">${fmt(totals.inkoopEx)}</span></li>
-                        <li>Winst (bruto): <span class="font-semibold">${fmt(totals.winst)}</span></li>
-                        <li>BTW-balans (te betalen): <span class="font-semibold">${fmt(totals.btwBalans)}</span></li>
-                        <li>Privé-onttrekkingen in geld: <span class="font-semibold">${fmt(totals.priveOnttrekkingenGeld)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
-                        <li>Privé-stortingen in natura: <span class="font-semibold">${fmt(totals.priveStortingenNatura)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
-                    </ul>
-                `;
-                summary.classList.remove('hidden');
-                if (window.lucide) window.lucide.createIcons();
-
-            } catch (error) {
-                alert(`Fout bij ophalen van data: ${error.message}`);
-                console.error(error);
+                await handleSyncSheets(container, setSpinner);
             } finally {
                 syncBtn.innerHTML = originalHtml;
                 syncBtn.disabled = false;

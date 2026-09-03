@@ -1,163 +1,162 @@
 import { accessToken } from './auth.js';
 import { fetchWithRetry } from '../utils/network.js';
+import {
+    FULL_MONTH_NAMES,
+    detectMonthIndex,
+    round2,
+    processVerkoopRange,
+    processInkoopRange
+} from './tax-collector-helpers.js';
+
+export { FULL_MONTH_NAMES } from './tax-collector-helpers.js';
 
 /**
- * Haalt alle financiële data voor een specifiek jaar op en aggregeert dit.
- * @param {string|number} year - Het jaar (bijv. "2026").
+ * Haalt alle financiële data voor een specifiek jaar op en aggregeert dit per maand en per jaar.
+ * @param {string|number} year - Het boekjaar (bijv. "2025").
  * @param {string} spreadsheetId - Het ID van de Google Sheet.
- * @returns {Promise<Object>} Geaggregeerd data object.
+ * @returns {Promise<Object>} Geaggregeerd data-object inclusief maandenspecificatie en validatie.
  */
 export async function collectYearData(year, spreadsheetId) {
-    // 1. Data Contract Initialisatie
     const result = {
         year: String(year),
+        spreadsheetId,
         omzet: { hoog21: 0, laag9: 0, nul0: 0, totaal: 0 },
         btwAfgedragen: { hoog21: 0, laag9: 0, totaal: 0 },
         kosten: { totaal: 0, perLeverancier: {} },
-        voorbelasting: { totaal: 0 }
+        voorbelasting: { totaal: 0 },
+        maanden: FULL_MONTH_NAMES.map((name, idx) => ({
+            monthIndex: idx,
+            monthName: name,
+            verkoopSheet: null,
+            inkoopSheet: null,
+            verkoopFound: false,
+            inkoopFound: false,
+            verkoop: {
+                omzetEx: 0,
+                btwLaag9: 0,
+                btwHoog21: 0,
+                omzetNul0: 0,
+                btwTotal: 0,
+                count: 0,
+                hasTotaalRow: false,
+                calculatedSum: 0,
+                hasDiscrepancy: false,
+                discrepancyDiff: 0
+            },
+            inkoop: {
+                kostenEx: 0,
+                voorbelasting: 0,
+                count: 0
+            },
+            omzetEx: 0,
+            kostenEx: 0,
+            winst: 0,
+            btwBalans: 0
+        })),
+        totals: null
     };
 
-    try {
-        // 2. Metadata: Ophalen van alle sheet titles
-        const metaResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
+    if (!accessToken) throw new Error('Niet ingelogd bij Google (geen accessToken).');
 
-        if (metaResponse.status === 401) throw new Error('TOKEN_EXPIRED');
-        if (!metaResponse.ok) {
-            const error = await metaResponse.json();
-            throw new Error(`Fout bij ophalen spreadsheet metadata: ${error.error.message}`);
-        }
+    // 1. Metadata ophalen
+    const metaResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
 
-        const metaData = await metaResponse.json();
-        const allSheetTitles = metaData.sheets.map(s => s.properties.title);
+    if (metaResponse.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!metaResponse.ok) {
+        const error = await metaResponse.json().catch(() => ({}));
+        throw new Error(`Fout bij ophalen spreadsheet metadata: ${error?.error?.message || metaResponse.status}`);
+    }
 
-        // 3. Categorisatie
-        const inkoopSheets = allSheetTitles.filter(title => title.toLowerCase().includes('inkoop'));
-        const verkoopSheets = allSheetTitles.filter(title => title.toLowerCase().includes('verkoop'));
-        const targetSheets = [...inkoopSheets, ...verkoopSheets];
+    const metaData = await metaResponse.json();
+    const allSheetTitles = (metaData.sheets || []).map(s => s.properties?.title).filter(Boolean);
 
-        if (targetSheets.length === 0) return result;
+    const inkoopSheets = allSheetTitles.filter(t => t.toLowerCase().includes('inkoop'));
+    const verkoopSheets = allSheetTitles.filter(t => t.toLowerCase().includes('verkoop'));
+    const targetSheets = [...inkoopSheets, ...verkoopSheets];
 
-        // 4. Batch Fetching met strakke constraints voor accurate getallen
-        const params = new URLSearchParams({
-            valueRenderOption: 'UNFORMATTED_VALUE', // CRITICAL: Raw floats needed, no currency strings
-            dateTimeRenderOption: 'FORMATTED_STRING'
-        });
-        targetSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
+    if (targetSheets.length === 0) {
+        finalizeTotals(result);
+        return result;
+    }
 
-        const batchResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params.toString()}`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
+    // 2. Batch data ophalen in één netwerkaanvraag
+    const params = new URLSearchParams({
+        valueRenderOption: 'UNFORMATTED_VALUE',
+        dateTimeRenderOption: 'FORMATTED_STRING'
+    });
+    targetSheets.forEach(sheet => params.append('ranges', `'${sheet}'!A:Z`));
 
-        if (batchResponse.status === 401) throw new Error('TOKEN_EXPIRED');
-        if (!batchResponse.ok) {
-            const error = await batchResponse.json();
-            throw new Error(`Fout bij ophalen batch data: ${error.error.message}`);
-        }
+    const batchResponse = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
 
-        const batchData = await batchResponse.json();
+    if (batchResponse.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!batchResponse.ok) {
+        const error = await batchResponse.json().catch(() => ({}));
+        throw new Error(`Fout bij ophalen batch data: ${error?.error?.message || batchResponse.status}`);
+    }
 
-        // Bulletproof Number Parsing
-        const parseEuro = (val) => {
-            if (typeof val === 'number') return isNaN(val) ? 0 : val;
-            if (!val) return 0;
-            // Verwijder alles behalve cijfers, min-tekens, komma's en punten (stript '€', 'EUR', spaties, etc.)
-            // Zet daarna "1.234,56" om naar "1234.56"
-            const cleaned = String(val).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-            return parseFloat(cleaned) || 0;
-        };
+    const batchData = await batchResponse.json();
 
-        // 5. Aggregation & Business Rules
-        if (batchData.valueRanges) {
-            for (const rangeData of batchData.valueRanges) {
-                if (!rangeData.values || rangeData.values.length <= 1) continue;
+    // 3. Verwerken per tabblad
+    if (batchData.valueRanges) {
+        for (const rangeData of batchData.valueRanges) {
+            const rangeName = (rangeData.range || '').replace(/^'|'![A-Z0-9:]+$/g, '');
+            const rawTitle = rangeName.split('!')[0].replace(/'/g, '');
+            const lowerTitle = rawTitle.toLowerCase();
+            const monthIdx = detectMonthIndex(rawTitle);
+            const mObj = monthIdx !== -1 ? result.maanden[monthIdx] : null;
 
-                const rangeName = rangeData.range || '';
-                const isInkoop = rangeName.toLowerCase().includes('inkoop');
-                const isVerkoop = rangeName.toLowerCase().includes('verkoop');
+            if (!rangeData.values || rangeData.values.length <= 1) continue;
 
-                // 1. Header mapping
-                const headers = rangeData.values[0].map(h => String(h || '').toLowerCase());
-                const getIdx = (keywords) => headers.findIndex(h => keywords.some(kw => h.includes(kw)));
-                
-                let idxDatum = getIdx(['datum', 'date']);
-                if (idxDatum === -1) idxDatum = 0; // Fallback
-                
-                if (isVerkoop) {
-                    const idxBtwLaag = getIdx(['btw laag', 'btw 9', 'btw l']);
-                    const idxBtwHoog = getIdx(['btw hoog', 'btw 21', 'btw h']);
-                    const idxOmzetLaag = getIdx(['omzet laag', 'excl 9', 'vergoeding l', 'netto 9']);
-                    const idxOmzetHoog = getIdx(['omzet hoog', 'excl 21', 'vergoeding h', 'netto 21']);
-                    const idxOmzetNul = getIdx(['omzet nul', 'omzet 0', 'vergoeding 0', 'excl 0']);
-
-                    // Lees de Totalen-rij direct — die bevat de SUM-formules van het sheet zelf
-                    // en is altijd correct, ongeacht parseer-issues in individuele rijen.
-                    let totaalRijGevonden = false;
-                    for (let i = 1; i < rangeData.values.length; i++) {
-                        const row = rangeData.values[i];
-                        if (!row || row.length === 0) continue;
-                        const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
-                        if (!isTotalRow) continue;
-
-                        const omzetL = idxOmzetLaag !== -1 ? parseEuro(row[idxOmzetLaag]) : 0;
-                        const omzetH = idxOmzetHoog !== -1 ? parseEuro(row[idxOmzetHoog]) : 0;
-                        const omzetN = idxOmzetNul !== -1 ? parseEuro(row[idxOmzetNul]) : 0;
-                        const btwL   = idxBtwLaag  !== -1 ? parseEuro(row[idxBtwLaag])   : 0;
-                        const btwH   = idxBtwHoog  !== -1 ? parseEuro(row[idxBtwHoog])   : 0;
-
-                        result.omzet.laag9          += omzetL;
-                        result.omzet.hoog21         += omzetH;
-                        result.omzet.nul0           += omzetN;
-                        result.btwAfgedragen.laag9  += btwL;
-                        result.btwAfgedragen.hoog21 += btwH;
-                        totaalRijGevonden = true;
-                        break;
-                    }
-                    if (!totaalRijGevonden) console.warn(`⚠️ Geen Totalen-rij gevonden in ${rangeName}`);
-                } else if (isInkoop) {
-                    const idxLeverancier = getIdx(['leverancier', 'naam leverancier', 'klant']);
-                    const idxBtw = getIdx(['btw', 'voorbelasting']);
-                    const idxExcl = getIdx(['vergoeding', 'excl', 'factuurbedrag excl']);
-
-                    for (let i = 1; i < rangeData.values.length; i++) {
-                        try {
-                            const row = rangeData.values[i];
-                            const hasFinancialData = [idxBtw, idxExcl]
-                                .filter(idx => idx !== -1)
-                                .some(idx => row?.[idx] !== undefined && row[idx] !== '');
-                            if (!row || row.length === 0 || !hasFinancialData) continue;
-
-                            const isTotalRow = row.slice(0, 5).some(cell => /^(?:totaal|totalen)(?:\s|$|:)/i.test(String(cell || '').trim()));
-                            if (isTotalRow) continue;
-
-                            const leverancier = idxLeverancier !== -1 && row[idxLeverancier] ? String(row[idxLeverancier]).trim() : 'Onbekend';
-                            const voorbelasting = idxBtw !== -1 ? parseEuro(row[idxBtw]) : 0;
-                            const kostenExcl = idxExcl !== -1 ? parseEuro(row[idxExcl]) : 0;
-
-                            result.voorbelasting.totaal += voorbelasting;
-                            result.kosten.totaal += kostenExcl;
-                            
-                            result.kosten.perLeverancier[leverancier] = (result.kosten.perLeverancier[leverancier] || 0) + kostenExcl;
-                        } catch (err) {
-                            console.warn(`⚠️ Fout bij verwerken rij ${i} in ${rangeName} (Inkoop), rij overgeslagen:`, err);
-                        }
-                    }
-                }
+            if (lowerTitle.includes('verkoop')) {
+                processVerkoopRange(rangeData, rawTitle, result, mObj);
+            } else if (lowerTitle.includes('inkoop')) {
+                processInkoopRange(rangeData, rawTitle, result, mObj);
             }
         }
-
-        // Sub-totalen berekenen en afronden om JS float errors (e.g., 0.300000000004) te fixen
-        const round2 = (num) => Math.round(num * 100) / 100;
-        
-        result.omzet.totaal = round2(result.omzet.laag9 + result.omzet.hoog21 + result.omzet.nul0);
-        result.btwAfgedragen.totaal = round2(result.btwAfgedragen.laag9 + result.btwAfgedragen.hoog21);
-        
-        // Resultaten object opschonen voor we het doorgeven
-        return result;
-
-    } catch (error) {
-        console.error('🚨 Fout in tax-collector module:', error);
-        throw error;
     }
+
+    // 4. Maandensaldi & Jaartotalen afronden
+    result.maanden.forEach(m => {
+        m.omzetEx = round2(m.verkoop.omzetEx);
+        m.kostenEx = round2(m.inkoop.kostenEx);
+        m.winst = round2(m.omzetEx - m.kostenEx);
+        m.btwBalans = round2(m.verkoop.btwTotal - m.inkoop.voorbelasting);
+    });
+
+    finalizeTotals(result);
+    return result;
+}
+
+function finalizeTotals(result) {
+    result.omzet.totaal = round2(result.omzet.laag9 + result.omzet.hoog21 + result.omzet.nul0);
+    result.omzet.laag9 = round2(result.omzet.laag9);
+    result.omzet.hoog21 = round2(result.omzet.hoog21);
+    result.omzet.nul0 = round2(result.omzet.nul0);
+
+    result.btwAfgedragen.totaal = round2(result.btwAfgedragen.laag9 + result.btwAfgedragen.hoog21);
+    result.btwAfgedragen.laag9 = round2(result.btwAfgedragen.laag9);
+    result.btwAfgedragen.hoog21 = round2(result.btwAfgedragen.hoog21);
+
+    result.kosten.totaal = round2(result.kosten.totaal);
+    result.voorbelasting.totaal = round2(result.voorbelasting.totaal);
+
+    const omzetEx = result.omzet.totaal;
+    const btwVerkoop = result.btwAfgedragen.totaal;
+    const inkoopEx = result.kosten.totaal;
+    const btwInkoop = result.voorbelasting.totaal;
+
+    result.totals = {
+        omzetEx,
+        btwVerkoop,
+        inkoopEx,
+        btwInkoop,
+        btwBalans: round2(btwVerkoop - btwInkoop),
+        winst: round2(omzetEx - inkoopEx),
+        priveOnttrekkingenGeld: round2(omzetEx + btwVerkoop),
+        priveStortingenNatura: round2(inkoopEx + btwInkoop)
+    };
 }
