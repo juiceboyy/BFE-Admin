@@ -7,6 +7,7 @@ import { parsePriveStortingenCSV } from '../utils/csv-parser.js';
 import { getFiscalIntakeHTML } from './templates/fiscal-intake-template.js';
 import { renderInventarisTable, handleInventarisClick, updateInventarisRijBerekening } from './fiscal-inventaris.js';
 import { handleSyncSheets, restoreSyncSummary } from './fiscal-sync.js';
+import { handleBankStatementUpload } from './fiscal-bank.js';
 
 export const SPREADSHEET_IDS = {
     2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
@@ -79,64 +80,7 @@ function setupEventListeners(container) {
         // Bank statement upload
         if (target.id === 'bank-statement-upload') {
             const file = target.files?.[0];
-            if (!file) return;
-
-            const idle    = document.getElementById('bank-upload-idle');
-            const loading = document.getElementById('bank-upload-loading');
-            const result  = document.getElementById('bank-scan-result');
-
-            idle.classList.add('hidden');
-            loading.classList.remove('hidden');
-            loading.classList.add('flex');
-            result.classList.add('hidden');
-
-            try {
-                const base64Data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                });
-
-                const response = await fetch('/.netlify/functions/scanBankStatement', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        base64Data,
-                        mimeType: file.type,
-                        year: fiscalState.getState().year
-                    })
-                });
-
-                if (!response.ok) {
-                    const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || `Server error ${response.status}`);
-                }
-
-                const { beginSaldo, eindSaldo } = await response.json();
-
-                if (beginSaldo != null) {
-                    fiscalState.setNested('bank', 'beginSaldo', beginSaldo);
-                    container.querySelector('[data-bind="beginSaldo"]').value = beginSaldo;
-                }
-                if (eindSaldo != null) {
-                    fiscalState.setNested('bank', 'eindSaldo', eindSaldo);
-                    container.querySelector('[data-bind="eindSaldo"]').value = eindSaldo;
-                }
-
-                result.classList.remove('hidden');
-                result.querySelector('span').textContent =
-                    `Ingelezen: beginsaldo €${(beginSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}, eindsaldo €${(eindSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}. Controleer en pas aan indien nodig.`;
-                if (window.lucide) window.lucide.createIcons();
-
-            } catch (err) {
-                alert(`Kon bankafschrift niet inlezen: ${err.message}`);
-            } finally {
-                idle.classList.remove('hidden');
-                loading.classList.add('hidden');
-                loading.classList.remove('flex');
-                target.value = '';
-            }
+            if (file) handleBankStatementUpload(file, container);
             return;
         }
 
