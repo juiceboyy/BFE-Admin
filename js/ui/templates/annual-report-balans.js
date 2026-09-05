@@ -52,15 +52,17 @@ export function getBalansHTML(year, prevYear, prevData, activa, passiva) {
                             <td class="py-1.5 text-right font-medium">${formatEurInt(overlopend)}</td>
                             ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.activa.overlopend)}</td>` : ''}
                         </tr>
+                        ${(borgMobility > 0 || (prevData?.balans?.activa?.borgMobility > 0)) ? `
                         <tr>
                             <td class="py-1.5 pl-4 text-gray-600">Overige vorderingen (Borg Mobility Service)</td>
                             <td class="py-1.5 text-right font-medium">${formatEurInt(borgMobility)}</td>
-                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.activa.borgMobility)}</td>` : ''}
+                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.activa.borgMobility || 0)}</td>` : ''}
                         </tr>
+                        ` : ''}
                         <tr class="border-t border-gray-200 font-medium">
                             <td class="py-1.5 pl-4">Totaal vorderingen</td>
                             <td class="py-1.5 text-right font-bold">${formatEurInt(totaalVorderingen)}</td>
-                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.activa.debiteuren + prevData.balans.activa.overlopend + prevData.balans.activa.borgMobility)}</td>` : ''}
+                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.activa.debiteuren + prevData.balans.activa.overlopend + (prevData.balans.activa.borgMobility || 0))}</td>` : ''}
                         </tr>
 
                         <tr class="font-semibold text-gray-700 bg-gray-50/50"><td colspan="${prevData ? 3 : 2}" class="py-1.5">Effecten en liquide middelen</td></tr>
@@ -116,12 +118,12 @@ export function getBalansHTML(year, prevYear, prevData, activa, passiva) {
                         <tr>
                             <td class="py-1.5 pl-4 text-gray-600">Overige schulden / overlopende passiva</td>
                             <td class="py-1.5 text-right font-medium">${formatEurInt(overigeSchulden)}</td>
-                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.passiva.overigeSchulden)}</td>` : ''}
+                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.passiva.overigeSchulden || 0)}</td>` : ''}
                         </tr>
                         <tr class="border-t border-gray-200 font-medium">
                             <td class="py-1.5 pl-4">Totaal kortlopende schulden</td>
                             <td class="py-1.5 text-right font-bold">${formatEurInt(totaalSchulden)}</td>
-                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.passiva.btwSchuld + prevData.balans.passiva.overigeSchulden)}</td>` : ''}
+                            ${prevData ? `<td class="py-1.5 text-right text-gray-500 font-mono">${formatEurInt(prevData.balans.passiva.btwSchuld + (prevData.balans.passiva.overigeSchulden || 0))}</td>` : ''}
                         </tr>
 
                         <tr class="border-t-2 border-b-2 border-gray-900 font-bold text-gray-900">
@@ -131,6 +133,11 @@ export function getBalansHTML(year, prevYear, prevData, activa, passiva) {
                         </tr>
                     </tbody>
                 </table>
+
+                <div class="mt-4 flex items-center justify-between text-xs py-2 px-3 ${Math.abs(totaalActiva - totaalPassiva) < 0.01 ? 'bg-emerald-50/60 border border-emerald-200/80 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800'} rounded-xl font-mono">
+                    <span>Balansevenwicht (Activa &minus; Passiva)</span>
+                    <span class="font-semibold">${Math.abs(totaalActiva - totaalPassiva) < 0.01 ? `In evenwicht: ${formatEurInt(totaalActiva)} = ${formatEurInt(totaalPassiva)} (€ 0)` : `Verschil: ${formatEurInt(totaalActiva - totaalPassiva)}`}</span>
+                </div>
             </div>
         </section>
     `;

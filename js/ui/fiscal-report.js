@@ -129,7 +129,7 @@ export function renderFiscalReport(calculatedData, aiAdvice, containerElement) {
             <button id="btn-export-trends"
                     class="px-6 py-3 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2 shadow-sm">
                 <i data-lucide="archive" class="w-4 h-4"></i>
-                <span>💾 Sla definitief op in Trend-archief</span>
+                <span>Sla definitief op in Trend-archief</span>
             </button>
         </div>
     `;

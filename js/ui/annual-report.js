@@ -70,10 +70,22 @@ function setupReportEventListeners() {
         });
     }
 
-    // Direct afdrukken / PDF
+    // Direct afdrukken / PDF met balansvalidatie assertie
     const printBtn = containerElement.querySelector('#btn-print-report');
     if (printBtn) {
-        printBtn.addEventListener('click', () => {
+        const balanceUnbalanced = containerElement.querySelector('.bg-rose-50');
+        if (balanceUnbalanced) {
+            printBtn.disabled = true;
+            printBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            printBtn.title = 'Balansevenwicht niet bereikt (Activa != Passiva)';
+        }
+
+        printBtn.addEventListener('click', (e) => {
+            if (balanceUnbalanced) {
+                e.preventDefault();
+                alert('De balans sluit niet (Activa != Passiva). Pas de gegevens aan alvorens een officieel jaarverslag af te drukken.');
+                return;
+            }
             window.print();
         });
     }
