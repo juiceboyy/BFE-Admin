@@ -6,6 +6,7 @@ import { initInvoicesModule } from './ui/invoices.js';
 import { loadManualClientsAfterAuth } from './ui/invoices-manual.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 import { initReconcileModal } from './ui/reconcile-modal.js';
+import { initAnnualReport } from './ui/annual-report.js';
 
 function init() {
     // Initialiseer UI componenten
@@ -14,6 +15,7 @@ function init() {
     initScanner();
     initFiscalIntake();
     initInvoicesModule();
+    initAnnualReport();
     initReconcileModal();
 }
 
