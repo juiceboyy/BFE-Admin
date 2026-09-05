@@ -4,7 +4,7 @@ const STORAGE_PREFIX = 'bfe_fiscal_';
 const ACTIVE_YEAR_KEY = 'bfe_active_year';
 
 const initialState = {
-    year: new Date().getFullYear().toString(),
+    year: '2025',
     sheetData: null,
     bank: { beginSaldo: 0, eindSaldo: 0 },
     // VW ID.3 zakelijke operational lease (Mobility Service Nederland)
