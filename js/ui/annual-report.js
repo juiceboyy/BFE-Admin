@@ -6,7 +6,6 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getAnnualReportHTML } from './templates/annual-report-template.js';
-import { setActiveTab } from './navigation.js';
 
 let containerElement = null;
 
@@ -83,9 +82,8 @@ function setupReportEventListeners() {
     const gotoIntakeBtn = containerElement.querySelector('#btn-goto-intake');
     if (gotoIntakeBtn) {
         gotoIntakeBtn.addEventListener('click', () => {
-            if (typeof setActiveTab === 'function') {
-                setActiveTab('fiscal');
-            }
+            const tabFiscal = document.getElementById('tab-fiscal');
+            if (tabFiscal) tabFiscal.click();
         });
     }
 }
