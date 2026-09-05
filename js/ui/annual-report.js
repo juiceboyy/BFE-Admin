@@ -28,18 +28,34 @@ export function initAnnualReport() {
  * Rendert het jaarverslag op basis van de huidige fiscalState.
  */
 export function renderReport() {
+    if (!containerElement) {
+        containerElement = document.getElementById('view-annual-report');
+    }
     if (!containerElement) return;
 
-    const state = fiscalState.getState();
-    const calculatedData = calculateTaxes(state);
+    try {
+        const state = fiscalState.getState();
+        const calculatedData = calculateTaxes(state);
 
-    containerElement.innerHTML = getAnnualReportHTML(state, calculatedData);
+        containerElement.innerHTML = getAnnualReportHTML(state, calculatedData);
 
-    if (window.lucide) {
-        window.lucide.createIcons();
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+
+        setupReportEventListeners();
+    } catch (err) {
+        console.error('Fout bij renderen jaarverslag:', err);
+        containerElement.innerHTML = `
+            <div class="max-w-4xl mx-auto p-8 my-8 text-center text-rose-700 bg-rose-50 rounded-2xl border border-rose-200">
+                <h3 class="font-bold text-base mb-2">Er is een fout opgetreden bij het genereren van het jaarverslag</h3>
+                <p class="font-mono text-xs text-rose-600 mb-4">${err.message}</p>
+                <button onclick="location.reload()" class="px-4 py-2 bg-rose-600 text-white text-xs font-medium rounded-xl hover:bg-rose-700 transition-colors">
+                    Pagina vernieuwen
+                </button>
+            </div>
+        `;
     }
-
-    setupReportEventListeners();
 }
 
 function setupReportEventListeners() {

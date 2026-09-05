@@ -1,3 +1,10 @@
+/**
+ * js/ui/navigation.js
+ * Hoofdnavigatie tussen Scanner, Fiscale Jaarafsluiting, Facturen Maken en Jaarverslag.
+ */
+
+import { renderReport } from './annual-report.js';
+
 let _activeTabFn = null;
 
 export function setActiveTab(tab) {
@@ -25,7 +32,11 @@ export function initNavigation() {
         viewFiscal.classList.toggle('hidden', tab !== 'fiscal');
         viewInvoices.classList.toggle('hidden', tab !== 'invoices');
         if (viewAnnualReport) {
-            viewAnnualReport.classList.toggle('hidden', tab !== 'annual-report');
+            const isAnnual = tab === 'annual-report';
+            viewAnnualReport.classList.toggle('hidden', !isAnnual);
+            if (isAnnual) {
+                renderReport();
+            }
         }
 
         // Update Tab Stylings
