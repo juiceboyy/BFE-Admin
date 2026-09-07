@@ -6,15 +6,17 @@ import { initInvoicesModule } from './ui/invoices.js';
 import { loadManualClientsAfterAuth } from './ui/invoices-manual.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 import { initReconcileModal } from './ui/reconcile-modal.js';
+import { initAnnualReport } from './ui/annual-report.js';
 
 function init() {
-    // Initialiseer UI componenten
+    // Initialiseer UI componenten met isolatie zodat één module een andere niet blokkeert
     if (window.lucide) window.lucide.createIcons();
-    initBtwModule();
-    initScanner();
-    initFiscalIntake();
-    initInvoicesModule();
-    initReconcileModal();
+    try { initBtwModule(); } catch (e) { console.error('initBtwModule error:', e); }
+    try { initScanner(); } catch (e) { console.error('initScanner error:', e); }
+    try { initFiscalIntake(); } catch (e) { console.error('initFiscalIntake error:', e); }
+    try { initInvoicesModule(); } catch (e) { console.error('initInvoicesModule error:', e); }
+    try { initAnnualReport(); } catch (e) { console.error('initAnnualReport error:', e); }
+    try { initReconcileModal(); } catch (e) { console.error('initReconcileModal error:', e); }
 }
 
 if (document.readyState === 'loading') {

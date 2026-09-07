@@ -1,3 +1,7 @@
+import { getDefaultCarBijtelling, getCarBijtellingDescription } from '../../utils/tax-calculator.js';
+
+const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
+
 /**
  * Returns the HTML template literal for the fiscal intake UI.
  * @param {Object} state - The current fiscalState state.
@@ -6,6 +10,12 @@
  */
 export function getFiscalIntakeHTML(state, classes) {
     const { inputClass, labelClass, sectionClass, headerClass } = classes;
+    const privateIban = localStorage.getItem('bfe_private_iban') || DEFAULT_PRIVATE_IBAN;
+    const defaultBijtelling = getDefaultCarBijtelling(state.year);
+    const bijtellingVal = state.balans?.bijtellingAuto !== undefined && state.balans?.bijtellingAuto !== null && state.balans?.bijtellingAuto !== ''
+        ? state.balans.bijtellingAuto
+        : defaultBijtelling;
+    const bijtellingDesc = getCarBijtellingDescription(state.year);
 
     return `
         <div id="intake-form-wrapper" class="max-w-4xl mx-auto pb-12">
@@ -80,20 +90,21 @@ export function getFiscalIntakeHTML(state, classes) {
                 <h3 class="${headerClass}">
                     <i data-lucide="user-minus" class="w-5 h-5 text-blue-500"></i> 3. Privéstortingen &amp; Onttrekkingen
                 </h3>
-                <p class="text-xs text-gray-500 mb-5">
-                    Als eenmanszaak worden alle inkomsten rechtstreeks op je privé-rekening ontvangen (onttrekking in geld). Zakelijke kosten die privé zijn betaald, zijn stortingen in natura.
+                <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+                    Alle inkomsten worden rechtstreeks op je privérekening ontvangen (onttrekking in geld). Vanaf die privérekening maak je geld over naar de zakelijke ING-rekening (voor o.a. de autolease). Om deze privéstortingen in geld automatisch te berekenen, upload je hier het <strong>CSV-transactieoverzicht van de zakelijke ING-rekening</strong> over het boekjaar, of vul je het bedrag rechts direct in.
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label class="${labelClass}">Privé IBAN (voor automatische CSV-scan)</label>
-                        <input type="text" id="prive-iban-input" class="${inputClass} mb-4" placeholder="NL99 INGB 0000 0000 00" value="${localStorage.getItem('bfe_private_iban') || ''}">
+                        <label class="${labelClass}">Privé IBAN tegenrekening (voor automatische CSV-scan)</label>
+                        <input type="text" id="prive-iban-input" class="${inputClass} mb-3 font-mono text-xs" placeholder="NL47INGB0005023386" value="${privateIban}">
                         
-                        <label class="${labelClass}">CSV Bankafschrift upload (Matchen met privé IBAN)</label>
+                        <label class="${labelClass}">CSV transacties zakelijke ING-rekening (optioneel)</label>
                         <label class="flex flex-col items-center justify-center w-full h-24 border border-dashed border-gray-200 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                             <div class="flex flex-col items-center gap-1 text-gray-400">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-                                <span class="text-xs font-medium">Selecteer CSV bestand</span>
+                                <span class="text-xs font-medium">Selecteer CSV van zakelijke rekening</span>
+                                <span class="text-[10px] text-gray-400">Mijn ING Zakelijk &rarr; Downloaden &rarr; CSV over ${state.year || 'boekjaar'}</span>
                             </div>
                             <input id="csv-stortingen-upload" type="file" accept=".csv" class="hidden">
                         </label>
@@ -102,18 +113,26 @@ export function getFiscalIntakeHTML(state, classes) {
 
                     <div class="space-y-4">
                         <div>
-                            <label class="${labelClass}">Privéstortingen in geld (automatisch berekend of handmatig)</label>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="${labelClass} mb-0">Privéstortingen in geld</label>
+                                <span class="text-[10px] text-gray-400">Via CSV of handmatig</span>
+                            </div>
                             <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                 <input type="number" step="0.01" data-section="prive" data-bind="stortingenInGeld" class="${inputClass} pl-8" value="${state.prive.stortingenInGeld}">
                             </div>
+                            <p class="text-[11px] text-gray-400 mt-1">Totaal van overboekingen van privé naar de zakelijke rekening in ${state.year || 'dit jaar'}.</p>
                         </div>
                         <div>
-                            <label class="${labelClass}">Privé-onttrekkingen in geld (omzet ontvangen op privé-rekening)</label>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="${labelClass} mb-0">Privé-onttrekkingen in geld</label>
+                                <span class="text-[10px] text-gray-400">Berekend uit omzet</span>
+                            </div>
                             <div class="relative">
                                 <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
                                 <input type="number" step="0.01" data-section="prive" data-bind="onttrekkingenInGeld" class="${inputClass} pl-8" value="${state.prive.onttrekkingenInGeld}">
                             </div>
+                            <p class="text-[11px] text-gray-400 mt-1">Gefactureerde omzet die rechtstreeks op je privérekening is ontvangen.</p>
                         </div>
                     </div>
                 </div>
@@ -121,13 +140,18 @@ export function getFiscalIntakeHTML(state, classes) {
 
             <!-- 4. Duurzame Activa (Inventaris) -->
             <section class="${sectionClass}">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
                         <i data-lucide="package" class="w-5 h-5 text-blue-500"></i> 4. Duurzame Activa &amp; Afschrijvingen
                     </h3>
-                    <button id="btn-add-inventaris" class="bg-black text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Item toevoegen
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-zoek-kandidaten" class="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-600"></i> Uitgaven analyseren
+                        </button>
+                        <button id="btn-add-inventaris" class="bg-black text-white px-3.5 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1 shadow-2xs">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Item toevoegen
+                        </button>
+                    </div>
                 </div>
                 
                 <p class="text-xs text-gray-500 mb-5">
@@ -138,10 +162,10 @@ export function getFiscalIntakeHTML(state, classes) {
                 <div id="inventaris-kandidaten" class="hidden mb-6 p-5 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 border border-blue-100 rounded-xl">
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-sm font-semibold text-blue-900 flex items-center gap-1.5">
-                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i> AI Matcher: Mogelijke inventaris-kandidaten gevonden
+                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i> AI Matcher: Mogelijke inventaris-kandidaten (&gt; €450)
                         </h4>
-                        <button id="btn-zoek-kandidaten" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-colors">
-                            Zoek in Sheets
+                        <button id="btn-close-kandidaten" class="text-xs text-gray-400 hover:text-gray-600 p-1 rounded-md transition-colors" title="Resultaten verbergen">
+                            <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
                     </div>
                     <div id="kandidaten-lijst" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -203,10 +227,10 @@ export function getFiscalIntakeHTML(state, classes) {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label class="${labelClass}">Fiscale bijtelling auto van de zaak (in geld)</label>
-                        <p class="text-xs text-gray-400 mb-1.5">Bijv. bijtelling lease-auto VW ID.3 (€3.430,48)</p>
+                        <p class="text-xs text-gray-400 mb-1.5">${bijtellingDesc}</p>
                         <div class="relative">
                             <span class="absolute left-4 top-2.5 text-gray-500 text-sm">€</span>
-                            <input type="number" step="0.01" data-section="balans" data-bind="bijtellingAuto" class="${inputClass} pl-8" value="${state.balans?.bijtellingAuto ?? 3430.48}">
+                            <input type="number" step="0.01" data-section="balans" data-bind="bijtellingAuto" class="${inputClass} pl-8" value="${bijtellingVal}">
                         </div>
                     </div>
                     <div>

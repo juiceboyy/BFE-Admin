@@ -1,13 +1,13 @@
 import { fiscalState } from '../store/fiscal-state.js';
-import { collectYearData } from '../api/tax-collector.js';
-import { getYearlyTotals, fetchInventarisFromSheet, addInventarisItemToSheet, deleteInventarisItemFromSheet } from '../api/storage-queries-fiscal.js';
+import { fetchInventarisFromSheet } from '../api/storage-queries-fiscal.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getFiscalAdvice, clearChatHistory } from '../api/tax-advisor.js';
 import { renderFiscalReport } from './fiscal-report.js';
-import { getInventarisKandidaten } from '../api/inventaris-kandidaten.js';
 import { parsePriveStortingenCSV } from '../utils/csv-parser.js';
 import { getFiscalIntakeHTML } from './templates/fiscal-intake-template.js';
 import { renderInventarisTable, handleInventarisClick, updateInventarisRijBerekening } from './fiscal-inventaris.js';
+import { handleSyncSheets, restoreSyncSummary } from './fiscal-sync.js';
+import { handleBankStatementUpload } from './fiscal-bank.js';
 
 export const SPREADSHEET_IDS = {
     2023: '1wMnw3BTyNvvl9CCCKt78PGhl6PBQyLFnNe2XKCO16Wg',
@@ -16,15 +16,20 @@ export const SPREADSHEET_IDS = {
     2026: '119dQIOSLFpKDqWUQUMWTU9miIKP3MOR1VHFB5yzmBrg',
 };
 
-
+export const DEFAULT_PRIVATE_IBAN = 'NL47INGB0005023386';
 
 export function initFiscalIntake() {
     const container = document.getElementById('view-fiscal');
     if (!container) return;
 
+    if (!localStorage.getItem('bfe_private_iban')) {
+        localStorage.setItem('bfe_private_iban', DEFAULT_PRIVATE_IBAN);
+    }
+
     renderStructure(container);
     setupEventListeners(container);
     renderInventarisTable();
+    restoreSyncSummary(container);
 }
 
 export async function loadInventarisAfterAuth() {
@@ -44,7 +49,6 @@ export async function loadInventarisAfterAuth() {
 
     try {
         const items = await fetchInventarisFromSheet();
-        // Vertaal sheet-velden naar lokale state-velden
         const mapped = items.map((item, idx) => ({
             id:               parseInt(item.id, 10) || (idx + 1),
             omschrijving:     item.omschrijving,
@@ -63,7 +67,6 @@ export async function loadInventarisAfterAuth() {
 function renderStructure(container) {
     const state = fiscalState.getState();
     
-    // Tailwind Design System helpers
     const classes = {
         inputClass: "w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm",
         labelClass: "block text-xs font-medium text-gray-500 mb-1.5",
@@ -76,79 +79,18 @@ function renderStructure(container) {
     if (window.lucide) window.lucide.createIcons();
 }
 
-
-
 function setupEventListeners(container) {
-    // Two-way Data Binding via Event Delegation (inclusief bank upload)
     container.addEventListener('change', async (e) => {
         const target = e.target;
 
-        // Bank statement upload — delegated zodat het na renderStructure blijft werken
+        // Bank statement upload
         if (target.id === 'bank-statement-upload') {
             const file = target.files?.[0];
-            if (!file) return;
-
-            const idle    = document.getElementById('bank-upload-idle');
-            const loading = document.getElementById('bank-upload-loading');
-            const result  = document.getElementById('bank-scan-result');
-
-            idle.classList.add('hidden');
-            loading.classList.remove('hidden');
-            loading.classList.add('flex');
-            result.classList.add('hidden');
-
-            try {
-                const base64Data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                });
-
-                // Gebruik fetch direct (geen retry) zodat de response body leesbaar blijft bij errors
-                const response = await fetch('/.netlify/functions/scanBankStatement', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        base64Data,
-                        mimeType: file.type,
-                        year: fiscalState.getState().year
-                    })
-                });
-
-                if (!response.ok) {
-                    const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || `Server error ${response.status}`);
-                }
-
-                const { beginSaldo, eindSaldo } = await response.json();
-
-                if (beginSaldo != null) {
-                    fiscalState.setNested('bank', 'beginSaldo', beginSaldo);
-                    container.querySelector('[data-bind="beginSaldo"]').value = beginSaldo;
-                }
-                if (eindSaldo != null) {
-                    fiscalState.setNested('bank', 'eindSaldo', eindSaldo);
-                    container.querySelector('[data-bind="eindSaldo"]').value = eindSaldo;
-                }
-
-                result.classList.remove('hidden');
-                result.querySelector('span').textContent =
-                    `Ingelezen: beginsaldo €${(beginSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}, eindsaldo €${(eindSaldo ?? '?').toLocaleString('nl-NL', { minimumFractionDigits: 2 })}. Controleer en pas aan indien nodig.`;
-                if (window.lucide) window.lucide.createIcons();
-
-            } catch (err) {
-                alert(`Kon bankafschrift niet inlezen: ${err.message}`);
-            } finally {
-                idle.classList.remove('hidden');
-                loading.classList.add('hidden');
-                loading.classList.remove('flex');
-                target.value = '';
-            }
+            if (file) handleBankStatementUpload(file, container);
             return;
         }
 
-        // Privé IBAN opslaan (jaar-onafhankelijk)
+        // Privé IBAN opslaan
         if (target.id === 'prive-iban-input') {
             localStorage.setItem('bfe_private_iban', target.value.trim());
             return;
@@ -172,7 +114,7 @@ function setupEventListeners(container) {
                     reader.onerror = reject;
                 });
 
-                const iban = (document.getElementById('prive-iban-input')?.value || '').trim();
+                const iban = (document.getElementById('prive-iban-input')?.value || localStorage.getItem('bfe_private_iban') || DEFAULT_PRIVATE_IBAN).trim();
                 if (!iban) {
                     resultEl.className = 'text-xs font-medium text-amber-600';
                     resultEl.textContent = 'Vul eerst je privé IBAN in hierboven.';
@@ -184,26 +126,25 @@ function setupEventListeners(container) {
 
                 if (!parsed) {
                     resultEl.className = 'text-xs font-medium text-red-500';
-                    resultEl.textContent = 'CSV kon niet worden ingelezen. Controleer het formaat.';
+                    resultEl.textContent = 'CSV kon niet worden ingelezen. Controleer of het een geldig CSV-bestand is.';
                     target.value = '';
                     return;
                 }
 
                 if (parsed.count === 0) {
                     resultEl.className = 'text-xs font-medium text-amber-600';
-                    resultEl.textContent = `Geen bijschrijvingen gevonden van ${iban}. Controleer het IBAN.`;
+                    resultEl.textContent = `Geen overboekingen gevonden vanaf tegenrekening ${iban}. Controleer of dit het CSV-bestand van de zakelijke ING-rekening is.`;
                     target.value = '';
                     return;
                 }
 
-                // State + DOM bijwerken
                 fiscalState.setNested('prive', 'stortingenInGeld', parsed.totaal);
                 const amountInput = container.querySelector('[data-section="prive"][data-bind="stortingenInGeld"]');
                 if (amountInput) amountInput.value = parsed.totaal;
 
-                const fmt = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+                const fmtCurr = (n) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
                 resultEl.className = 'text-xs font-medium text-emerald-600';
-                resultEl.textContent = `${fmt(parsed.totaal)} gevonden uit ${parsed.count} transactie${parsed.count !== 1 ? 's' : ''} ↳ ingevuld`;
+                resultEl.textContent = `${parsed.count} overboeking(en) vanaf ${iban} gevonden (totaal ${fmtCurr(parsed.totaal)}) en automatisch ingevuld.`;
 
             } catch (err) {
                 resultEl.className = 'text-xs font-medium text-red-500';
@@ -224,7 +165,14 @@ function setupEventListeners(container) {
             if (section) {
                 fiscalState.setNested(section, key, val);
             } else {
-                if (key === 'year') clearChatHistory();
+                if (key === 'year') {
+                    clearChatHistory();
+                    fiscalState.setTopLevel(key, val);
+                    renderStructure(container);
+                    renderInventarisTable();
+                    restoreSyncSummary(container);
+                    return;
+                }
                 fiscalState.setTopLevel(key, val);
             }
         }
@@ -235,7 +183,6 @@ function setupEventListeners(container) {
             const key = target.dataset.invKey;
             let val = target.type === 'number' ? parseFloat(target.value) || 0 : target.value;
             fiscalState.updateInventarisItem(id, key, val);
-            // Herbereken alleen de berekende kolommen voor deze rij (geen volledige re-render)
             updateInventarisRijBerekening(id);
         }
     });
@@ -257,65 +204,15 @@ function setupEventListeners(container) {
 
         const syncBtn = target.closest('#btn-sync-sheets');
         if (syncBtn) {
-            const year = fiscalState.getState().year;
-            if (!year) return alert("Vul eerst een boekjaar in.");
-
             const originalHtml = syncBtn.innerHTML;
             const setSpinner = (label) => {
                 syncBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${label}`;
                 if (window.lucide) window.lucide.createIcons();
             };
             syncBtn.disabled = true;
-            setSpinner('Ophalen jaarafsluiting...');
 
             try {
-                const spreadsheetId = SPREADSHEET_IDS[parseInt(year)];
-                if (!spreadsheetId) return alert(`Geen spreadsheet geconfigureerd voor ${year}.`);
-
-                // Stap 1: geaggregeerde jaar-totalen (12 × 2 maandtabs)
-                setSpinner('Maandtabs ophalen (1/2)...');
-                const totals = await getYearlyTotals(year);
-
-                // Stap 2: jaar-niveau data voor de fiscale berekening
-                setSpinner('Jaarrekening ophalen (2/2)...');
-                const data = await collectYearData(year, spreadsheetId);
-
-                // State bijwerken
-                fiscalState.setTopLevel('sheetData', data);
-                fiscalState.setNested('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
-                fiscalState.setNested('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
-
-                // DOM inputs bijwerken (data-section / data-bind, geen vaste IDs)
-                const setInput = (section, bind, value) => {
-                    const el = container.querySelector(`[data-section="${section}"][data-bind="${bind}"]`);
-                    if (el) el.value = value;
-                };
-                setInput('prive', 'onttrekkingenInGeld', totals.priveOnttrekkingenGeld);
-                setInput('prive', 'stortingenInNatura',  totals.priveStortingenNatura);
-
-                // Samenvatting tonen
-                const summary = document.getElementById('sync-summary');
-                const fmt = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-
-                summary.innerHTML = `
-                    <div class="font-medium flex items-center gap-2 mb-2">
-                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Data gesynchroniseerd voor ${year}
-                    </div>
-                    <ul class="list-disc list-inside space-y-1 ml-1 text-emerald-700">
-                        <li>Netto-omzet: <span class="font-semibold">${fmt(totals.omzetEx)}</span></li>
-                        <li>Kosten excl. BTW: <span class="font-semibold">${fmt(totals.inkoopEx)}</span></li>
-                        <li>Winst (bruto): <span class="font-semibold">${fmt(totals.winst)}</span></li>
-                        <li>BTW-balans (te betalen): <span class="font-semibold">${fmt(totals.btwBalans)}</span></li>
-                        <li>Privé-onttrekkingen in geld: <span class="font-semibold">${fmt(totals.priveOnttrekkingenGeld)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
-                        <li>Privé-stortingen in natura: <span class="font-semibold">${fmt(totals.priveStortingenNatura)}</span> <span class="text-xs text-emerald-600">↳ ingevuld bij sectie 5</span></li>
-                    </ul>
-                `;
-                summary.classList.remove('hidden');
-                if (window.lucide) window.lucide.createIcons();
-
-            } catch (error) {
-                alert(`Fout bij ophalen van data: ${error.message}`);
-                console.error(error);
+                await handleSyncSheets(container, setSpinner);
             } finally {
                 syncBtn.innerHTML = originalHtml;
                 syncBtn.disabled = false;
