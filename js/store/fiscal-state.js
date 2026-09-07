@@ -135,6 +135,17 @@ class FiscalState {
         }
     }
 
+    /**
+     * Voert meerdere state-mutaties atomair uit en vuurt daarna eenmalig notify() af.
+     * @param {Function} updaterFn - Callback die this.state ontvangt om aan te passen
+     */
+    batchUpdate(updaterFn) {
+        if (typeof updaterFn === 'function') {
+            updaterFn(this.state);
+        }
+        this.notify();
+    }
+
     addInventarisItem(item) {
         this.state.inventaris.push({
             id: item.id || Date.now(),

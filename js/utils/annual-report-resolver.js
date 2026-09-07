@@ -19,6 +19,10 @@ export function resolveAnnualReportModel(state = {}, calculatedData = {}) {
         ? rawAangifte
         : null;
 
+    const aangifteWinst = aangifte?.winst || aangifte?.winstberekening || null;
+    const aangifteActiva = aangifte?.balans?.activa || null;
+    const aangiftePassiva = aangifte?.balans?.passiva || null;
+
     // 1. Omzetverdeling
     const hasSheetOmzet = Boolean(state.sheetData?.omzet && state.sheetData.omzet.totaal > 0);
     let omzetMuziek9 = hasSheetOmzet ? (state.sheetData.omzet.laag9 || 0) : (currentHistData?.omzet?.muziek9 || 0);
@@ -77,12 +81,15 @@ export function resolveAnnualReportModel(state = {}, calculatedData = {}) {
         });
         totaleAfschrijving = calculatedData.totaleAfschrijving || 0;
         totaleBoekwaarde = inventarisItems.reduce((s, i) => s + (i.boekwaardeEind || 0), 0);
-    } else if (year === 2025 && !aangifte) {
+    }
+
+    // Bug 2 fix: als inventarisItems leeg is en boekjaar is 2025, gebruik altijd de geregistreerde inventaris
+    if (inventarisItems.length === 0 && (year === 2025 || !currentHistData)) {
         inventarisItems = GOLDEN_INVENTARIS_2025;
         totaleAanschaf = GOLDEN_INVENTARIS_2025.reduce((s, i) => s + i.aankoopBedrag, 0);
         totaleAfschrijving = 841;
         totaleBoekwaarde = 2390;
-    } else if (currentHistData?.balans?.activa?.inventaris) {
+    } else if (inventarisItems.length === 0 && currentHistData?.balans?.activa?.inventaris) {
         totaleAfschrijving = currentHistData.kosten.afschrijving;
         totaleBoekwaarde = currentHistData.balans.activa.inventaris;
         totaleAanschaf = totaleBoekwaarde + totaleAfschrijving;
@@ -91,8 +98,9 @@ export function resolveAnnualReportModel(state = {}, calculatedData = {}) {
     if (aangifte?.kosten?.afschrijving !== undefined) {
         totaleAfschrijving = Number(aangifte.kosten.afschrijving);
     }
-    if (aangifte?.balans?.activa?.mva !== undefined) {
-        totaleBoekwaarde = Number(aangifte.balans.activa.mva);
+    const aangifteMVA = aangifteActiva?.mva ?? aangifteActiva?.inventaris;
+    if (aangifteMVA !== undefined) {
+        totaleBoekwaarde = Number(aangifteMVA);
     }
 
     const kostenTotaal = aangifte?.kosten?.totaal !== undefined
@@ -102,85 +110,93 @@ export function resolveAnnualReportModel(state = {}, calculatedData = {}) {
             : (currentHistData?.kosten?.totaal || (uitbesteedWerk + autokosten + huisvesting + financieleLasten + andereKosten + totaleAfschrijving)));
 
     // 4. Winstberekening
-    const saldo = aangifte?.winst?.saldo !== undefined
-        ? Number(aangifte.winst.saldo)
+    const saldo = aangifteWinst?.saldo !== undefined
+        ? Number(aangifteWinst.saldo)
         : (omzetTotaal - kostenTotaal);
 
-    const bijtelling = aangifte?.winst?.bijtelling !== undefined
-        ? Number(aangifte.winst.bijtelling)
+    const bijtelling = aangifteWinst?.bijtelling !== undefined
+        ? Number(aangifteWinst.bijtelling)
         : ((state.auto && state.auto.zakelijkGebruik === false)
             ? 0
             : (calculatedData.bijtelling || currentHistData?.winstberekening?.bijtelling || 0));
 
-    const fiscaleWinst = aangifte?.winst?.fiscaleWinst !== undefined
-        ? Number(aangifte.winst.fiscaleWinst)
+    const fiscaleWinst = aangifteWinst?.fiscaleWinst !== undefined
+        ? Number(aangifteWinst.fiscaleWinst)
         : ((hasSheetOmzet || hasSheetKosten)
             ? (saldo + bijtelling)
             : (currentHistData?.winstberekening?.fiscaleWinst ?? (saldo + bijtelling)));
 
     const rates = getRatesForYear(year);
-    const ondernemersaftrek = aangifte?.winst?.ondernemersaftrek !== undefined
-        ? Number(aangifte.winst.ondernemersaftrek)
+    const ondernemersaftrek = aangifteWinst?.ondernemersaftrek !== undefined
+        ? Number(aangifteWinst.ondernemersaftrek)
         : ((state.ondernemer?.urencriteriumGehaald !== false && fiscaleWinst > 0)
             ? (currentHistData?.winstberekening?.ondernemersaftrek ?? Math.min(rates.zelfstandigenaftrek, fiscaleWinst))
             : 0);
 
     const winstNaOndernemersaftrek = Math.max(0, fiscaleWinst - ondernemersaftrek);
-    const mkbWinstvrijstellingBedrag = aangifte?.winst?.mkbWinstvrijstellingBedrag !== undefined
-        ? Number(aangifte.winst.mkbWinstvrijstellingBedrag)
+    const mkbWinstvrijstellingBedrag = aangifteWinst?.mkbWinstvrijstellingBedrag !== undefined
+        ? Number(aangifteWinst.mkbWinstvrijstellingBedrag)
         : (currentHistData?.winstberekening?.mkbWinstvrijstellingBedrag ?? Math.round(winstNaOndernemersaftrek * rates.mkbWinstvrijstelling));
 
-    const belastbareWinst = aangifte?.winst?.belastbareWinst !== undefined
-        ? Number(aangifte.winst.belastbareWinst)
+    const belastbareWinst = aangifteWinst?.belastbareWinst !== undefined
+        ? Number(aangifteWinst.belastbareWinst)
         : (currentHistData?.winstberekening?.belastbareWinst ?? (winstNaOndernemersaftrek - mkbWinstvrijstellingBedrag));
 
     // 5. Balans Activa
-    const debiteuren = aangifte?.balans?.activa?.debiteuren !== undefined
-        ? Number(aangifte.balans.activa.debiteuren)
+    const debiteuren = aangifteActiva?.debiteuren !== undefined
+        ? Number(aangifteActiva.debiteuren)
         : (parseFloat(state.balans?.debiteuren) || currentHistData?.balans?.activa?.debiteuren || 0);
 
-    const overlopendeActiva = aangifte?.balans?.activa?.overlopend !== undefined
-        ? Number(aangifte.balans.activa.overlopend)
+    const overlopendeActiva = aangifteActiva?.overlopend !== undefined
+        ? Number(aangifteActiva.overlopend)
         : (parseFloat(state.balans?.overlopendeActiva) || currentHistData?.balans?.activa?.overlopend || 0);
 
     const borgMobility = year <= 2022 ? (currentHistData?.balans?.activa?.borgMobility || 0) : 0;
 
-    const bankEind = aangifte?.balans?.activa?.bank !== undefined
-        ? Number(aangifte.balans.activa.bank)
+    const bankEind = aangifteActiva?.bank !== undefined
+        ? Number(aangifteActiva.bank)
         : (parseFloat(state.bank?.eindSaldo) || currentHistData?.balans?.activa?.bank || 0);
 
     const totaalVorderingen = debiteuren + overlopendeActiva + borgMobility;
-    const totaalActiva = aangifte?.balans?.activa?.totaalActiva !== undefined
-        ? Number(aangifte.balans.activa.totaalActiva)
+    const aangifteTotaalActiva = aangifteActiva?.totaalActiva ?? aangifteActiva?.totaal;
+    const totaalActiva = aangifteTotaalActiva !== undefined
+        ? Number(aangifteTotaalActiva)
         : (totaleBoekwaarde + totaalVorderingen + bankEind);
 
     // 6. Balans Passiva (Eigen vermogen is sluitstuk)
-    const forStand = aangifte?.balans?.passiva?.forStand !== undefined
-        ? Number(aangifte.balans.passiva.forStand)
+    const aangifteFOR = aangiftePassiva?.forStand ?? aangiftePassiva?.for;
+    const forStand = aangifteFOR !== undefined
+        ? Number(aangifteFOR)
         : (parseFloat(state.balans?.forStand ?? (currentHistData?.balans?.passiva?.for ?? BFE_COMPANY_INFO.forStandVast)) || 0);
 
-    const btwSchuld = aangifte?.balans?.passiva?.btwSchuld !== undefined
-        ? Number(aangifte.balans.passiva.btwSchuld)
+    const btwSchuld = aangiftePassiva?.btwSchuld !== undefined
+        ? Number(aangiftePassiva.btwSchuld)
         : (parseFloat(state.balans?.omzetbelastingSchuld || state.balans?.kortlopendeSchulden) || currentHistData?.balans?.passiva?.btwSchuld || 0);
 
-    const overigeSchulden = aangifte?.balans?.passiva?.overigeSchulden !== undefined
-        ? Number(aangifte.balans.passiva.overigeSchulden)
+    const overigeSchulden = aangiftePassiva?.overigeSchulden !== undefined
+        ? Number(aangiftePassiva.overigeSchulden)
         : (parseFloat(state.balans?.overigeSchulden) || currentHistData?.balans?.passiva?.overigeSchulden || 0);
 
-    const totaalKortlopendeSchulden = aangifte?.balans?.passiva?.totaalSchulden !== undefined
-        ? Number(aangifte.balans.passiva.totaalSchulden)
+    const aangifteSchulden = aangiftePassiva?.totaalSchulden ?? (
+        (aangiftePassiva?.btwSchuld !== undefined || aangiftePassiva?.overigeSchulden !== undefined)
+            ? (Number(aangiftePassiva?.btwSchuld || 0) + Number(aangiftePassiva?.overigeSchulden || 0))
+            : undefined
+    );
+    const totaalKortlopendeSchulden = aangifteSchulden !== undefined
+        ? Number(aangifteSchulden)
         : (btwSchuld + overigeSchulden);
 
-    const eigenVermogenEind = aangifte?.balans?.passiva?.eigenVermogen !== undefined
-        ? Number(aangifte.balans.passiva.eigenVermogen)
+    const eigenVermogenEind = aangiftePassiva?.eigenVermogen !== undefined
+        ? Number(aangiftePassiva.eigenVermogen)
         : (totaalActiva - forStand - totaalKortlopendeSchulden);
 
-    const totaalOndernemingsvermogen = aangifte?.balans?.passiva?.totaalVermogen !== undefined
-        ? Number(aangifte.balans.passiva.totaalVermogen)
+    const totaalOndernemingsvermogen = aangiftePassiva?.totaalVermogen !== undefined
+        ? Number(aangiftePassiva.totaalVermogen)
         : (forStand + eigenVermogenEind);
 
-    const totaalPassiva = aangifte?.balans?.passiva?.totaalPassiva !== undefined
-        ? Number(aangifte.balans.passiva.totaalPassiva)
+    const aangifteTotaalPassiva = aangiftePassiva?.totaalPassiva ?? aangiftePassiva?.totaal;
+    const totaalPassiva = aangifteTotaalPassiva !== undefined
+        ? Number(aangifteTotaalPassiva)
         : (totaalOndernemingsvermogen + totaalKortlopendeSchulden);
 
     // 7. Kapitaalsvergelijking
@@ -188,24 +204,19 @@ export function resolveAnnualReportModel(state = {}, calculatedData = {}) {
         ? Number(aangifte.kapitaal.beginVermogen)
         : (prevData?.balans?.passiva?.totaalVermogen ?? currentHistData?.kapitaal?.beginVermogen ?? (calculatedData.balans?.eigenVermogenBegin || 0));
 
-    const hasUserPrive = Boolean(
-        parseFloat(state.prive?.onttrekkingenInGeld) ||
-        parseFloat(state.prive?.onttrekkingenInNatura) ||
-        parseFloat(state.prive?.stortingenInGeld) ||
-        parseFloat(state.prive?.stortingenInNatura)
-    );
+    const pGeld = parseFloat(state.prive?.onttrekkingenInGeld) || 0;
+    const pNatura = parseFloat(state.prive?.onttrekkingenInNatura) || 0;
+    const pStortGeld = parseFloat(state.prive?.stortingenInGeld) || 0;
+    const pStortNatura = parseFloat(state.prive?.stortingenInNatura) || 0;
+    const hasUserPrive = Boolean(pGeld || pNatura || pStortGeld || pStortNatura);
 
     const totaleStortingen = aangifte?.kapitaal?.totaleStortingen !== undefined
         ? Number(aangifte.kapitaal.totaleStortingen)
-        : (hasUserPrive
-            ? (parseFloat(state.prive?.stortingenInGeld || 0) + parseFloat(state.prive?.stortingenInNatura || 0))
-            : (currentHistData?.kapitaal?.totaleStortingen || 0));
+        : (hasUserPrive ? (pStortGeld + pStortNatura) : (currentHistData?.kapitaal?.totaleStortingen || 0));
 
     const totaleOnttrekkingen = aangifte?.kapitaal?.totaleOnttrekkingen !== undefined
         ? Number(aangifte.kapitaal.totaleOnttrekkingen)
-        : (hasUserPrive
-            ? (parseFloat(state.prive?.onttrekkingenInGeld || 0) + parseFloat(state.prive?.onttrekkingenInNatura || 0) + Math.round(bijtelling))
-            : (currentHistData?.kapitaal?.totaleOnttrekkingen ?? Math.max(0, vermogenBegin - totaalOndernemingsvermogen + fiscaleWinst)));
+        : (hasUserPrive ? (pGeld + pNatura + Math.round(bijtelling)) : (currentHistData?.kapitaal?.totaleOnttrekkingen ?? Math.max(0, vermogenBegin - totaalOndernemingsvermogen + fiscaleWinst)));
 
     const vermogenEind = aangifte?.kapitaal?.eindVermogen !== undefined
         ? Number(aangifte.kapitaal.eindVermogen)

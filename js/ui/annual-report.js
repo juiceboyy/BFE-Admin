@@ -119,13 +119,20 @@ function setupReportEventListeners() {
                 if (window.lucide) window.lucide.createIcons();
 
                 await parseAndApplyAangiftePDF(file);
+
+                // Forceer direct herberekening en her-rendering van het jaarverslag
+                renderReport();
             } catch (err) {
                 console.error('[AnnualReport] Fout bij importeren aangifte:', err);
                 alert(`Er is een fout opgetreden bij het inlezen van de Aangifte IB:\n${err.message || err}`);
             } finally {
-                importBtn.disabled = false;
-                importBtn.innerHTML = origHTML;
-                importInput.value = '';
+                const currentBtn = containerElement?.querySelector('#btn-import-aangifte');
+                if (currentBtn) {
+                    currentBtn.disabled = false;
+                    currentBtn.innerHTML = origHTML;
+                }
+                const currentInput = containerElement?.querySelector('#input-import-aangifte');
+                if (currentInput) currentInput.value = '';
                 if (window.lucide) window.lucide.createIcons();
             }
         });

@@ -135,7 +135,7 @@ export function getBalansHTML(year, prevYear, prevData, activa, passiva) {
                 </table>
 
                 <div class="mt-4 flex items-center justify-between text-xs py-2 px-3 ${Math.abs(totaalActiva - totaalPassiva) < 0.01 ? 'bg-emerald-50/60 border border-emerald-200/80 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800'} rounded-xl font-mono">
-                    <span>Balansevenwicht (Activa &minus; Passiva)</span>
+                    <span>Balansevenwicht (Activa - Passiva)</span>
                     <span class="font-semibold">${Math.abs(totaalActiva - totaalPassiva) < 0.01 ? `In evenwicht: ${formatEurInt(totaalActiva)} = ${formatEurInt(totaalPassiva)} (€ 0)` : `Verschil: ${formatEurInt(totaalActiva - totaalPassiva)}`}</span>
                 </div>
             </div>

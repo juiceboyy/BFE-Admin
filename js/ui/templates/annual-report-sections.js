@@ -178,8 +178,13 @@ export function getToelichtingHTML(year, inventarisData, kapitaalData, forStand)
                         <span class="font-mono">${formatEurInt(vermogenEind)}</span>
                     </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-gray-200 text-[11px] text-gray-500 font-mono leading-relaxed">
-                    Aansluiting: Stand 31-12 (${formatEurInt(vermogenEind)}) &minus; Stand 01-01 (${formatEurInt(vermogenBegin)}) + Onttrekkingen (${formatEurInt(totaleOnttrekkingen)}) &minus; Stortingen (${formatEurInt(totaleStortingen)}) = Fiscale Winst ${formatEurInt(fiscaleWinst)}
+                <div class="mt-4 pt-3 border-t border-gray-200 text-[11px] text-gray-600 font-mono leading-relaxed space-y-1">
+                    <div>
+                        <strong>Aansluiting:</strong> Stand 31-12 (${formatEurInt(vermogenEind)}) - Stand 01-01 (${formatEurInt(vermogenBegin)}) + Onttrekkingen (${formatEurInt(totaleOnttrekkingen)}) - Stortingen (${formatEurInt(totaleStortingen)}) = Fiscale Winst ${formatEurInt(fiscaleWinst)}
+                    </div>
+                    <div class="text-[10px] text-gray-400 font-sans">
+                        Controle: Stand 01-01 (${formatEurInt(vermogenBegin)}) + Fiscale Winst (${formatEurInt(fiscaleWinst)}) - Onttrekkingen (${formatEurInt(totaleOnttrekkingen)}) + Stortingen (${formatEurInt(totaleStortingen)}) = Stand 31-12 (${formatEurInt(vermogenEind)})
+                    </div>
                 </div>
             </div>
 
