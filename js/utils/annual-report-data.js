@@ -63,9 +63,9 @@ export const HISTORICAL_ANNUAL_DATA = {
             totaal: 26221,
             uitbesteedWerk: 1661,
             afschrijving: 841,
-            autokosten: 13918,
-            huisvesting: 4364,
-            andereKosten: 5317,
+            autokosten: 15544,
+            huisvesting: 4512,
+            andereKosten: 3543,
             financieleLasten: 120
         },
         winstberekening: {
@@ -77,8 +77,8 @@ export const HISTORICAL_ANNUAL_DATA = {
             belastbareWinst: 23912
         },
         balans: {
-            activa: { inventaris: 1289, debiteuren: 0, overlopend: 0, borgMobility: 0, bank: 1514, totaal: 2803 },
-            passiva: { for: 2143, eigenVermogen: 660, totaalVermogen: 2803, btwSchuld: 0, overigeSchulden: 0, totaal: 2803 }
+            activa: { inventaris: 2390, debiteuren: 0, overlopend: 0, borgMobility: 0, bank: 460, totaal: 2850 },
+            passiva: { for: 2143, eigenVermogen: 660, totaalVermogen: 2803, btwSchuld: 47, overigeSchulden: 0, totaal: 2850 }
         },
         kapitaal: {
             beginVermogen: 7353,

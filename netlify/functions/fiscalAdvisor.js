@@ -7,7 +7,7 @@
  * Returns: { text: String } — a JSON array of advice cards (parsed by the frontend)
  */
 
-const SYSTEM_PROMPT = `Je bent een vaste Nederlandse belastingadviseur voor Big Fish Entertainment.
+const SYSTEM_PROMPT = `Je bent de vaste senior Nederlandse belastingadviseur en boekhouder voor Big Fish Entertainment.
 Je kent dit bedrijf door en door — gebruik de bedrijfsspecifieke kennis hieronder bij elk advies.
 
 ## Bedrijfsprofiel
@@ -31,8 +31,8 @@ Boekhoudconventie:
 |--------|-----------|
 | 9% laag | Optredens als uitvoerend kunstenaar |
 | 21% hoog | Commerciële opdrachten, muziekles aan leerlingen > 21 jaar, merchandise |
-| 0% | Diensten/leveringen buitenland, verleggingsregelingen |
-- BTW-aangifte: kwartaal — Q1: 30 april | Q2: 31 juli | Q3: 31 oktober | Q4: 31 januari
+| 0% | Muziekonderwijs (KOR/vrijgesteld/0%), diensten buitenland, verlegging |
+- BTW-aangifte: per kwartaal — Q1: 30 april | Q2: 31 juli | Q3: 31 oktober | Q4: 31 januari
 - BTW-correctie privégebruik (auto, telefoon) uiterlijk 31 december verwerken
 
 ## Auto — Volkswagen ID.3 (Zakelijke Operational Lease bij Mobility Service Nederland)
@@ -46,23 +46,25 @@ Boekhoudconventie:
   - 2026 en later: **€6.607,00**
 - De bijtelling telt als privéonttrekking in natura en verhoogt de fiscale winst. Gebruik altijd de exacte bijtelling uit context.bijtelling.
 
-## Afschrijvingen
-- Methode: **lineair, 5 jaar** als standaard
+## Afschrijvingen & Bedrijfsmiddelen
+- Methode: **lineair, 5 jaar** als standaard, restwaarde € 0
 - Activeringsdrempel: **>€450 excl. BTW** — bedrijfsmiddelen daaronder direct ten laste van resultaat
 - Geen willekeurige afschrijving toegepast
 - KIA alleen van toepassing als totale nieuwe investeringen > KIA-drempel (zie tarieven boekjaar)
 
-## Fiscale Oudedagsreserve (FOR)
-- FOR is **afgeschaft per 1-1-2023** voor nieuwe opbouw
-- Bestaande FOR-stand eind 2022: **€2.143** — staat nog op de balans, geen nieuwe dotatie mogelijk
-- Geen toevoeging of vrijval tenzij bewust afgewikkeld
+## Balans & Boekhoudkundige Integriteit
+- **Balansregel 1:** Totaal Activa MOET altijd exact gelijk zijn aan Totaal Passiva (Activa = Passiva).
+- **Balansregel 2:** Eigen vermogen is het sluitstuk op de passivazijde: Eigen Vermogen = Activa - FOR - Kortlopende Schulden.
+- **Balansregel 3:** Kapitaalsvergelijking moet exact aansluiten: Eindvermogen - Beginvermogen + Onttrekkingen - Stortingen = Fiscale Winst.
+- **FOR:** Bestaande FOR-stand eind 2022 is **€2.143** — staat op de balans, geen nieuwe dotatie mogelijk (afgeschaft per 1-1-2023).
 
 ## IB-Berekening Volgorde
 1. Brutowinst = Omzet (excl. BTW) − Kosten − Afschrijvingen
-2. + Bijtelling auto: overgenomen uit meegestuurde context.bijtelling (bijv. €3.430,48 voor ≤2024, €4.335,57 voor 2025, €6.607,00 voor ≥2026)
-3. − Zelfstandigenaftrek (zie tarieven boekjaar; vereist urencriterium ≥ 1.225 uur)
-4. × (1 − MKB%) = Belastbare Winst Box 1 (zie tarieven boekjaar)
-5. × IB-tarief Box 1 = geschatte IB (zie tarieven boekjaar)
+2. + Bijtelling auto: overgenomen uit meegestuurde context.bijtelling
+3. = Fiscale winst
+4. − Zelfstandigenaftrek (zie tarieven boekjaar; vereist urencriterium ≥ 1.225 uur)
+5. × (1 − MKB%) = Belastbare Winst Box 1
+6. × IB-tarief Box 1 = geschatte IB
 
 ## Niet-Aftrekbare Posten (veelgemaakte fouten)
 - **Broodfonds** telt NIET als AOV en is **niet aftrekbaar** als bedrijfskost
@@ -107,7 +109,6 @@ export const handler = async (event) => {
     // Injecteer jaar-specifieke tarieven in het system prompt zodat Gemini
     // altijd de juiste getallen gebruikt, ongeacht het boekjaar.
     const rates = context?.taxRates;
-    // Infinity serialiseert naar null in JSON — behandel null/Infinity beide als "daarboven"
     const isLaatsteSchijf = (grens) => grens === null || grens === undefined || !isFinite(grens);
     const box1Omschrijving = rates?.box1
         ? rates.box1.map((s, i) => {
@@ -139,8 +140,6 @@ export const handler = async (event) => {
         };
     }
 
-    // Multi-turn: als messages 'parts' hebben zijn ze al in Gemini-formaat (chatHistory).
-    // Legacy fallback: berichten met 'content' samenvoegen tot één user-turn.
     const contents = (messages[0]?.parts)
         ? messages
         : [{ role: 'user', parts: [{ text: messages.map(m => m.content || '').join('\n\n') }] }];
@@ -154,7 +153,7 @@ export const handler = async (event) => {
             body: JSON.stringify({
                 systemInstruction: { parts: [{ text: systemPrompt }] },
                 contents,
-                generationConfig: { temperature: 0.3, ...(messages.length > 1 && { maxOutputTokens: 300 }) }
+                generationConfig: { temperature: 0.0, ...(messages.length > 1 && { maxOutputTokens: 300 }) }
             })
         });
 

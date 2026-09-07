@@ -6,6 +6,7 @@
 import { fiscalState } from '../store/fiscal-state.js';
 import { calculateTaxes } from '../utils/tax-calculator.js';
 import { getAnnualReportHTML } from './templates/annual-report-template.js';
+import { parseAndApplyAangiftePDF } from '../api/extract-aangifte.js';
 
 let containerElement = null;
 
@@ -96,6 +97,37 @@ function setupReportEventListeners() {
         gotoIntakeBtn.addEventListener('click', () => {
             const tabFiscal = document.getElementById('tab-fiscal');
             if (tabFiscal) tabFiscal.click();
+        });
+    }
+
+    // Aangifte IB Importeren
+    const importBtn = containerElement.querySelector('#btn-import-aangifte');
+    const importInput = containerElement.querySelector('#input-import-aangifte');
+    if (importBtn && importInput) {
+        importBtn.addEventListener('click', () => {
+            importInput.click();
+        });
+
+        importInput.addEventListener('change', async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            const origHTML = importBtn.innerHTML;
+            try {
+                importBtn.disabled = true;
+                importBtn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Aangifte Verwerken...`;
+                if (window.lucide) window.lucide.createIcons();
+
+                await parseAndApplyAangiftePDF(file);
+            } catch (err) {
+                console.error('[AnnualReport] Fout bij importeren aangifte:', err);
+                alert(`Er is een fout opgetreden bij het inlezen van de Aangifte IB:\n${err.message || err}`);
+            } finally {
+                importBtn.disabled = false;
+                importBtn.innerHTML = origHTML;
+                importInput.value = '';
+                if (window.lucide) window.lucide.createIcons();
+            }
         });
     }
 }

@@ -26,7 +26,8 @@ const initialState = {
     },
     balans: {
         kortlopendeSchulden: 0,
-        forStand: 2143  // FOR afgeschaft 2023; bestaande stand Big Fish eind 2022
+        forStand: 2143, // FOR afgeschaft 2023; bestaande stand Big Fish eind 2022
+        aangifteData: null
     }
 };
 

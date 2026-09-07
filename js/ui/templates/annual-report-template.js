@@ -3,194 +3,29 @@
  * Hoofdtemplate voor het Jaarverslag van Big Fish Entertainment.
  */
 
-import { BFE_COMPANY_INFO, HISTORICAL_ANNUAL_DATA, GOLDEN_INVENTARIS_2025, categorizeKosten } from '../../utils/annual-report-data.js';
-import { getRatesForYear } from '../../utils/tax-calculator.js';
+import { BFE_COMPANY_INFO } from '../../utils/annual-report-data.js';
+import { resolveAnnualReportModel } from '../../utils/annual-report-resolver.js';
 import { getBalansHTML } from './annual-report-balans.js';
 import { getResultatenrekeningHTML, getToelichtingHTML } from './annual-report-sections.js';
 
 export function getAnnualReportHTML(state, calculatedData) {
-    const year = parseInt(state.year || new Date().getFullYear(), 10);
-    const prevYear = year - 1;
-    const prevData = HISTORICAL_ANNUAL_DATA[prevYear] || null;
-    const currentHistData = HISTORICAL_ANNUAL_DATA[year] || null;
-
-    // 1. Omzetverdeling
-    const hasSheetOmzet = Boolean(state.sheetData?.omzet && state.sheetData.omzet.totaal > 0);
-    const omzetMuziek9 = hasSheetOmzet ? (state.sheetData.omzet.laag9 || 0) : (currentHistData?.omzet?.muziek9 || 0);
-    const omzetOnderwijs0 = hasSheetOmzet ? (state.sheetData.omzet.nul0 || 0) : (currentHistData?.omzet?.onderwijs0 || 0);
-    const omzetOverig21 = hasSheetOmzet ? (state.sheetData.omzet.hoog21 || 0) : (currentHistData?.omzet?.overig21 || 0);
-    const omzetTotaal = hasSheetOmzet
-        ? (calculatedData.omzet || (omzetMuziek9 + omzetOnderwijs0 + omzetOverig21))
-        : (currentHistData?.omzet?.totaal || (omzetMuziek9 + omzetOnderwijs0 + omzetOverig21));
-
-    // 2. Kostenverdeling
-    const hasSheetKosten = Boolean(state.sheetData?.kosten && state.sheetData.kosten.totaal > 0);
-    const perLev = state.sheetData?.kosten?.perLeverancier || {};
-    const categorized = categorizeKosten(perLev, calculatedData.kosten || 0);
-
-    const uitbesteedWerk = hasSheetKosten && categorized.uitbesteedWerk > 0 ? categorized.uitbesteedWerk : (currentHistData?.kosten?.uitbesteedWerk || 0);
-    const autokosten = hasSheetKosten && categorized.autokosten > 0 ? categorized.autokosten : (currentHistData?.kosten?.autokosten || 0);
-    const huisvesting = hasSheetKosten && categorized.huisvesting > 0 ? categorized.huisvesting : (currentHistData?.kosten?.huisvesting || 0);
-    const financieleLasten = hasSheetKosten && categorized.financieleLasten > 0 ? categorized.financieleLasten : (currentHistData?.kosten?.financieleLasten || 0);
-    const andereKosten = hasSheetKosten && categorized.andereKosten > 0 ? categorized.andereKosten : (currentHistData?.kosten?.andereKosten || 0);
-
-    // 3. Inventaris & Afschrijvingen
-    let inventarisItems = [];
-    let totaleAanschaf = 0;
-    let totaleAfschrijving = 0;
-    let totaleBoekwaarde = 0;
-
-    if (calculatedData.afschrijvingenLog && calculatedData.afschrijvingenLog.length > 0) {
-        const inventarisList = Array.isArray(state.inventaris) ? state.inventaris : [];
-        inventarisItems = calculatedData.afschrijvingenLog.map(item => {
-            const orig = inventarisList.find(i => i.id === item.id) || {};
-            const aankoopBedrag = orig.aankoopBedrag || 0;
-            totaleAanschaf += aankoopBedrag;
-            return {
-                id: item.id,
-                omschrijving: item.omschrijving,
-                aankoopJaar: orig.aankoopJaar || '-',
-                aankoopBedrag,
-                afschrijvingDitJaar: item.afschrijvingDitJaar || 0,
-                boekwaardeEind: item.boekwaardeEind || 0
-            };
-        });
-        totaleAfschrijving = calculatedData.totaleAfschrijving || 0;
-        totaleBoekwaarde = inventarisItems.reduce((s, i) => s + (i.boekwaardeEind || 0), 0);
-    } else if (year === 2025) {
-        inventarisItems = GOLDEN_INVENTARIS_2025;
-        totaleAanschaf = GOLDEN_INVENTARIS_2025.reduce((s, i) => s + i.aankoopBedrag, 0);
-        totaleAfschrijving = 841;
-        totaleBoekwaarde = 1289;
-    } else if (currentHistData?.balans?.activa?.inventaris) {
-        totaleAfschrijving = currentHistData.kosten.afschrijving;
-        totaleBoekwaarde = currentHistData.balans.activa.inventaris;
-        totaleAanschaf = totaleBoekwaarde + totaleAfschrijving;
-    }
-
-    const kostenTotaal = hasSheetKosten
-        ? ((calculatedData.kosten || 0) + totaleAfschrijving)
-        : (currentHistData?.kosten?.totaal || (uitbesteedWerk + autokosten + huisvesting + financieleLasten + andereKosten + totaleAfschrijving));
-
-    // 4. Winstberekening
-    const saldo = omzetTotaal - kostenTotaal;
-    const bijtelling = (state.auto && state.auto.zakelijkGebruik === false)
-        ? 0
-        : (calculatedData.bijtelling || currentHistData?.winstberekening?.bijtelling || 0);
-
-    const fiscaleWinst = (hasSheetOmzet || hasSheetKosten)
-        ? (saldo + bijtelling)
-        : (currentHistData?.winstberekening?.fiscaleWinst ?? (saldo + bijtelling));
-
-    const rates = getRatesForYear(year);
-    const ondernemersaftrek = (state.ondernemer?.urencriteriumGehaald !== false && fiscaleWinst > 0)
-        ? (currentHistData?.winstberekening?.ondernemersaftrek ?? Math.min(rates.zelfstandigenaftrek, fiscaleWinst))
-        : 0;
-    const winstNaOndernemersaftrek = Math.max(0, fiscaleWinst - ondernemersaftrek);
-    const mkbWinstvrijstellingBedrag = currentHistData?.winstberekening?.mkbWinstvrijstellingBedrag
-        ?? Math.round(winstNaOndernemersaftrek * rates.mkbWinstvrijstelling);
-    const belastbareWinst = currentHistData?.winstberekening?.belastbareWinst
-        ?? (winstNaOndernemersaftrek - mkbWinstvrijstellingBedrag);
-
-    // 5. Balans Activa
-    const debiteuren = parseFloat(state.balans?.debiteuren) || currentHistData?.balans?.activa?.debiteuren || 0;
-    const overlopendeActiva = parseFloat(state.balans?.overlopendeActiva) || currentHistData?.balans?.activa?.overlopend || 0;
-    const borgMobility = year <= 2022 ? (currentHistData?.balans?.activa?.borgMobility || 0) : 0;
-    const bankEind = parseFloat(state.bank?.eindSaldo) || currentHistData?.balans?.activa?.bank || 0;
-    const totaalVorderingen = debiteuren + overlopendeActiva + borgMobility;
-    const totaalActiva = totaleBoekwaarde + totaalVorderingen + bankEind;
-
-    // 6. Balans Passiva (Boekhoudregel 2: Eigen vermogen is het sluitstuk)
-    const forStand = parseFloat(state.balans?.forStand ?? (currentHistData?.balans?.passiva?.for ?? BFE_COMPANY_INFO.forStandVast)) || 0;
-    const btwSchuld = parseFloat(state.balans?.omzetbelastingSchuld || state.balans?.kortlopendeSchulden) || currentHistData?.balans?.passiva?.btwSchuld || 0;
-    const overigeSchulden = parseFloat(state.balans?.overigeSchulden) || currentHistData?.balans?.passiva?.overigeSchulden || 0;
-    const totaalKortlopendeSchulden = btwSchuld + overigeSchulden;
-
-    const eigenVermogenEind = totaalActiva - forStand - totaalKortlopendeSchulden;
-    const totaalOndernemingsvermogen = forStand + eigenVermogenEind;
-    const totaalPassiva = totaalOndernemingsvermogen + totaalKortlopendeSchulden;
-
-    // 7. Kapitaalsvergelijking (Boekhoudregel 3: aansluiting vermogensmutatie op fiscale winst)
-    const vermogenBegin = prevData?.balans?.passiva?.totaalVermogen
-        ?? currentHistData?.kapitaal?.beginVermogen
-        ?? (calculatedData.balans?.eigenVermogenBegin || 0);
-
-    const hasUserPrive = Boolean(
-        parseFloat(state.prive?.onttrekkingenInGeld) ||
-        parseFloat(state.prive?.onttrekkingenInNatura) ||
-        parseFloat(state.prive?.stortingenInGeld) ||
-        parseFloat(state.prive?.stortingenInNatura)
-    );
-
-    const totaleStortingen = hasUserPrive
-        ? (parseFloat(state.prive?.stortingenInGeld || 0) + parseFloat(state.prive?.stortingenInNatura || 0))
-        : (currentHistData?.kapitaal?.totaleStortingen || 0);
-
-    const totaleOnttrekkingen = hasUserPrive
-        ? (parseFloat(state.prive?.onttrekkingenInGeld || 0) + parseFloat(state.prive?.onttrekkingenInNatura || 0) + Math.round(bijtelling))
-        : (currentHistData?.kapitaal?.totaleOnttrekkingen ?? (Math.max(0, vermogenBegin - totaalOndernemingsvermogen + fiscaleWinst)));
-
-    const vermogenEind = totaalOndernemingsvermogen;
-
-    const activaData = {
-        inventaris: totaleBoekwaarde,
-        debiteuren,
-        overlopend: overlopendeActiva,
-        borgMobility,
-        bank: bankEind,
-        totaalVorderingen,
-        totaalActiva
-    };
-
-    const passivaData = {
+    const model = resolveAnnualReportModel(state, calculatedData);
+    const {
+        year,
+        prevYear,
+        prevData,
+        isSynchronized,
         forStand,
-        eigenVermogen: eigenVermogenEind,
-        totaalVermogen: totaalOndernemingsvermogen,
-        btwSchuld,
-        overigeSchulden,
-        totaalSchulden: totaalKortlopendeSchulden,
-        totaalPassiva
-    };
+        activaData,
+        passivaData,
+        omzetData,
+        kostenData,
+        winstData,
+        inventarisData,
+        kapitaalData
+    } = model;
 
-    const omzetData = {
-        muziek9: omzetMuziek9,
-        onderwijs0: omzetOnderwijs0,
-        overig21: omzetOverig21,
-        totaal: omzetTotaal
-    };
-
-    const kostenData = {
-        uitbesteedWerk,
-        afschrijving: totaleAfschrijving,
-        autokosten,
-        huisvesting,
-        andereKosten,
-        financieleLasten,
-        totaal: kostenTotaal
-    };
-
-    const winstData = {
-        bijtelling,
-        fiscaleWinst,
-        ondernemersaftrek,
-        mkbWinstvrijstellingBedrag,
-        belastbareWinst
-    };
-
-    const inventarisData = {
-        items: inventarisItems,
-        totaleAanschaf,
-        totaleAfschrijving,
-        totaleBoekwaarde
-    };
-
-    const kapitaalData = {
-        vermogenBegin,
-        fiscaleWinst,
-        totaleStortingen,
-        totaleOnttrekkingen,
-        vermogenEind
-    };
+    const availableYears = Array.from(new Set([2026, 2025, 2024, 2023, year])).sort((a, b) => b - a);
 
     return `
         <div class="max-w-4xl mx-auto pb-16">
@@ -199,13 +34,20 @@ export function getAnnualReportHTML(state, calculatedData) {
                 <div class="flex items-center gap-3">
                     <label class="text-xs font-semibold uppercase text-gray-500 tracking-wider">Boekjaar:</label>
                     <select id="report-year-select" class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-medium outline-none focus:ring-2 focus:ring-black">
-                        <option value="2026" ${year === 2026 ? 'selected' : ''}>2026</option>
-                        <option value="2025" ${year === 2025 ? 'selected' : ''}>2025</option>
-                        <option value="2024" ${year === 2024 ? 'selected' : ''}>2024</option>
-                        <option value="2023" ${year === 2023 ? 'selected' : ''}>2023</option>
+                        ${availableYears.map(y => `<option value="${y}" ${year === y ? 'selected' : ''}>${y}</option>`).join('')}
                     </select>
                 </div>
-                <div class="flex items-center gap-2.5">
+                <div class="flex flex-wrap items-center gap-2.5">
+                    ${isSynchronized ? `
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            <span>Aangifte IB ${year} actief</span>
+                        </div>
+                    ` : ''}
+                    <input type="file" id="input-import-aangifte" accept="application/pdf" class="hidden" />
+                    <button id="btn-import-aangifte" class="px-4 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 shadow-2xs">
+                        <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Aangifte IB Importeren
+                    </button>
                     <button id="btn-goto-intake" class="px-4 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 shadow-2xs">
                         <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Gegevens Aanvullen in Intake
                     </button>
