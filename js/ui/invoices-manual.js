@@ -6,6 +6,7 @@ import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.j
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { abbreviateDescription } from '../utils/text-abbreviations.js';
 
 // Pre-programmed default clients
 
@@ -447,32 +448,6 @@ function renderItemsTable() {
     recalculateTotals();
 }
 
-function abbreviateDescription(text) {
-    if (!text) return '';
-    let result = text;
-    
-    const mappings = [
-        [/\bwerkzaamheden\b/gi, 'werkzk'],
-        [/\bmanagement\b/gi, 'mgmt'],
-        [/\badministratie\b/gi, 'adm'],
-        [/\bdiversen\b/gi, 'div'],
-        [/\bverhuur\b/gi, 'vh'],
-        [/\blesgeven\b/gi, 'lessen'],
-        [/\borganisatie\b/gi, 'org'],
-        [/\bonderhoud\b/gi, 'ond'],
-        [/\breiskosten\b/gi, 'reis'],
-        [/\babonnement\b/gi, 'abo'],
-        [/\blicentie\b/gi, 'lic'],
-        [/\bbijeenkomst\b/gi, 'bijeenk'],
-        [/\bvoorstelling\b/gi, 'voorst']
-    ];
-    
-    for (const [regex, replacement] of mappings) {
-        result = result.replace(regex, replacement);
-    }
-    return result;
-}
-
 function suggestBookingDescription() {
     if (isOmschrijvingManuallyEdited) return;
 
@@ -486,7 +461,7 @@ function suggestBookingDescription() {
     if (descriptions.length === 0) {
         bookingDescInput.value = '';
     } else {
-        const rawText = `werkzk: ${descriptions.join(', ')}`;
+        const rawText = `werkzh: ${descriptions.join(', ')}`;
         bookingDescInput.value = abbreviateDescription(rawText);
     }
 }

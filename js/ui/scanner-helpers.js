@@ -1,11 +1,12 @@
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile, getFacturenFolderId, DRIVE_FOLDER_ID } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
+import { abbreviateDescription } from '../utils/text-abbreviations.js';
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {
         return {
             ...aiData,
-            omschrijving: aiData.omschrijving || '',
+            omschrijving: abbreviateDescription(aiData.omschrijving || ''),
             factuurnummer: '', // Blijft auto-generate bij opslaan
             options: []
         };
@@ -20,7 +21,7 @@ export function prepareItemData(mode, aiData, memory) {
 
     return {
         ...aiData,
-        omschrijving: memoryOmschrijving || aiData.omschrijving || '',
+        omschrijving: abbreviateDescription(memoryOmschrijving || aiData.omschrijving || ''),
         factuurnummer: '',
         options: savedVendor || []
     };
