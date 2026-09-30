@@ -6,6 +6,53 @@ function isPodiumkleding(text) {
     return pattern.test(lower);
 }
 
+async function fetchDailyExchangeRate(currency = 'USD', dateStr = '') {
+    const cleanCurrency = (currency || 'USD').toUpperCase();
+    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+    const datePath = isValidDate ? dateStr : 'latest';
+
+    const urls = [
+        `https://api.frankfurter.dev/v1/${datePath}?base=${cleanCurrency}&symbols=EUR`,
+        `https://api.frankfurter.app/${datePath}?base=${cleanCurrency}&symbols=EUR`
+    ];
+
+    for (const url of urls) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.rates && data.rates.EUR) {
+                    return { rate: data.rates.EUR, date: data.date || dateStr };
+                }
+            }
+        } catch (_) {
+            // Probeer fallback URL
+        }
+    }
+
+    if (datePath !== 'latest') {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const res = await fetch(`https://api.frankfurter.dev/v1/latest?base=${cleanCurrency}&symbols=EUR`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.rates && data.rates.EUR) {
+                    return { rate: data.rates.EUR, date: data.date };
+                }
+            }
+        } catch (_) {}
+    }
+
+    return null;
+}
+
 export const handler = async (event, context) => {
     // Alleen POST requests toestaan
     if (event.httpMethod !== 'POST') {
@@ -52,9 +99,15 @@ Haal de volgende velden uit deze bon of factuur:
    Als de uitgave of aankoop betrekking heeft op kleding (zoals overhemden, shirts, broeken, kostuums, jassen, schoenen, etc.), een zonnebril of een tas (zoals een laptoptas, rugzak, koffer, reistas, etc.), dan MOET de omschrijving ALTIJD exact 'podiumkleding' zijn. Deze regel heeft absolute voorrang boven merknamen of artikelen op de bon en boven het cloudMemory.
    Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}.
    Als de leverancier voorkomt in het geheugen, kies dan de best passende omschrijving voor deze specifieke aankoop (behalve wanneer het kleding, een zonnebril of een tas betreft: dan altijd 'podiumkleding').
-4. factuurBedrag: Het exacte TOTAALBEDRAG van de factuur inclusief btw (het totale te betalen/voldane bedrag onderaan de bon). Return dit als getal (float).
-5. btwBedrag: Het totale btw-bedrag (zowel 9% als 21% samen) op de factuur. Return dit als getal (float).
-6. factuurnummer: Het factuurnummer dat op de bon van de leverancier staat (indien aanwezig).
+4. valuta: De valuta van de factuur of bon.
+   CRUCIALE REGEL VOOR VALUTA:
+   Als de valuta op een bon géén Euro is, dan is het meestal US Dollar ($ / USD).
+   - Kijk goed naar valuta-tekens ($ vs €) of termen zoals 'USD', 'dollar', 'CAD', 'GBP'.
+   - Als de valuta Euro is (€ / EUR): geef "EUR".
+   - Als de valuta géén Euro is: geef "USD" (of "GBP" bij een pondteken £). Bij twijfel of als het geen euro is, geef ALTIJD "USD".
+5. factuurBedrag: Het exacte TOTAALBEDRAG van de factuur inclusief btw/tax in de ORIGINELE valuta op de bon (het totale te betalen/voldane bedrag onderaan de bon). Return dit als getal (float).
+6. btwBedrag: Het totale btw-bedrag op de factuur in de originele valuta. Let op: voor buitenlandse bonnen (zoals in USD) is er voor de Nederlandse boekhouding geen aftrekbare voorbelasting (buitenlandse tax telt als onderdeel van de kosten); vul 0.00 in tenzij er expliciet Nederlandse btw (met NL btw-nummer) op de bon staat. Return dit als getal (float).
+7. factuurnummer: Het factuurnummer dat op de bon van de leverancier staat (indien aanwezig).
 
 UITZONDERING VOOR ING BANKAFSCHRIFTEN:
 Als je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrijvingen):
@@ -65,6 +118,7 @@ Als je herkent dat het document een bankafschrift is (bijv. ING Af- en bijschrij
 - Omschrijving: "Tesla Supercharging".
 - Datum: Altijd de LAATSTE DAG VAN DE BETREFFENDE MAAND (YYYY-MM-DD).
 - factuurnummer: Laat leeg ("").
+- valuta: "EUR".
 
 BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
 {
@@ -72,6 +126,7 @@ BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
   "datum": "YYYY-MM-DD",
   "naamLeverancier": "...",
   "omschrijving": "...",
+  "valuta": "EUR",
   "factuurBedrag": 0.00,
   "btwBedrag": 0.00
 }`;
@@ -120,14 +175,42 @@ BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
         // Strip markdown formatting (```json en ```)
         text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-        // Extra garantie: als de omschrijving duidt op kleding, zonnebril of tas, forceer 'podiumkleding'
+        // Extra verwerking voor inkoop: podiumkleding & valutaconversie
         if (mode === 'inkoop') {
             try {
                 const parsed = JSON.parse(text);
+
+                // Podiumkleding garantie
                 if (parsed.omschrijving && isPodiumkleding(parsed.omschrijving)) {
                     parsed.omschrijving = 'podiumkleding';
-                    text = JSON.stringify(parsed);
                 }
+
+                // Valuta inspectie en omrekening naar EUR met dagprijs
+                const valutaRaw = String(parsed.valuta || 'EUR').trim().toUpperCase();
+                const rawBedragStr = String(parsed.factuurBedrag || '');
+                const rawOmschr = String(parsed.omschrijving || '');
+                const hasDollarIndicator = rawBedragStr.includes('$') || rawOmschr.includes('USD') || rawOmschr.includes('$');
+                const isEuro = !hasDollarIndicator && (valutaRaw === 'EUR' || valutaRaw === '€');
+
+                if (!isEuro) {
+                    const currency = (valutaRaw && valutaRaw.length === 3 && valutaRaw !== 'EUR') ? valutaRaw : 'USD';
+                    const rateInfo = await fetchDailyExchangeRate(currency, parsed.datum);
+                    if (rateInfo && rateInfo.rate) {
+                        const origBedrag = parseFloat(String(parsed.factuurBedrag || '').replace(/[^0-9.-]/g, '')) || 0;
+                        const origBtw = parseFloat(String(parsed.btwBedrag || '').replace(/[^0-9.-]/g, '')) || 0;
+                        parsed.origineelValuta = currency;
+                        parsed.origineelBedrag = origBedrag;
+                        parsed.origineelBtwBedrag = origBtw;
+                        parsed.wisselkoers = rateInfo.rate;
+                        parsed.koersDatum = rateInfo.date;
+                        parsed.omgerekend = true;
+                        parsed.factuurBedrag = Math.round(origBedrag * rateInfo.rate * 100) / 100;
+                        parsed.btwBedrag = Math.round(origBtw * rateInfo.rate * 100) / 100;
+                        parsed.valuta = 'EUR';
+                    }
+                }
+
+                text = JSON.stringify(parsed);
             } catch (_) {
                 // Laat text intact als JSON parse faalt, de client handelt het af
             }

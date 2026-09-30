@@ -1,13 +1,15 @@
 import { analyzeReceipt } from '../api/gemini.js';
 import { loadCloudMemory, clearQueryCaches } from '../api/storage-queries-invoices.js';
 import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
-import { getTargetDateInfo, isDateValidForPeriod, getGlobalTargetDate, setGlobalTargetDate } from '../utils/date.js';
+import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
+import { fetchDailyExchangeRate } from '../utils/currency.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
 import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID, clearSheetCaches } from '../api/storage.js';
 import { checkForDuplicate, clearDuplicateCheckerCache } from '../utils/duplicate-checker.js';
 import { saveBatchItem as executeSaveBatchItem, saveAllBatchItems } from './scanner-save.js';
+import { setupPeriodSelector } from './scanner-period.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
@@ -35,53 +37,58 @@ export function initScanner() {
         renderBatchTable();
     });
 
-    tbody?.addEventListener('change', (e) => {
+    tbody?.addEventListener('change', async (e) => {
         const checkbox = e.target.closest('.queue-item-select');
-        if (!checkbox) return;
-        const itemId = parseFloat(checkbox.getAttribute('data-item-id'));
-        const item = batchQueue.find(i => i.id === itemId);
-        if (!item) return;
-        item.selected = checkbox.checked;
-        const row = document.getElementById(`batch-row-${itemId}`);
-        if (row) row.classList.toggle('opacity-40', !item.selected);
-        const saveBtn = document.getElementById(`btn-save-${itemId}`);
-        if (saveBtn && item.status === 'success') saveBtn.disabled = !item.selected;
-    });
+        if (checkbox) {
+            const itemId = parseFloat(checkbox.getAttribute('data-item-id'));
+            const item = batchQueue.find(i => i.id === itemId);
+            if (!item) return;
+            item.selected = checkbox.checked;
+            const row = document.getElementById(`batch-row-${itemId}`);
+            if (row) row.classList.toggle('opacity-40', !item.selected);
+            const saveBtn = document.getElementById(`btn-save-${itemId}`);
+            if (saveBtn && item.status === 'success') saveBtn.disabled = !item.selected;
+            return;
+        }
 
-    // --- Period Selector Setup ---
-    const btnPeriod = document.getElementById('period-btn') || document.querySelectorAll('header button')[1];
-    if (btnPeriod) {
-        const updateBtnText = () => {
-            const d = getGlobalTargetDate();
-            const monthYear = d.toLocaleString('nl-NL', { month: 'long', year: 'numeric' });
-            const formattedDate = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
-            
-            btnPeriod.innerHTML = `<i data-lucide="calendar" class="w-4 h-4"></i> Periode: ${formattedDate}`;
-            if (window.lucide) window.lucide.createIcons();
-        };
-        
-        updateBtnText();
+        // Automatische wisselkoers herberekening bij datumwijziging
+        if (e.target && e.target.id && e.target.id.startsWith('datum-')) {
+            const itemId = parseFloat(e.target.id.replace('datum-', ''));
+            const item = batchQueue.find(i => i.id === itemId);
+            if (item && item.data && item.data.omgerekend && item.data.origineelBedrag) {
+                const newDate = e.target.value;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+                    const currency = item.data.origineelValuta || 'USD';
+                    const rateInfo = await fetchDailyExchangeRate(currency, newDate);
+                    if (rateInfo && rateInfo.rate) {
+                        const newBedrag = Math.round(item.data.origineelBedrag * rateInfo.rate * 100) / 100;
+                        item.data.factuurBedrag = newBedrag;
+                        item.data.wisselkoers = rateInfo.rate;
+                        item.data.koersDatum = rateInfo.date;
+                        item.data.datum = newDate;
 
-        btnPeriod.addEventListener('click', () => {
-            const currentD = getGlobalTargetDate();
-            const currentStr = `${String(currentD.getMonth() + 1).padStart(2, '0')}-${currentD.getFullYear()}`;
-            const userInput = prompt("Voor welke maand wil je de data bekijken/boeken? (Formaat: MM-YYYY)", currentStr);
-            
-            if (userInput) {
-                const [month, year] = userInput.split('-');
-                if (month && year) {
-                    const newDate = new Date(year, parseInt(month) - 1, 1);
-                    setGlobalTargetDate(newDate);
-                    updateBtnText();
-                    clearSheetCaches();
-                    clearQueryCaches();
-                    clearDuplicateCheckerCache();
-                    invalidateDashboardCache();
-                    setMode(currentMode);
+                        const bedragInput = document.getElementById(`factuurbedrag-${itemId}`);
+                        if (bedragInput) bedragInput.value = newBedrag.toFixed(2);
+
+                        const currencyInfo = document.getElementById(`currency-info-${itemId}`);
+                        if (currencyInfo) {
+                            const symbol = currency === 'USD' ? '$' : currency;
+                            currencyInfo.innerText = `${symbol} ${Number(item.data.origineelBedrag).toFixed(2)} (@ ${rateInfo.rate})`;
+                            currencyInfo.title = `Omgerekend van ${currency} ${Number(item.data.origineelBedrag).toFixed(2)} met dagkoers €${rateInfo.rate} op ${rateInfo.date}`;
+                        }
+                    }
                 }
             }
-        });
-    }
+        }
+    });
+
+    setupPeriodSelector(() => {
+        clearSheetCaches();
+        clearQueryCaches();
+        clearDuplicateCheckerCache();
+        invalidateDashboardCache();
+        setMode(currentMode);
+    });
 }
 
 // --- Event Handlers ---
@@ -198,6 +205,26 @@ async function processQueue() {
             const aiData = await analyzeReceipt(item.file, currentMemory, currentMode);
 
             item.data = prepareItemData(currentMode, aiData, currentMemory);
+
+            // Client-side valutaconversie fallback (als het niet reeds op de server is uitgevoerd)
+            if (currentMode === 'inkoop' && item.data.valuta && item.data.valuta !== 'EUR' && !item.data.omgerekend) {
+                const currency = (item.data.valuta.length === 3 && item.data.valuta !== 'EUR') ? item.data.valuta : 'USD';
+                const rateInfo = await fetchDailyExchangeRate(currency, item.data.datum);
+                if (rateInfo && rateInfo.rate) {
+                    const origBedrag = parseFloat(item.data.factuurBedrag) || 0;
+                    const origBtw = parseFloat(item.data.btwBedrag) || 0;
+                    item.data.origineelValuta = currency;
+                    item.data.origineelBedrag = origBedrag;
+                    item.data.origineelBtwBedrag = origBtw;
+                    item.data.wisselkoers = rateInfo.rate;
+                    item.data.koersDatum = rateInfo.date;
+                    item.data.omgerekend = true;
+                    item.data.factuurBedrag = Math.round(origBedrag * rateInfo.rate * 100) / 100;
+                    item.data.btwBedrag = Math.round(origBtw * rateInfo.rate * 100) / 100;
+                    item.data.valuta = 'EUR';
+                }
+            }
+
             item.status = 'success';
 
             const dateInfo = getTargetDateInfo(currentMode);

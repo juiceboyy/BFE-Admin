@@ -61,6 +61,11 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
             <td class="px-4 py-3 whitespace-nowrap text-right">
                 <input type="number" id="factuurbedrag-${item.id}" step="0.01" class="w-24 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
                     value="${currentMode === 'verkoop' ? (d.totaalBedrag || d.factuurBedrag || '') : (d.factuurBedrag || d.totaalBedrag || d.bedrag || '')}"  placeholder="0.00">
+                ${d.omgerekend ? `
+                    <div id="currency-info-${item.id}" class="text-[10px] text-blue-600 font-mono text-right mt-0.5" title="Omgerekend van ${d.origineelValuta || 'USD'} ${Number(d.origineelBedrag || 0).toFixed(2)} met dagkoers €${d.wisselkoers} op ${d.koersDatum || d.datum}">
+                        ${(d.origineelValuta === 'USD' || !d.origineelValuta) ? '$' : d.origineelValuta} ${Number(d.origineelBedrag || 0).toFixed(2)} (@ ${d.wisselkoers})
+                    </div>
+                ` : ''}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
                  <input type="number" id="btw-${item.id}" step="0.01" class="w-20 text-right bg-transparent border-b border-transparent focus:border-blue-500 outline-none text-sm "
