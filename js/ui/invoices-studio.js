@@ -1,5 +1,5 @@
 import { getGlobalTargetDate, MONTH_NAMES, MONTH_NAMES_DUTCH, onPeriodChange } from '../utils/date.js';
-import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
+import { findInvoiceTargetRowAndNumber, clearInvoiceSeqCache } from '../api/storage-queries-invoices.js';
 import { clearSheetCaches } from '../api/storage.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { accessToken } from '../api/auth.js';
@@ -16,6 +16,7 @@ export function initStudioInvoices() {
 
     const btnRefreshRent = document.getElementById('btn-refresh-rent');
     btnRefreshRent?.addEventListener('click', () => {
+        clearInvoiceSeqCache();
         loadDefaultRentItems();
         renderRentTable();
     });
@@ -31,6 +32,7 @@ export function initStudioInvoices() {
 
     // Automatisch updaten wanneer de globale boekhoudperiode in de header verandert
     onPeriodChange(() => {
+        clearInvoiceSeqCache();
         loadDefaultRentItems();
         renderRentTable();
     });
@@ -159,6 +161,7 @@ async function handleGenerateRentInvoices() {
     }
 
     setLoading(true);
+    clearInvoiceSeqCache();
 
     try {
         // Group the rent items by tenantKey
@@ -263,6 +266,7 @@ async function handleGenerateRentInvoices() {
         console.error('Fout bij genereren huurfacturen:', err);
         alert(`Er ging iets mis bij het genereren of opslaan van de huurfacturen: ${err.message}`);
     } finally {
+        clearInvoiceSeqCache();
         setLoading(false);
     }
 }
