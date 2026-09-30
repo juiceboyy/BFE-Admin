@@ -29,3 +29,21 @@ export function abbreviateDescription(text) {
     }
     return result;
 }
+
+/**
+ * Detecteert of een omschrijving of onkostenpost betrekking heeft op kleding,
+ * een zonnebril of een tas. Voor Big Fish Entertainment geldt de strikte regel
+ * dat dergelijke uitgaven altijd als 'podiumkleding' moeten worden geboekt.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isPodiumkleding(text) {
+    if (!text || typeof text !== 'string') return false;
+    const lower = text.toLowerCase().trim();
+    if (lower === 'podiumkleding') return true;
+
+    const pattern = /\b([a-zA-Z]*(?:kleding|kleren|kledij|podiumkleding|zonnebril|zonnebrillen|sunglass|sunglasses|tas|tassen|rugzak|rugzakken|koffer|koffers|backpack|backpacks|broek|broeken|pantalon|pantalons|jeans|overhemd|overhemden|shirt|shirts|polo|blouse|trui|truien|sweater|sweaters|hoodie|hoodies|vest|vesten|cardigan|jas|jassen|jack|jacks|jacket|blazer|blazers|colbert|colberts|kostuum|kostuums|maatpak|smoking|tuxedo|schoen|schoenen|sneaker|sneakers|laars|laarzen|laarsjes|boots|stropdas|stropdassen|vlinderdas|hoed|hoeden|pet|petten))\b/i;
+
+    return pattern.test(lower);
+}

@@ -1,3 +1,11 @@
+function isPodiumkleding(text) {
+    if (!text || typeof text !== 'string') return false;
+    const lower = text.toLowerCase().trim();
+    if (lower === 'podiumkleding') return true;
+    const pattern = /\b([a-zA-Z]*(?:kleding|kleren|kledij|podiumkleding|zonnebril|zonnebrillen|sunglass|sunglasses|tas|tassen|rugzak|rugzakken|koffer|koffers|backpack|backpacks|broek|broeken|pantalon|pantalons|jeans|overhemd|overhemden|shirt|shirts|polo|blouse|trui|truien|sweater|sweaters|hoodie|hoodies|vest|vesten|cardigan|jas|jassen|jack|jacks|jacket|blazer|blazers|colbert|colberts|kostuum|kostuums|maatpak|smoking|tuxedo|schoen|schoenen|sneaker|sneakers|laars|laarzen|laarsjes|boots|stropdas|stropdassen|vlinderdas|hoed|hoeden|pet|petten))\b/i;
+    return pattern.test(lower);
+}
+
 export const handler = async (event, context) => {
     // Alleen POST requests toestaan
     if (event.httpMethod !== 'POST') {
@@ -40,8 +48,10 @@ Haal de volgende velden uit deze bon of factuur:
    CRUCIAAL: Gebruik ALTIJD de factuurdatum / aankoopdatum en NOOIT de vervaldatum, uiterste betaaldatum, incassodatum of leverdatum.
 2. naamLeverancier: De officiële handelsnaam van het bedrijf / de organisatie die de factuur heeft uitgereikt (de leverancier). Nooit de naam van de klant (Ronald van Holst / Big Fish Entertainment).
 3. omschrijving: Een beknopte, duidelijke omschrijving van de gekochte goederen/diensten. De omschrijving mag NOOIT worden afgekapt met puntjes (...). Gebruik gangbare afkortingen (zoals 'mgmt', 'werkzh', 'vh', 'div', 'adm', en voor bandnaam "Come Again" altijd 'CA') om binnen 50-60 tekens te blijven. Gebruik nooit 'werkzk', maar 'werkzh' voor werkzaamheden.
+   CRUCIALE REGEL VOOR KLEDING EN ACCESSOIRES:
+   Als de uitgave of aankoop betrekking heeft op kleding (zoals overhemden, shirts, broeken, kostuums, jassen, schoenen, etc.), een zonnebril of een tas (zoals een laptoptas, rugzak, koffer, reistas, etc.), dan MOET de omschrijving ALTIJD exact 'podiumkleding' zijn. Deze regel heeft absolute voorrang boven merknamen of artikelen op de bon en boven het cloudMemory.
    Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}.
-   Als de leverancier voorkomt in het geheugen, kies dan de best passende omschrijving voor deze specifieke aankoop.
+   Als de leverancier voorkomt in het geheugen, kies dan de best passende omschrijving voor deze specifieke aankoop (behalve wanneer het kleding, een zonnebril of een tas betreft: dan altijd 'podiumkleding').
 4. factuurBedrag: Het exacte TOTAALBEDRAG van de factuur inclusief btw (het totale te betalen/voldane bedrag onderaan de bon). Return dit als getal (float).
 5. btwBedrag: Het totale btw-bedrag (zowel 9% als 21% samen) op de factuur. Return dit als getal (float).
 6. factuurnummer: Het factuurnummer dat op de bon van de leverancier staat (indien aanwezig).
@@ -109,6 +119,19 @@ BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
 
         // Strip markdown formatting (```json en ```)
         text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        // Extra garantie: als de omschrijving duidt op kleding, zonnebril of tas, forceer 'podiumkleding'
+        if (mode === 'inkoop') {
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed.omschrijving && isPodiumkleding(parsed.omschrijving)) {
+                    parsed.omschrijving = 'podiumkleding';
+                    text = JSON.stringify(parsed);
+                }
+            } catch (_) {
+                // Laat text intact als JSON parse faalt, de client handelt het af
+            }
+        }
 
         return {
             statusCode: 200,

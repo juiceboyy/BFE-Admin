@@ -1,6 +1,6 @@
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile, getFacturenFolderId, DRIVE_FOLDER_ID } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
-import { abbreviateDescription } from '../utils/text-abbreviations.js';
+import { abbreviateDescription, isPodiumkleding } from '../utils/text-abbreviations.js';
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {
@@ -19,11 +19,25 @@ export function prepareItemData(mode, aiData, memory) {
         ? savedVendor[0].omschrijving 
         : (savedVendor ? savedVendor.omschrijving : null);
 
+    let omschrijving = '';
+    if (isPodiumkleding(aiData.omschrijving) || isPodiumkleding(memoryOmschrijving)) {
+        omschrijving = 'podiumkleding';
+    } else {
+        omschrijving = abbreviateDescription(memoryOmschrijving || aiData.omschrijving || '');
+    }
+
+    let options = savedVendor ? (Array.isArray(savedVendor) ? [...savedVendor] : [savedVendor]) : [];
+    if (omschrijving === 'podiumkleding') {
+        if (!options.some(opt => opt.omschrijving === 'podiumkleding')) {
+            options = [{ omschrijving: 'podiumkleding' }, ...options];
+        }
+    }
+
     return {
         ...aiData,
-        omschrijving: abbreviateDescription(memoryOmschrijving || aiData.omschrijving || ''),
+        omschrijving,
         factuurnummer: '',
-        options: savedVendor || []
+        options
     };
 }
 
@@ -125,6 +139,11 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
             ];
         }
     } else {
+        // Inkoop modus: kleding, zonnebril en tas moeten altijd als 'podiumkleding' geboekt worden
+        if (isPodiumkleding(formData.omschrijving)) {
+            formData.omschrijving = 'podiumkleding';
+        }
+
         // Normalize: accept any property name the AI might return for the total amount
         const btw = parseFloat(formData.btw) || 0;
         let factuurBedrag = parseFloat(
@@ -163,6 +182,10 @@ export function constructSheetRow(mode, formData, itemData, factuurnummer, heade
 }
 
 export async function processItemSave(file, formData, itemData, currentMode, factuurnummer, dateInfo, driveFileId = null) {
+    if (currentMode === 'inkoop' && isPodiumkleding(formData.omschrijving)) {
+        formData.omschrijving = 'podiumkleding';
+    }
+
     const newName = (currentMode === 'verkoop' && file && file.name) 
         ? file.name.replace(/\.pdf$/i, '') 
         : `${factuurnummer} - ${formData.leverancier}`;
