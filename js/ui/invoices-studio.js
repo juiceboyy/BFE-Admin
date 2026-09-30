@@ -1,4 +1,4 @@
-import { getGlobalTargetDate, MONTH_NAMES } from '../utils/date.js';
+import { getGlobalTargetDate, MONTH_NAMES, MONTH_NAMES_DUTCH, onPeriodChange } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { clearSheetCaches } from '../api/storage.js';
 import { constructSheetRow, processItemSave } from './scanner-helpers.js';
@@ -29,6 +29,12 @@ export function initStudioInvoices() {
         renderRentTable();
     });
 
+    // Automatisch updaten wanneer de globale boekhoudperiode in de header verandert
+    onPeriodChange(() => {
+        loadDefaultRentItems();
+        renderRentTable();
+    });
+
     // Initial load
     loadDefaultRentItems();
     renderRentTable();
@@ -36,8 +42,7 @@ export function initStudioInvoices() {
 
 function loadDefaultRentItems() {
     const targetDate = getGlobalTargetDate();
-    const MONTH_NAMES_DUTCH_STANDARD = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-    const maandNaam = MONTH_NAMES_DUTCH_STANDARD[targetDate.getMonth()];
+    const maandNaam = MONTH_NAMES_DUTCH[targetDate.getMonth()];
     const year2 = String(targetDate.getFullYear()).slice(-2);
     
     rentItems = [
@@ -110,7 +115,7 @@ function renderRentTable() {
     
     // Bind listeners
     tbody.querySelectorAll('.rent-desc-input').forEach(input => {
-        input.addEventListener('change', (e) => {
+        input.addEventListener('input', (e) => {
             const index = parseInt(e.target.getAttribute('data-index'));
             rentItems[index].desc = e.target.value;
         });
@@ -220,7 +225,6 @@ async function handleGenerateRentInvoices() {
                 }
             });
 
-            const MONTH_NAMES_DUTCH = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
             const targetPeriodDate = getGlobalTargetDate();
             const calendarMaandNaam = MONTH_NAMES_DUTCH[targetPeriodDate.getMonth()];
             const calendarYear2 = String(targetPeriodDate.getFullYear()).slice(-2);
