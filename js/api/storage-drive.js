@@ -23,22 +23,33 @@ export async function getFacturenFolderId() {
 export async function scanUnprocessedReceipts(folderId) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false and mimeType = 'application/pdf'`);
-    const fields = encodeURIComponent('files(id,name,mimeType)');
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false and (mimeType = 'application/pdf' or mimeType contains 'image/')`);
+    const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType)');
 
-    const response = await fetchWithRetry(
-        `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=100`,
-        { headers: { 'Authorization': `Bearer ${accessToken}` } }
-    );
+    let allFiles = [];
+    let pageToken = '';
 
-    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(`Fout bij ophalen bestanden: ${err.error.message}`);
-    }
+    do {
+        const pageParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+        const response = await fetchWithRetry(
+            `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=100${pageParam}`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
 
-    const data = await response.json();
-    return (data.files || []).filter(f => !PROCESSED_NAME_RE.test(f.name));
+        if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(`Fout bij ophalen bestanden: ${err?.error?.message || response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.files && data.files.length) {
+            allFiles = allFiles.concat(data.files);
+        }
+        pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    return allFiles.filter(f => !PROCESSED_NAME_RE.test(f.name));
 }
 
 /**

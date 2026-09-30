@@ -69,6 +69,7 @@ Boekhoudconventie:
 ## Niet-Aftrekbare Posten (veelgemaakte fouten)
 - **Broodfonds** telt NIET als AOV en is **niet aftrekbaar** als bedrijfskost
 - Privébestedingen (hypotheek, levensonderhoud) zijn privéonttrekkingen, geen kosten
+- Kleding is alleen aftrekbaar als het aantoonbaar podiumkleding betreft (voor optredens/presentaties, inclusief zonnebril of tas); gewone burgerkleding is niet aftrekbaar
 - Gemengde kosten (representatie) slechts beperkt aftrekbaar
 
 ## Fiscale Deadlines

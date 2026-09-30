@@ -181,6 +181,7 @@ The OAuth 2.0 access token lives in a module-level variable in `auth.js`. There 
 - **Durable Assets Depreciation (*Afschrijving*)**:
   - Threshold: Invoices **> €450 excl. BTW** representing assets with a lifetime > 1 year must be activated as durable inventory (*inventaris*) rather than expensed directly.
   - Method: Linear depreciation over **5 years** to residual value (0 by default).
+- **Podiumkleding**: Onkosten met betrekking tot kleding, zonnebril of tas worden gebruikt voor optredens en presentaties en moeten ALTIJD met de omschrijving 'podiumkleding' worden geboekt (niet activeren als inventaris, direct ten laste van het resultaat).
 - **Fiscale Oudedagsreserve (FOR)**:
   - Final standing at end of 2022: **€2.143**. Stays on the balance sheet liabilities (*passiva*). New contributions are outlawed from 2023 onward.
 

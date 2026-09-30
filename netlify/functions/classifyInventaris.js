@@ -16,7 +16,7 @@ Je taak is om inkooprijen te beoordelen en te bepalen welke items activeerbaar z
 - Activeringsdrempel: >€450 excl. BTW (items daaronder zijn direct aftrekbaar als kosten)
 - Duurzame bedrijfsmiddelen: apparatuur, instrumenten, machines, voertuigen, inventaris
 - NIET activeren: verbruiksartikelen, abonnementen, huur, diensten, onderhoud, reparatie,
-  software-licenties/subscriptions, reis-/verblijfkosten, representatiekosten
+  software-licenties/subscriptions, reis-/verblijfkosten, representatiekosten, kleding/podiumkleding
 
 ## Afschrijvingsduur (lineaire methode, conform CLAUDE.md)
 - Computers/hardware/telefoons: 5 jaar
