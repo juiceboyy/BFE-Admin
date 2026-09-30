@@ -5,10 +5,19 @@ import { SPREADSHEET_ID, resolveRealSheetName } from './storage.js';
 // Per-session caches — cleared when the user changes the fiscal period.
 let _cloudMemoryCache = null;              // null = uncached
 let _invoiceSeqCache  = {};               // `${sheetName}:${year}` → last-issued seq number
+let _invoiceSeqTimeout = null;
+
+export function clearInvoiceSeqCache() {
+    _invoiceSeqCache = {};
+    if (_invoiceSeqTimeout) {
+        clearTimeout(_invoiceSeqTimeout);
+        _invoiceSeqTimeout = null;
+    }
+}
 
 export function clearQueryCaches() {
     _cloudMemoryCache = null;
-    _invoiceSeqCache  = {};
+    clearInvoiceSeqCache();
 }
 
 export async function loadCloudMemory() {
@@ -114,10 +123,16 @@ export async function getMaxSequenceNumberForType(type, targetYear) {
 
                 const factVal = row[factuurIdx];
                 if (!factVal) continue;
-                const match = String(factVal).match(/(\d{4})[.-](\d{3})/);
-                if (match && parseInt(match[1], 10) === yearNum) {
-                    const seq = parseInt(match[2], 10);
-                    if (seq > maxSeq) maxSeq = seq;
+                const match = String(factVal).match(/(?:^|[^\d])(\d{2,4})[.-](\d+)/);
+                if (match) {
+                    let matchedYear = parseInt(match[1], 10);
+                    if (match[1].length === 2) {
+                        matchedYear += 2000;
+                    }
+                    if (matchedYear === yearNum) {
+                        const seq = parseInt(match[2], 10);
+                        if (seq > maxSeq) maxSeq = seq;
+                    }
                 }
             }
         }
@@ -132,6 +147,13 @@ export async function getMaxSequenceNumberForType(type, targetYear) {
 export async function getNextInvoiceNumberFromCloud(targetSheet, prevSheet, targetYear) {
     const type = String(targetSheet).toLowerCase().includes('verkoop') ? 'verkoop' : 'inkoop';
     const cacheKey = `${type}:${targetYear}`;
+
+    // Reset automatische timeout: na 15 seconden inactiviteit vervalt de cache automatisch
+    // zodat nieuwe losse acties of gecorrigeerde sheets altijd weer fresh worden bevraagd.
+    if (_invoiceSeqTimeout) clearTimeout(_invoiceSeqTimeout);
+    _invoiceSeqTimeout = setTimeout(() => {
+        clearInvoiceSeqCache();
+    }, 15000);
 
     if (_invoiceSeqCache[cacheKey]) {
         const nextSeq = _invoiceSeqCache[cacheKey] + 1;
