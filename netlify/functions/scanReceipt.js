@@ -6,8 +6,44 @@ function isPodiumkleding(text) {
     return pattern.test(lower);
 }
 
+function normalizeCurrency(valutaStr, textContext = '') {
+    if (!valutaStr && !textContext) return 'EUR';
+    let raw = String(valutaStr || '').trim().toUpperCase();
+    
+    if (raw === 'DEK' || raw === 'DKK' || raw.includes('DEENSE') || raw.includes('DANISH')) return 'DKK';
+    if (raw === 'SEK' || raw.includes('ZWEEDSE') || raw.includes('SWEDISH')) return 'SEK';
+    if (raw === 'NOK' || raw.includes('NOORSE') || raw.includes('NORWEGIAN')) return 'NOK';
+    if (raw === 'GBP' || raw === '£' || raw.includes('POUND') || raw.includes('POND')) return 'GBP';
+    if (raw === 'CHF' || raw.includes('FRANK') || raw.includes('FRANC')) return 'CHF';
+    if (raw === 'CAD' || raw.includes('C$') || raw.includes('CANADIAN')) return 'CAD';
+    if (raw === 'AUD' || raw.includes('A$') || raw.includes('AUSTRALIAN')) return 'AUD';
+    if (raw === 'JPY' || raw === '¥' || raw.includes('YEN')) return 'JPY';
+    if (raw === 'PLN' || raw.includes('ZLOTY')) return 'PLN';
+    if (raw === 'CZK' || raw.includes('KORUNA')) return 'CZK';
+    if (raw === 'EUR' || raw === '€' || raw.includes('EURO')) return 'EUR';
+    if (raw === 'USD' || raw === '$' || raw.includes('DOLLAR')) return 'USD';
+
+    if (/^[A-Z]{3}$/.test(raw)) {
+        return raw;
+    }
+
+    const ctx = String(textContext || '').toUpperCase();
+    if (ctx.includes('£') || ctx.includes('GBP')) return 'GBP';
+    if (ctx.includes('DKK') || ctx.includes('DEK')) return 'DKK';
+    if (ctx.includes('SEK')) return 'SEK';
+    if (ctx.includes('NOK')) return 'NOK';
+    if (ctx.includes('CHF')) return 'CHF';
+    if (ctx.includes('$') || ctx.includes('USD')) return 'USD';
+
+    return raw || 'USD';
+}
+
 async function fetchDailyExchangeRate(currency = 'USD', dateStr = '') {
-    const cleanCurrency = (currency || 'USD').toUpperCase();
+    const cleanCurrency = normalizeCurrency(currency);
+    if (cleanCurrency === 'EUR') {
+        return { rate: 1, date: dateStr };
+    }
+
     const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
     const datePath = isValidDate ? dateStr : 'latest';
 
@@ -99,14 +135,21 @@ Haal de volgende velden uit deze bon of factuur:
    Als de uitgave of aankoop betrekking heeft op kleding (zoals overhemden, shirts, broeken, kostuums, jassen, schoenen, etc.), een zonnebril of een tas (zoals een laptoptas, rugzak, koffer, reistas, etc.), dan MOET de omschrijving ALTIJD exact 'podiumkleding' zijn. Deze regel heeft absolute voorrang boven merknamen of artikelen op de bon en boven het cloudMemory.
    Hier is het historische geheugen van de gebruiker: ${JSON.stringify(cloudMemory)}.
    Als de leverancier voorkomt in het geheugen, kies dan de best passende omschrijving voor deze specifieke aankoop (behalve wanneer het kleding, een zonnebril of een tas betreft: dan altijd 'podiumkleding').
-4. valuta: De valuta van de factuur of bon.
-   CRUCIALE REGEL VOOR VALUTA:
-   Als de valuta op een bon géén Euro is, dan is het meestal US Dollar ($ / USD).
-   - Kijk goed naar valuta-tekens ($ vs €) of termen zoals 'USD', 'dollar', 'CAD', 'GBP'.
-   - Als de valuta Euro is (€ / EUR): geef "EUR".
-   - Als de valuta géén Euro is: geef "USD" (of "GBP" bij een pondteken £). Bij twijfel of als het geen euro is, geef ALTIJD "USD".
+4. valuta: Bepaal nauwkeurig de exacte officiële 3-letterige ISO valutacode van de factuur of bon.
+   - Euro: "EUR" (bij €, EUR, Euro).
+   - Britse Pond: "GBP" (bij £, GBP, Pound).
+   - Deense Kroon: "DKK" (bij DKK, kr. uit Denemarken).
+   - Zweedse Kroon: "SEK" (bij SEK, kr. uit Zweden).
+   - Noorse Kroon: "NOK" (bij NOK, kr. uit Noorwegen).
+   - Zwitserse Frank: "CHF" (bij CHF, Fr.).
+   - Canadese Dollar: "CAD" (bij CAD, C$).
+   - Australische Dollar: "AUD" (bij AUD, A$).
+   - Japanse Yen: "JPY" (bij JPY, ¥).
+   - US Dollar: "USD" (bij $, USD, US Dollar).
+   - Overige valuta: geef altijd de specifieke 3-letterige ISO-code (bijv. PLN, CZK).
+   BELANGRIJKE REGEL: Ga er NOOIT zomaar vanuit dat het altijd USD is! Kijk heel zorgvuldig naar valutatekens (£, $, kr, Fr, ¥), land/leverancier en valutacodes op de bon. Alleen wanneer het daadwerkelijk om dollars gaat of wanneer een niet-euro valuta niet nader te specificeren is buiten een dollaraanduiding, kies je "USD".
 5. factuurBedrag: Het exacte TOTAALBEDRAG van de factuur inclusief btw/tax in de ORIGINELE valuta op de bon (het totale te betalen/voldane bedrag onderaan de bon). Return dit als getal (float).
-6. btwBedrag: Het totale btw-bedrag op de factuur in de originele valuta. Let op: voor buitenlandse bonnen (zoals in USD) is er voor de Nederlandse boekhouding geen aftrekbare voorbelasting (buitenlandse tax telt als onderdeel van de kosten); vul 0.00 in tenzij er expliciet Nederlandse btw (met NL btw-nummer) op de bon staat. Return dit als getal (float).
+6. btwBedrag: Het totale btw-bedrag op de factuur in de originele valuta. Let op: voor buitenlandse bonnen (zoals in USD, GBP, DKK) is er voor de Nederlandse boekhouding geen aftrekbare voorbelasting (buitenlandse tax telt als onderdeel van de kosten); vul 0.00 in tenzij er expliciet Nederlandse btw (met NL btw-nummer) op de bon staat. Return dit als getal (float).
 7. factuurnummer: Het factuurnummer dat op de bon van de leverancier staat (indien aanwezig).
 
 UITZONDERING VOOR ING BANKAFSCHRIFTEN:
@@ -186,14 +229,13 @@ BELANGRIJK: Return UITSLUITEND een geldig JSON object met de structuur:
                 }
 
                 // Valuta inspectie en omrekening naar EUR met dagprijs
-                const valutaRaw = String(parsed.valuta || 'EUR').trim().toUpperCase();
+                const rawValuta = parsed.valuta || '';
                 const rawBedragStr = String(parsed.factuurBedrag || '');
                 const rawOmschr = String(parsed.omschrijving || '');
-                const hasDollarIndicator = rawBedragStr.includes('$') || rawOmschr.includes('USD') || rawOmschr.includes('$');
-                const isEuro = !hasDollarIndicator && (valutaRaw === 'EUR' || valutaRaw === '€');
+                const currency = normalizeCurrency(rawValuta, `${rawBedragStr} ${rawOmschr}`);
+                const isEuro = currency === 'EUR';
 
                 if (!isEuro) {
-                    const currency = (valutaRaw && valutaRaw.length === 3 && valutaRaw !== 'EUR') ? valutaRaw : 'USD';
                     const rateInfo = await fetchDailyExchangeRate(currency, parsed.datum);
                     if (rateInfo && rateInfo.rate) {
                         const origBedrag = parseFloat(String(parsed.factuurBedrag || '').replace(/[^0-9.-]/g, '')) || 0;

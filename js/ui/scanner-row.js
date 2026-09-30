@@ -3,6 +3,7 @@
  * Verantwoordelijk voor het genereren van HTML voor de scanner tabel.
  */
 import { isDateValidForPeriod } from '../utils/date.js';
+import { getCurrencySymbol } from '../utils/currency.js';
 
 export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
     const isDisabled = ['pending', 'processing', 'saved'].includes(item.status);
@@ -63,7 +64,7 @@ export function getBatchRowHTML(item, dateInfo, currentMode = 'inkoop', index) {
                     value="${currentMode === 'verkoop' ? (d.totaalBedrag || d.factuurBedrag || '') : (d.factuurBedrag || d.totaalBedrag || d.bedrag || '')}"  placeholder="0.00">
                 ${d.omgerekend ? `
                     <div id="currency-info-${item.id}" class="text-[10px] text-blue-600 font-mono text-right mt-0.5" title="Omgerekend van ${d.origineelValuta || 'USD'} ${Number(d.origineelBedrag || 0).toFixed(2)} met dagkoers €${d.wisselkoers} op ${d.koersDatum || d.datum}">
-                        ${(d.origineelValuta === 'USD' || !d.origineelValuta) ? '$' : d.origineelValuta} ${Number(d.origineelBedrag || 0).toFixed(2)} (@ ${d.wisselkoers})
+                        ${getCurrencySymbol(d.origineelValuta)} ${Number(d.origineelBedrag || 0).toFixed(2)} (@ ${d.wisselkoers})
                     </div>
                 ` : ''}
             </td>

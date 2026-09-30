@@ -2,7 +2,7 @@ import { analyzeReceipt } from '../api/gemini.js';
 import { loadCloudMemory, clearQueryCaches } from '../api/storage-queries-invoices.js';
 import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
-import { fetchDailyExchangeRate } from '../utils/currency.js';
+import { fetchDailyExchangeRate, normalizeCurrency, getCurrencySymbol } from '../utils/currency.js';
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
@@ -72,7 +72,7 @@ export function initScanner() {
 
                         const currencyInfo = document.getElementById(`currency-info-${itemId}`);
                         if (currencyInfo) {
-                            const symbol = currency === 'USD' ? '$' : currency;
+                            const symbol = getCurrencySymbol(currency);
                             currencyInfo.innerText = `${symbol} ${Number(item.data.origineelBedrag).toFixed(2)} (@ ${rateInfo.rate})`;
                             currencyInfo.title = `Omgerekend van ${currency} ${Number(item.data.origineelBedrag).toFixed(2)} met dagkoers €${rateInfo.rate} op ${rateInfo.date}`;
                         }
@@ -207,21 +207,23 @@ async function processQueue() {
             item.data = prepareItemData(currentMode, aiData, currentMemory);
 
             // Client-side valutaconversie fallback (als het niet reeds op de server is uitgevoerd)
-            if (currentMode === 'inkoop' && item.data.valuta && item.data.valuta !== 'EUR' && !item.data.omgerekend) {
-                const currency = (item.data.valuta.length === 3 && item.data.valuta !== 'EUR') ? item.data.valuta : 'USD';
-                const rateInfo = await fetchDailyExchangeRate(currency, item.data.datum);
-                if (rateInfo && rateInfo.rate) {
-                    const origBedrag = parseFloat(item.data.factuurBedrag) || 0;
-                    const origBtw = parseFloat(item.data.btwBedrag) || 0;
-                    item.data.origineelValuta = currency;
-                    item.data.origineelBedrag = origBedrag;
-                    item.data.origineelBtwBedrag = origBtw;
-                    item.data.wisselkoers = rateInfo.rate;
-                    item.data.koersDatum = rateInfo.date;
-                    item.data.omgerekend = true;
-                    item.data.factuurBedrag = Math.round(origBedrag * rateInfo.rate * 100) / 100;
-                    item.data.btwBedrag = Math.round(origBtw * rateInfo.rate * 100) / 100;
-                    item.data.valuta = 'EUR';
+            if (currentMode === 'inkoop' && item.data.valuta && !item.data.omgerekend) {
+                const currency = normalizeCurrency(item.data.valuta, `${item.data.factuurBedrag} ${item.data.omschrijving}`);
+                if (currency !== 'EUR') {
+                    const rateInfo = await fetchDailyExchangeRate(currency, item.data.datum);
+                    if (rateInfo && rateInfo.rate) {
+                        const origBedrag = parseFloat(item.data.factuurBedrag) || 0;
+                        const origBtw = parseFloat(item.data.btwBedrag) || 0;
+                        item.data.origineelValuta = currency;
+                        item.data.origineelBedrag = origBedrag;
+                        item.data.origineelBtwBedrag = origBtw;
+                        item.data.wisselkoers = rateInfo.rate;
+                        item.data.koersDatum = rateInfo.date;
+                        item.data.omgerekend = true;
+                        item.data.factuurBedrag = Math.round(origBedrag * rateInfo.rate * 100) / 100;
+                        item.data.btwBedrag = Math.round(origBtw * rateInfo.rate * 100) / 100;
+                        item.data.valuta = 'EUR';
+                    }
                 }
             }
 
