@@ -491,8 +491,10 @@ async function handleGenerateOfferte() {
         const offerteElement = buildInvoiceDOM(offerteDOMConfig);
 
         const cleanNum = offerteNumberVal.replace(/^BFE\d*OF\s*/i, '').trim();
+        const invoiceYear = new Date(offerteDateVal).getFullYear();
+        const invoiceYear2 = String(invoiceYear).slice(-2);
         const safeSubject = (projectVal ? `${projectVal} ` : '') + clientName;
-        const pdfFileName = `${cleanNum} ${safeSubject}`.trim();
+        const pdfFileName = `BFE${invoiceYear2}OF ${cleanNum} ${safeSubject}`.trim();
 
         // 1. Generate PDF & trigger browser download
         const pdfBlob = await generateAndUploadPDF(offerteElement, pdfFileName);
