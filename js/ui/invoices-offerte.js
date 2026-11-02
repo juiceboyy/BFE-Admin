@@ -267,7 +267,7 @@ function renderItemsTable() {
                     class="w-full bg-transparent border-0 border-b border-transparent focus:border-gray-400 outline-none px-1 py-1 text-sm font-medium">
             </td>
             <td class="px-4 py-2.5 text-right">
-                <input type="number" step="0.01" data-field="amount" data-index="${index}" value="${item.amount > 0 ? item.amount : ''}" placeholder="0.00" 
+                <input type="text" inputmode="decimal" data-field="amount" data-index="${index}" value="${item.amount > 0 ? item.amount : ''}" placeholder="0.00" 
                     class="w-28 text-right bg-transparent border-0 border-b border-transparent focus:border-gray-400 outline-none px-1 py-1 text-sm font-semibold">
             </td>
             <td class="px-4 py-2.5">
@@ -316,7 +316,8 @@ function handleItemChange(e) {
     if (isNaN(index) || !offerteItems[index]) return;
 
     if (field === 'amount') {
-        offerteItems[index].amount = parseFloat(e.target.value) || 0;
+        const clean = String(e.target.value).replace(',', '.').trim();
+        offerteItems[index].amount = parseFloat(clean) || 0;
     } else if (field === 'btwRate') {
         const val = e.target.value;
         offerteItems[index].btwRate = (val === 'Vrijgesteld') ? 'Vrijgesteld' : parseInt(val, 10);

@@ -257,7 +257,7 @@ function renderItemsTable() {
                         class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 manual-item-desc" data-index="${index}">
                 </td>
                 <td class="px-4 py-3 text-right">
-                    <input type="number" step="0.01" id="manual-amount-${index}" value="${item.amount > 0 ? item.amount.toFixed(2) : ''}" placeholder="0,00" 
+                    <input type="text" inputmode="decimal" id="manual-amount-${index}" value="${item.amount > 0 ? item.amount.toFixed(2) : ''}" placeholder="0,00" 
                         class="w-28 bg-white border border-gray-200 rounded px-2 py-0.5 text-right font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 manual-item-amount" data-index="${index}">
                 </td>
                 <td class="px-4 py-3">
@@ -291,7 +291,8 @@ function renderItemsTable() {
     tbody.querySelectorAll('.manual-item-amount').forEach(input => {
         input.addEventListener('input', (e) => {
             const idx = parseInt(e.target.getAttribute('data-index'));
-            const val = parseFloat(e.target.value);
+            const clean = String(e.target.value).replace(',', '.').trim();
+            const val = parseFloat(clean);
             manualItems[idx].amount = isNaN(val) ? 0 : val;
             recalculateTotals();
         });
