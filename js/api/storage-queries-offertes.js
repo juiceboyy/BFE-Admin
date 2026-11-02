@@ -79,17 +79,15 @@ export async function ensureOffertesSheetExists() {
 
 /**
  * Determines the next offertenummer for a given year in the layout:
- * BFE{YY}OF {YYYY}-001
- * E.g., for 2026: BFE26OF 2026-001
+ * YYYY-001 (e.g. 2026-001).
  * @param {number} [targetYear]
  * @returns {Promise<string>}
  */
 export async function findNextOfferteNumber(targetYear = new Date().getFullYear()) {
     const yearNum = parseInt(targetYear, 10) || new Date().getFullYear();
-    const yearSuffix = String(yearNum).slice(-2);
 
     if (!accessToken) {
-        return `BFE${yearSuffix}OF ${yearNum}-001`;
+        return `${yearNum}-001`;
     }
 
     try {
@@ -100,7 +98,7 @@ export async function findNextOfferteNumber(targetYear = new Date().getFullYear(
         });
 
         if (!dataRes.ok) {
-            return `BFE${yearSuffix}OF ${yearNum}-001`;
+            return `${yearNum}-001`;
         }
 
         const data = await dataRes.json();
@@ -125,10 +123,10 @@ export async function findNextOfferteNumber(targetYear = new Date().getFullYear(
 
         const nextSeq = maxSeq + 1;
         const seqStr = String(nextSeq).padStart(3, '0');
-        return `BFE${yearSuffix}OF ${yearNum}-${seqStr}`;
+        return `${yearNum}-${seqStr}`;
     } catch (e) {
         console.error('Fout bij bepalen volgend offertenummer:', e);
-        return `BFE${yearSuffix}OF ${yearNum}-001`;
+        return `${yearNum}-001`;
     }
 }
 

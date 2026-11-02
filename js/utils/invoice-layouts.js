@@ -104,9 +104,10 @@ export function buildInvoiceDOM(config) {
     if (type === 'offerte') {
         const meta = config.meta || {};
         const validityDays = meta.validityDays || 30;
+        const cleanOfferteNummer = String(factuurNummer || '').replace(/^BFE\d+OF\s*/i, '').trim();
         titleBlockHTML = `
             <div style="margin-bottom: 30px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
-                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${factuurNummer}</h2>
+                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${cleanOfferteNummer}</h2>
             </div>
         `;
 

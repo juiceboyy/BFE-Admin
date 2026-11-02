@@ -490,10 +490,11 @@ async function handleGenerateOfferte() {
 
         const offerteElement = buildInvoiceDOM(offerteDOMConfig);
 
-        // Filename format: BFE26OF 2026-001 Offerte <Klantnaam of Project>
-        const safeNum = offerteNumberVal.replace(/[^\w.-]/g, '_');
+        const cleanNum = offerteNumberVal.replace(/^BFE\d+OF\s*/i, '').trim();
+        const invoiceYear = new Date(offerteDateVal).getFullYear();
+        const invoiceYear2 = String(invoiceYear).slice(-2);
         const safeSubject = (projectVal ? `${projectVal} ` : '') + clientName;
-        const pdfFileName = `${safeNum} ${safeSubject}`.trim();
+        const pdfFileName = `BFE${invoiceYear2}OF ${cleanNum} ${safeSubject}`.trim();
 
         // 1. Generate PDF & trigger browser download
         const pdfBlob = await generateAndUploadPDF(offerteElement, pdfFileName);
@@ -505,7 +506,7 @@ async function handleGenerateOfferte() {
         // 3. Save record to Google Sheets 'Offertes' tab
         const primaryDesc = validItems.map(i => i.desc).join(', ');
         await saveOfferteToSheet({
-            offerteNummer: offerteNumberVal,
+            offerteNummer: cleanNum,
             offerteDatum: offerteDateVal,
             clientName,
             clientAttention,
@@ -521,7 +522,7 @@ async function handleGenerateOfferte() {
             status: 'Verzonden'
         });
 
-        alert(`Offerte ${offerteNumberVal} succesvol gegenereerd en opgeslagen!\n\n- PDF gedownload in browser\n- Opgeslagen in Google Drive (Facturen)\n- Geregistreerd in Google Sheets (tabblad 'Offertes')`);
+        alert(`Offerte ${cleanNum} succesvol gegenereerd en opgeslagen!\n\n- PDF gedownload in browser\n- Opgeslagen in Google Drive (Facturen)\n- Geregistreerd in Google Sheets (tabblad 'Offertes')`);
 
         // Prepare next quote number
         const nextDate = new Date(offerteDateVal);
