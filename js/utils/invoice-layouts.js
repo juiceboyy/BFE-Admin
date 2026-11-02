@@ -94,32 +94,24 @@ export function buildInvoiceDOM(config) {
 
     const footerMarginTop = hasAmareDeclaration ? '25px' : '45px';
     const recipientLabel = type === 'offerte' ? 'Offerte voor:' : 'Factuur voor:';
+    const headerMarginBottom = type === 'offerte' ? '35px' : '50px';
+    const addressMarginBottom = type === 'offerte' ? '30px' : '40px';
+    const summaryMarginY = type === 'offerte' ? '20px' : '25px';
 
     let titleBlockHTML = '';
     let footerHTML = '';
 
     if (type === 'offerte') {
         const meta = config.meta || {};
-        let projectLine = '';
-        if (meta.project && meta.optreedDatum) {
-            projectLine = `Betreft: ${meta.project} - Optreden op ${meta.optreedDatum}`;
-        } else if (meta.project) {
-            projectLine = `Betreft: ${meta.project}`;
-        } else if (meta.optreedDatum) {
-            projectLine = `Betreft: Optreden op ${meta.optreedDatum}`;
-        }
-
         const validityDays = meta.validityDays || 30;
         titleBlockHTML = `
-            <div style="margin-bottom: 40px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+            <div style="margin-bottom: 30px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
                 <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${factuurNummer}</h2>
-                ${projectLine ? `<p style="margin: 5px 0 2px 0; font-size: 13px; font-weight: 600; color: #111;">${projectLine}</p>` : ''}
-                <p style="margin: 2px 0 0 0; font-size: 11.5px; color: #555;">Geldig tot ${validityDays} dagen na dagtekening</p>
             </div>
         `;
 
         footerHTML = `
-            <div style="margin-top: 25px; font-size: 12px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 12px;">
+            <div style="margin-top: 20px; font-size: 11.5px; line-height: 1.45; border-top: 1px solid #eee; padding-top: 10px;">
                 <p style="margin: 0; color: #555;">
                     Deze offerte is ${validityDays} dagen geldig na dagtekening. Na schriftelijk akkoord of ondertekening geldt de offerte als opdrachtbevestiging.
                 </p>
@@ -147,7 +139,7 @@ export function buildInvoiceDOM(config) {
 
     el.innerHTML = `
         <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: ${headerMarginBottom};">
             <div>
                 <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0; color: #000; letter-spacing: -0.5px;">Big Fish Entertainment</h1>
                 <p style="margin: 0; font-weight: 500; font-size: 14px;">Ronald van Holst</p>
@@ -164,7 +156,7 @@ export function buildInvoiceDOM(config) {
         </div>
 
         <!-- Address details -->
-        <div style="margin-bottom: 40px; font-size: 13px;">
+        <div style="margin-bottom: ${addressMarginBottom}; font-size: 13px;">
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                     <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">${recipientLabel}</td>
@@ -185,7 +177,7 @@ export function buildInvoiceDOM(config) {
         ${itemsHTML}
 
         <!-- Summary & Totals -->
-        <div style="margin-top: 25px; margin-bottom: 25px; font-size: 13px; line-height: 1.6;">
+        <div style="margin-top: ${summaryMarginY}; margin-bottom: ${summaryMarginY}; font-size: 13px; line-height: 1.6;">
             ${totalsHTML}
         </div>
 

@@ -283,23 +283,23 @@ export function renderOfferteSection(items, totals, meta = {}) {
     if (meta.notes && meta.notes.trim()) {
         const cleanNotes = meta.notes.trim();
         notesHTML = `
-            <div style="margin-top: 25px; margin-bottom: 20px; font-size: 11.5px; line-height: 1.6; color: #222;">
-                <strong style="display: block; margin-bottom: 4px;">N.B.:</strong>
+            <div style="margin-top: 18px; margin-bottom: 14px; font-size: 11.5px; line-height: 1.55; color: #222;">
+                <strong style="display: block; margin-bottom: 3px;">N.B.:</strong>
                 <div style="white-space: pre-line;">${cleanNotes}</div>
             </div>
         `;
     }
 
     const signatureHTML = `
-        <div style="margin-top: 25px; margin-bottom: 15px; padding: 12px 14px; border: 1px solid #111; border-radius: 4px; font-size: 11.5px; line-height: 1.5;">
-            <p style="margin: 0 0 10px 0; font-weight: bold; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; color: #111;">Voor akkoord opdrachtgever:</p>
+        <div style="margin-top: 18px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid #111; border-radius: 4px; font-size: 11.5px; line-height: 1.45;">
+            <p style="margin: 0 0 8px 0; font-weight: bold; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; color: #111;">Voor akkoord opdrachtgever:</p>
             <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
                 <tr>
-                    <td style="width: 50%; padding-bottom: 8px;">Naam: ....................................................</td>
-                    <td style="width: 50%; padding-bottom: 8px;">Datum: ....................................................</td>
+                    <td style="width: 50%; padding-bottom: 6px;">Naam: ....................................................</td>
+                    <td style="width: 50%; padding-bottom: 6px;">Datum: ....................................................</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="padding-top: 8px;">Handtekening: ....................................................</td>
+                    <td colspan="2" style="padding-top: 6px;">Handtekening: ....................................................</td>
                 </tr>
             </table>
         </div>
