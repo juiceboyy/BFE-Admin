@@ -1,6 +1,7 @@
 import { initLessonsInvoices } from './invoices-lessons.js';
 import { initStudioInvoices } from './invoices-studio.js';
 import { initManualInvoices } from './invoices-manual.js';
+import { initOfferteInvoices } from './invoices-offerte.js';
 
 export function initInvoicesModule() {
     // Initialize MZO Lessons Invoicing
@@ -11,4 +12,7 @@ export function initInvoicesModule() {
 
     // Initialize Manual Invoicing
     initManualInvoices();
+
+    // Initialize Offerte Generator
+    initOfferteInvoices();
 }

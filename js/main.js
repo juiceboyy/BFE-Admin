@@ -4,6 +4,7 @@ import { initScanner } from './ui/scanner.js';
 import { initFiscalIntake, loadInventarisAfterAuth } from './ui/fiscal-intake.js';
 import { initInvoicesModule } from './ui/invoices.js';
 import { loadManualClientsAfterAuth } from './ui/invoices-manual.js';
+import { loadOfferteDataAfterAuth } from './ui/invoices-offerte.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 import { initReconcileModal } from './ui/reconcile-modal.js';
 import { initAnnualReport } from './ui/annual-report.js';
@@ -32,6 +33,7 @@ initAuth(async () => {
     invalidateDashboardCache();
     loadInventarisAfterAuth();
     loadManualClientsAfterAuth();
+    loadOfferteDataAfterAuth();
     
     const inkoopBtn = document.getElementById('mode-inkoop');
     const verkoopBtn = document.getElementById('mode-verkoop');

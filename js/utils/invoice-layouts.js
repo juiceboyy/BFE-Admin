@@ -2,6 +2,7 @@ import {
     renderLesgevenSection, 
     renderRentSection, 
     renderManualSection,
+    renderOfferteSection,
     formatDutchBedrag,
     formatDutchTarief
 } from './invoice-sections.js';
@@ -65,6 +66,8 @@ export function buildInvoiceDOM(config) {
     // Section Content
     let itemsHTML = '';
     let totalsHTML = '';
+    let notesHTML = '';
+    let signatureHTML = '';
 
     if (type === 'lesgeven') {
         ({ itemsHTML, totalsHTML } = renderLesgevenSection(items, totals));
@@ -72,13 +75,15 @@ export function buildInvoiceDOM(config) {
         ({ itemsHTML, totalsHTML } = renderRentSection(items, totals));
     } else if (type === 'manual') {
         ({ itemsHTML, totalsHTML } = renderManualSection(items, totals));
+    } else if (type === 'offerte') {
+        ({ itemsHTML, totalsHTML, notesHTML, signatureHTML } = renderOfferteSection(items, totals, config.meta || {}));
     }
 
     const hasAmareDeclaration = config.isAmare ||
         config.includeArtistDeclaration ||
         (config.optOutClause !== undefined ? config.optOutClause : isAmareInvoice(clientInfo));
 
-    const artistDeclarationHTML = hasAmareDeclaration ? `
+    const artistDeclarationHTML = (hasAmareDeclaration && type !== 'offerte') ? `
         <!-- Artist Declaration (Amare) -->
         <div style="margin-top: 25px; margin-bottom: 25px; padding: 10px 14px; border: 1px solid #d1d5db; background-color: #f9fafb; border-radius: 4px; font-size: 11.5px; line-height: 1.5; color: #1f2937;">
             <p style="margin: 0; font-style: italic;">
@@ -88,6 +93,60 @@ export function buildInvoiceDOM(config) {
     ` : '';
 
     const footerMarginTop = hasAmareDeclaration ? '25px' : '45px';
+    const recipientLabel = type === 'offerte' ? 'Offerte voor:' : 'Factuur voor:';
+
+    let titleBlockHTML = '';
+    let footerHTML = '';
+
+    if (type === 'offerte') {
+        const meta = config.meta || {};
+        let projectLine = '';
+        if (meta.project && meta.optreedDatum) {
+            projectLine = `Betreft: ${meta.project} - Optreden op ${meta.optreedDatum}`;
+        } else if (meta.project) {
+            projectLine = `Betreft: ${meta.project}`;
+        } else if (meta.optreedDatum) {
+            projectLine = `Betreft: Optreden op ${meta.optreedDatum}`;
+        }
+
+        const validityDays = meta.validityDays || 30;
+        titleBlockHTML = `
+            <div style="margin-bottom: 40px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${factuurNummer}</h2>
+                ${projectLine ? `<p style="margin: 5px 0 2px 0; font-size: 13px; font-weight: 600; color: #111;">${projectLine}</p>` : ''}
+                <p style="margin: 2px 0 0 0; font-size: 11.5px; color: #555;">Geldig tot ${validityDays} dagen na dagtekening</p>
+            </div>
+        `;
+
+        footerHTML = `
+            <div style="margin-top: 25px; font-size: 12px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 12px;">
+                <p style="margin: 0; color: #111;">
+                    Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv offertenummer.
+                </p>
+                <p style="margin: 3px 0 0 0; color: #555;">
+                    Deze offerte is ${validityDays} dagen geldig na dagtekening. Na schriftelijk akkoord of ondertekening geldt de offerte als opdrachtbevestiging.
+                </p>
+            </div>
+        `;
+    } else {
+        titleBlockHTML = `
+            <div style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
+            </div>
+        `;
+
+        footerHTML = `
+            <div style="margin-top: ${footerMarginTop}; font-size: 12.5px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 15px;">
+                <p style="margin: 0; color: #111;">
+                    Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
+                </p>
+                <p style="margin: 4px 0 0 0; font-weight: bold; color: #000;">
+                    Te betalen binnen 15 dagen na ontvangst factuur.
+                </p>
+            </div>
+        `;
+    }
 
     el.innerHTML = `
         <!-- Header -->
@@ -111,7 +170,7 @@ export function buildInvoiceDOM(config) {
         <div style="margin-bottom: 40px; font-size: 13px;">
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                    <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">Factuur voor:</td>
+                    <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">${recipientLabel}</td>
                     <td style="width: 47%; vertical-align: top; line-height: 1.45;">
                         ${recipientHTML}
                     </td>
@@ -122,11 +181,8 @@ export function buildInvoiceDOM(config) {
             </table>
         </div>
 
-        <!-- Invoice Title Block -->
-        <div style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
-            <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
-            <p style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
-        </div>
+        <!-- Title Block -->
+        ${titleBlockHTML}
 
         <!-- Items list/table -->
         ${itemsHTML}
@@ -136,17 +192,12 @@ export function buildInvoiceDOM(config) {
             ${totalsHTML}
         </div>
 
+        ${notesHTML}
+        ${signatureHTML}
         ${artistDeclarationHTML}
 
         <!-- Payment Terms Footer -->
-        <div style="margin-top: ${footerMarginTop}; font-size: 12.5px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 15px;">
-            <p style="margin: 0; color: #111;">
-                Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
-            </p>
-            <p style="margin: 4px 0 0 0; font-weight: bold; color: #000;">
-                Te betalen binnen 15 dagen na ontvangst factuur.
-            </p>
-        </div>
+        ${footerHTML}
     `;
 
     return el;
