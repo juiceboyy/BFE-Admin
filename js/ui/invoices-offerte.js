@@ -451,7 +451,7 @@ async function handleGenerateOfferte() {
             }
         });
 
-        const total = subtotal + btw21 + btw9;
+        const totaal = subtotal + btw21 + btw9;
 
         // Format performance date for display
         let perfDateFormatted = '';
@@ -478,7 +478,7 @@ async function handleGenerateOfferte() {
                     '21': btw21,
                     '9': btw9
                 },
-                total
+                total: totaal
             },
             meta: {
                 project: projectVal,
