@@ -415,7 +415,7 @@ async function handleGenerateOfferte() {
     }
 
     if (!offerteNumberVal) {
-        alert("Vul een offertenummer in (bijv. BFE26OF 2026-001).");
+        alert("Vul een offertenummer in (bijv. 2026-001).");
         return;
     }
 
@@ -490,11 +490,9 @@ async function handleGenerateOfferte() {
 
         const offerteElement = buildInvoiceDOM(offerteDOMConfig);
 
-        const cleanNum = offerteNumberVal.replace(/^BFE\d+OF\s*/i, '').trim();
-        const invoiceYear = new Date(offerteDateVal).getFullYear();
-        const invoiceYear2 = String(invoiceYear).slice(-2);
+        const cleanNum = offerteNumberVal.replace(/^BFE\d*OF\s*/i, '').trim();
         const safeSubject = (projectVal ? `${projectVal} ` : '') + clientName;
-        const pdfFileName = `BFE${invoiceYear2}OF ${cleanNum} ${safeSubject}`.trim();
+        const pdfFileName = `${cleanNum} ${safeSubject}`.trim();
 
         // 1. Generate PDF & trigger browser download
         const pdfBlob = await generateAndUploadPDF(offerteElement, pdfFileName);
