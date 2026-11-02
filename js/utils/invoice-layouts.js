@@ -120,10 +120,7 @@ export function buildInvoiceDOM(config) {
 
         footerHTML = `
             <div style="margin-top: 25px; font-size: 12px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 12px;">
-                <p style="margin: 0; color: #111;">
-                    Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv offertenummer.
-                </p>
-                <p style="margin: 3px 0 0 0; color: #555;">
+                <p style="margin: 0; color: #555;">
                     Deze offerte is ${validityDays} dagen geldig na dagtekening. Na schriftelijk akkoord of ondertekening geldt de offerte als opdrachtbevestiging.
                 </p>
             </div>
