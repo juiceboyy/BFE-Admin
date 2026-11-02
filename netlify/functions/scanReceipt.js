@@ -112,8 +112,8 @@ export const handler = async (event, context) => {
             };
         }
 
-        // Gebruik de stabiele URL voor Gemini 3.6 Flash
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+        // Gebruik de stabiele URL voor Gemini 3.8 Flash
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
         // Zorg ervoor dat base64Data géén data prefix bevat
         if (base64Data.includes(',')) {

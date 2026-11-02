@@ -7,6 +7,7 @@ import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 import { abbreviateDescription } from '../utils/text-abbreviations.js';
+import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi } from '../api/storage-clients.js';
 
 // Pre-programmed default clients
 
@@ -61,7 +62,7 @@ export async function loadManualClientsAfterAuth() {
     clientSelect.innerHTML = '<option value="">Bezig met laden relaties...</option>';
 
     try {
-        await fetchSavedClientsFromSheet();
+        savedClients = await fetchSavedClientsFromSheet();
         renderSavedClientsDropdown();
     } catch (e) {
         console.error("Fout bij laden klanten na inloggen:", e);
@@ -69,136 +70,6 @@ export async function loadManualClientsAfterAuth() {
             <option value="">⚠️ Fout bij laden: ${e.message}</option>
             <option value="custom">Nieuw / Aangepast...</option>
         `;
-    }
-}
-
-async function fetchSavedClientsFromSheet() {
-    if (!accessToken) return [];
-
-    const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!metaRes.ok) {
-        const errorText = await metaRes.text();
-        throw new Error(`Google Sheets metadata kon niet worden geladen: ${metaRes.status} ${errorText}`);
-    }
-    
-    const metaData = await metaRes.json();
-    const sheetExists = (metaData.sheets || []).some(s => s.properties.title === 'Klanten');
-
-    if (!sheetExists) {
-        // Create tab 'Klanten'
-        const createRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                requests: [
-                    {
-                        addSheet: {
-                            properties: { title: 'Klanten' }
-                        }
-                    }
-                ]
-            })
-        });
-        if (!createRes.ok) {
-            const errorText = await createRes.text();
-            throw new Error(`Klanten tabblad kon niet worden aangemaakt: ${createRes.status} ${errorText}`);
-        }
-
-        // Add headers to newly created Customers sheet
-        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D1?valueInputOption=USER_ENTERED`, {
-            method: 'PUT',
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                values: [["Klantnaam", "T.a.v.", "Adres", "Woonplaats"]]
-            })
-        });
-        if (!seedRes.ok) {
-            const errorText = await seedRes.text();
-            throw new Error(`Klanten tabblad headers konden niet worden aangemaakt: ${seedRes.status} ${errorText}`);
-        }
-        savedClients = [];
-        return savedClients;
-    }
-
-    const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!dataRes.ok) {
-        const errorText = await dataRes.text();
-        throw new Error(`Klantgegevens konden niet worden opgehaald: ${dataRes.status} ${errorText}`);
-    }
-    
-    const dataJson = await dataRes.json();
-    const rows = dataJson.values || [];
-
-    let existingClients = [];
-    if (rows.length > 1) {
-        existingClients = rows.slice(1).map(r => ({
-            name: r[0] || '',
-            attention: r[1] || '',
-            address: r[2] || '',
-            city: r[3] || ''
-        })).filter(c => c.name !== '');
-    }
-
-
-
-    savedClients = existingClients;
-    return savedClients;
-}
-
-async function saveClientToSheetApi(client) {
-    if (!accessToken) throw new Error("Geen Google access token.");
-    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D:append?valueInputOption=USER_ENTERED`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            values: [[client.name, client.attention, client.address, client.city]]
-        })
-    });
-}
-
-async function deleteClientFromSheetApi(clientName) {
-    if (!accessToken) throw new Error("Geen Google access token.");
-    
-    const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    const rows = data.values || [];
-    if (rows.length <= 1) return;
-
-    const remainingRows = rows.slice(1).filter(r => (r[0] || '').toLowerCase().trim() !== clientName.toLowerCase().trim());
-
-    // Clear and rewrite
-    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:D:clear`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-
-    if (remainingRows.length > 0) {
-        await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2?valueInputOption=USER_ENTERED`, {
-            method: 'PUT',
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                values: remainingRows
-            })
-        });
     }
 }
 
@@ -296,7 +167,7 @@ async function handleSaveClient() {
         await saveClientToSheetApi(newClient);
         
         // Reload list
-        await fetchSavedClientsFromSheet();
+        savedClients = await fetchSavedClientsFromSheet();
         renderSavedClientsDropdown();
         
         // Select the newly added client (find it in savedClients list)
@@ -350,7 +221,7 @@ async function handleDeleteClient() {
         document.getElementById('manual-client-city').value = '';
         
         // Reload list
-        await fetchSavedClientsFromSheet();
+        savedClients = await fetchSavedClientsFromSheet();
         renderSavedClientsDropdown();
         
         clientSelect.value = '';
@@ -386,7 +257,7 @@ function renderItemsTable() {
                         class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 manual-item-desc" data-index="${index}">
                 </td>
                 <td class="px-4 py-3 text-right">
-                    <input type="number" step="0.01" id="manual-amount-${index}" value="${item.amount > 0 ? item.amount.toFixed(2) : ''}" placeholder="0,00" 
+                    <input type="text" inputmode="decimal" id="manual-amount-${index}" value="${item.amount > 0 ? item.amount.toFixed(2) : ''}" placeholder="0,00" 
                         class="w-28 bg-white border border-gray-200 rounded px-2 py-0.5 text-right font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 manual-item-amount" data-index="${index}">
                 </td>
                 <td class="px-4 py-3">
@@ -420,7 +291,8 @@ function renderItemsTable() {
     tbody.querySelectorAll('.manual-item-amount').forEach(input => {
         input.addEventListener('input', (e) => {
             const idx = parseInt(e.target.getAttribute('data-index'));
-            const val = parseFloat(e.target.value);
+            const clean = String(e.target.value).replace(',', '.').trim();
+            const val = parseFloat(clean);
             manualItems[idx].amount = isNaN(val) ? 0 : val;
             recalculateTotals();
         });
