@@ -162,33 +162,47 @@ export function renderManualSection(items, totals) {
                         <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(amount)}</td>
                     </tr>
                 `;
-            } else if (rate === 'Vrijgesteld') {
-                const exemptSum = items
-                    .filter(item => String(item.btwRate).toLowerCase() === 'vrijgesteld')
-                    .reduce((sum, item) => sum + item.amount, 0);
-                if (exemptSum > 0) {
-                    btwRowsHTML += `
-                        <tr>
-                            <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (vrijgesteld: € ${formatDutchBedrag(exemptSum)} ex btw)</td>
-                            <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
-                        </tr>
-                    `;
-                }
-            } else if (rate === '0') {
-                const zeroSum = items
-                    .filter(item => String(item.btwRate) === '0')
-                    .reduce((sum, item) => sum + item.amount, 0);
-                if (zeroSum > 0) {
-                    btwRowsHTML += `
-                        <tr>
-                            <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (0% btw-tarief: € ${formatDutchBedrag(zeroSum)} ex btw)</td>
-                            <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
-                        </tr>
-                    `;
-                }
             }
         });
     }
+
+    const exemptSum = items
+        .filter(item => String(item.btwRate).toLowerCase() === 'vrijgesteld')
+        .reduce((sum, item) => sum + item.amount, 0);
+    if (exemptSum > 0) {
+        btwRowsHTML += `
+            <tr>
+                <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (vrijgesteld: € ${formatDutchBedrag(exemptSum)} ex btw)</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+            </tr>
+        `;
+    }
+
+    const zeroSum = items
+        .filter(item => String(item.btwRate) === '0')
+        .reduce((sum, item) => sum + item.amount, 0);
+    if (zeroSum > 0) {
+        btwRowsHTML += `
+            <tr>
+                <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (0% btw-tarief: € ${formatDutchBedrag(zeroSum)} ex btw)</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+            </tr>
+        `;
+    }
+
+    const totalsHTML = `
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="width: 60%; padding-bottom: 5px; color: #333;">Totaal ex BTW</td>
+                <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.subtotal)}</td>
+            </tr>
+            ${btwRowsHTML}
+            <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
+                <td style="padding: 8px 0;">Totaal incl. BTW</td>
+                <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(totals.total)}</td>
+            </tr>
+        </table>
+    `;
 
     return { itemsHTML, totalsHTML };
 }
@@ -237,32 +251,32 @@ export function renderOfferteSection(items, totals, meta = {}) {
                         <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(amount)}</td>
                     </tr>
                 `;
-            } else if (rate === 'Vrijgesteld') {
-                const exemptSum = items
-                    .filter(item => String(item.btwRate).toLowerCase() === 'vrijgesteld')
-                    .reduce((sum, item) => sum + item.amount, 0);
-                if (exemptSum > 0) {
-                    btwRowsHTML += `
-                        <tr>
-                            <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (vrijgesteld: € ${formatDutchBedrag(exemptSum)} ex btw)</td>
-                            <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
-                        </tr>
-                    `;
-                }
-            } else if (rate === '0') {
-                const zeroSum = items
-                    .filter(item => String(item.btwRate) === '0')
-                    .reduce((sum, item) => sum + item.amount, 0);
-                if (zeroSum > 0) {
-                    btwRowsHTML += `
-                        <tr>
-                            <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (0% btw-tarief: € ${formatDutchBedrag(zeroSum)} ex btw)</td>
-                            <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
-                        </tr>
-                    `;
-                }
             }
         });
+    }
+
+    const exemptSum = items
+        .filter(item => String(item.btwRate).toLowerCase() === 'vrijgesteld')
+        .reduce((sum, item) => sum + item.amount, 0);
+    if (exemptSum > 0) {
+        btwRowsHTML += `
+            <tr>
+                <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (vrijgesteld: € ${formatDutchBedrag(exemptSum)} ex btw)</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+            </tr>
+        `;
+    }
+
+    const zeroSum = items
+        .filter(item => String(item.btwRate) === '0')
+        .reduce((sum, item) => sum + item.amount, 0);
+    if (zeroSum > 0) {
+        btwRowsHTML += `
+            <tr>
+                <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (0% btw-tarief: € ${formatDutchBedrag(zeroSum)} ex btw)</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+            </tr>
+        `;
     }
 
     const totalsHTML = `
