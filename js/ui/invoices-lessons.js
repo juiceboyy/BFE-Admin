@@ -37,7 +37,7 @@ export function initLessonsInvoices() {
 async function handleFetchCalendar() {
     const btn = document.getElementById('btn-fetch-calendar');
     const keyword = document.getElementById('invoice-filter-keyword').value || 'MZO';
-    const defaultRate = parseFloat(document.getElementById('invoice-default-rate').value) || 50.00;
+    const defaultRate = parseFloat(document.getElementById('invoice-default-rate').value) || 51.00;
     
     const setLoading = (loading) => {
         if (!btn) return;
