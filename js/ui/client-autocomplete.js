@@ -81,10 +81,10 @@ export function setupClientAutocomplete({
         }
     }
 
-    function openDropdown() {
+    function openDropdown(showAll = false) {
         isOpen = true;
         dropdownEl.classList.remove('hidden');
-        renderDropdown();
+        renderDropdown(showAll);
     }
 
     function closeDropdown() {
@@ -133,15 +133,26 @@ export function setupClientAutocomplete({
         });
     }
 
-    function renderDropdown() {
-        const query = nameInput.value;
+    function renderDropdown(showAll = false) {
+        const allClients = getSortedClients();
+
+        if (allClients.length === 0) {
+            dropdownEl.innerHTML = `
+                <div class="px-4 py-3 text-xs text-gray-500 italic">
+                    Nog geen relaties ingeladen. Klik op "Sync Drive" bovenaan om relaties op te halen, of typ een nieuwe relatie.
+                </div>
+            `;
+            return;
+        }
+
+        const query = showAll ? '' : nameInput.value;
         currentMatches = filterClients(query);
         activeIndex = -1;
 
         if (currentMatches.length === 0) {
             dropdownEl.innerHTML = `
                 <div class="px-4 py-3 text-xs text-gray-500 italic">
-                    Geen bestaande relaties gevonden voor "${query}". Typ gerust een nieuwe naam.
+                    Geen relaties gevonden voor "${query}". Typ gerust een nieuwe naam.
                 </div>
             `;
             return;
@@ -154,7 +165,7 @@ export function setupClientAutocomplete({
             return `
                 <div class="client-autocomplete-item px-4 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/80 flex flex-col border-b border-gray-100/60 last:border-b-0"
                     data-index="${idx}">
-                    <div class="text-sm font-medium text-gray-900">${highlightName}</div>
+                    <div class="text-sm font-medium text-gray-900">${highlightedName}</div>
                     ${subDetails ? `<div class="text-xs text-gray-500 mt-0.5 truncate">${subDetails}</div>` : ''}
                 </div>
             `;
@@ -185,11 +196,13 @@ export function setupClientAutocomplete({
 
     // Input Events
     nameInput.addEventListener('focus', () => {
-        openDropdown();
+        openDropdown(false);
     });
 
     nameInput.addEventListener('click', () => {
-        if (!isOpen) openDropdown();
+        if (!isOpen) {
+            openDropdown(false);
+        }
     });
 
     nameInput.addEventListener('input', () => {
@@ -198,12 +211,12 @@ export function setupClientAutocomplete({
         } else {
             refreshDeleteState();
         }
-        openDropdown();
+        openDropdown(false);
     });
 
     nameInput.addEventListener('keydown', (e) => {
         if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-            openDropdown();
+            openDropdown(true);
             return;
         }
 
@@ -240,7 +253,7 @@ export function setupClientAutocomplete({
                 closeDropdown();
             } else {
                 nameInput.focus();
-                openDropdown();
+                openDropdown(true);
             }
         });
     }

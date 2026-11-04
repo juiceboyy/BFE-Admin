@@ -7,7 +7,7 @@ import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 import { abbreviateDescription } from '../utils/text-abbreviations.js';
-import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi } from '../api/storage-clients.js';
+import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi, getCachedClients } from '../api/storage-clients.js';
 import { setupClientAutocomplete } from './client-autocomplete.js';
 
 let savedClients = [];
@@ -18,6 +18,8 @@ let manualItems = [
 let isOmschrijvingManuallyEdited = false;
 
 export function initManualInvoices() {
+    savedClients = getCachedClients();
+
     const btnSaveClient = document.getElementById('btn-manual-client-save');
     const btnDeleteClient = document.getElementById('btn-manual-client-delete');
     const btnAddRow = document.getElementById('btn-manual-add-row');

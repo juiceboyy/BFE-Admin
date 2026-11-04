@@ -2,7 +2,30 @@ import { fetchWithRetry } from '../utils/network.js';
 import { accessToken } from './auth.js';
 import { SPREADSHEET_ID } from './storage.js';
 
-let _cachedClients = null;
+const STORAGE_KEY = 'bfe_saved_clients';
+
+function loadStoredClients() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+    } catch {
+        // Fallback to empty
+    }
+    return [];
+}
+
+function persistClients(clients) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(clients || []));
+    } catch {
+        // Ignore storage errors
+    }
+}
+
+let _cachedClients = loadStoredClients();
 
 /**
  * Fetches saved clients from the 'Klanten' tab in Google Sheets.
@@ -10,7 +33,7 @@ let _cachedClients = null;
  * @returns {Promise<Array<{name: string, attention: string, address: string, city: string}>>}
  */
 export async function fetchSavedClientsFromSheet() {
-    if (!accessToken) return [];
+    if (!accessToken) return getCachedClients();
 
     const metaRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
@@ -88,10 +111,14 @@ export async function fetchSavedClientsFromSheet() {
     }
 
     _cachedClients = clients;
+    persistClients(clients);
     return clients;
 }
 
 export function getCachedClients() {
+    if (!_cachedClients || _cachedClients.length === 0) {
+        _cachedClients = loadStoredClients();
+    }
     return _cachedClients || [];
 }
 
@@ -114,6 +141,7 @@ export async function saveClientToSheetApi(client) {
     if (_cachedClients) {
         _cachedClients.push(client);
         _cachedClients.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
+        persistClients(_cachedClients);
     }
 }
 
@@ -155,5 +183,6 @@ export async function deleteClientFromSheetApi(clientName) {
 
     if (_cachedClients) {
         _cachedClients = _cachedClients.filter(c => c.name.toLowerCase().trim() !== clientName.toLowerCase().trim());
+        persistClients(_cachedClients);
     }
 }
