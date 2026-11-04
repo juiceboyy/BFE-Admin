@@ -103,12 +103,15 @@ export function parseEventsForInvoicing(events, searchKeyword) {
         // 3. Location (cleaned and shortened location string)
         let location = cleanLocationName(event.location);
         
-        // Auto-detect Van Houteschool based on activity summary/description
+        // Auto-detect location overrides based on activity summary/description
         const summaryLower = (event.summary || '').toLowerCase();
         const descLower = (event.description || '').toLowerCase();
         if (summaryLower.includes('popkidz') || summaryLower.includes('van houte') || 
             descLower.includes('popkidz') || descLower.includes('van houte')) {
             location = 'Van Houteschool';
+        } else if (summaryLower.includes('lely talent') || descLower.includes('lely talent') ||
+                   summaryLower.includes('talents band') || descLower.includes('talents band')) {
+            location = 'Lely';
         }
 
         // 4. Activity (clean the MZO keyword out of the title)
@@ -339,6 +342,9 @@ function parseHours(event) {
 function detectInstrument(description, summary) {
     const text = `${description || ''} ${summary || ''}`.toLowerCase();
     
+    if (text.includes('kieskunstig')) {
+        return 'slagwerk';
+    }
     if (text.includes('slagwerk') || text.includes('drum') || text.includes('percussie')) {
         return 'slagwerk';
     }
