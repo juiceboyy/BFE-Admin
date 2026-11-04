@@ -134,7 +134,7 @@ export function parseEventsForInvoicing(events, searchKeyword) {
             activiteit: activity,
             instrument,
             uren: hours, // Can be null, will prompt user
-            tarief: 50.00, // Default rate
+            tarief: 51.00, // Default rate
             gefactureerd: checkAlreadyInvoiced(event.description)
         };
     });
