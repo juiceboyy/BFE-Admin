@@ -7,19 +7,19 @@ import { constructSheetRow, processItemSave } from './scanner-helpers.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
 import { abbreviateDescription } from '../utils/text-abbreviations.js';
-import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi } from '../api/storage-clients.js';
-
-// Pre-programmed default clients
-
+import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi, getCachedClients } from '../api/storage-clients.js';
+import { setupClientAutocomplete } from './client-autocomplete.js';
 
 let savedClients = [];
+let clientAutocomplete = null;
 let manualItems = [
     { desc: '', amount: 0, btwRate: 21 }
 ];
 let isOmschrijvingManuallyEdited = false;
 
 export function initManualInvoices() {
-    const clientSelect = document.getElementById('manual-client-select');
+    savedClients = getCachedClients();
+
     const btnSaveClient = document.getElementById('btn-manual-client-save');
     const btnDeleteClient = document.getElementById('btn-manual-client-delete');
     const btnAddRow = document.getElementById('btn-manual-add-row');
@@ -27,13 +27,30 @@ export function initManualInvoices() {
     const bookingDescInput = document.getElementById('manual-booking-desc');
     const invoiceDateInput = document.getElementById('manual-invoice-date');
 
+    const nameInput = document.getElementById('manual-client-name');
+    const toggleBtn = document.getElementById('manual-client-toggle');
+    const dropdownEl = document.getElementById('manual-client-dropdown');
+    const attentionInput = document.getElementById('manual-client-attention');
+    const addressInput = document.getElementById('manual-client-address');
+    const cityInput = document.getElementById('manual-client-city');
+
+    clientAutocomplete = setupClientAutocomplete({
+        nameInput,
+        toggleBtn,
+        dropdownEl,
+        attentionInput,
+        addressInput,
+        cityInput,
+        btnDelete: btnDeleteClient,
+        getClients: () => savedClients
+    });
+
     // Default the date to today
     if (invoiceDateInput) {
         invoiceDateInput.valueAsDate = new Date();
     }
 
     // Event Bindings
-    clientSelect?.addEventListener('change', handleClientSelectChange);
     btnSaveClient?.addEventListener('click', handleSaveClient);
     btnDeleteClient?.addEventListener('click', handleDeleteClient);
     btnAddRow?.addEventListener('click', handleAddRow);
@@ -43,94 +60,20 @@ export function initManualInvoices() {
         isOmschrijvingManuallyEdited = (bookingDescInput.value.trim() !== '');
     });
 
-    // Initial render
-    renderSavedClientsDropdown();
     renderItemsTable();
-    updateDeleteButtonState();
 }
 
 /**
- * Loads manual clients from sheet and populates dropdown (invoked on demand / after auth)
+ * Loads manual clients from sheet (invoked on demand / after auth)
  */
 export async function loadManualClientsAfterAuth() {
     if (!accessToken) return;
-    
-    const clientSelect = document.getElementById('manual-client-select');
-    if (!clientSelect) return;
-
-    // Show loading state in dropdown
-    clientSelect.innerHTML = '<option value="">Bezig met laden relaties...</option>';
 
     try {
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
+        clientAutocomplete?.refreshDeleteState();
     } catch (e) {
         console.error("Fout bij laden klanten na inloggen:", e);
-        clientSelect.innerHTML = `
-            <option value="">⚠️ Fout bij laden: ${e.message}</option>
-            <option value="custom">Nieuw / Aangepast...</option>
-        `;
-    }
-}
-
-function renderSavedClientsDropdown() {
-    const clientSelect = document.getElementById('manual-client-select');
-    if (!clientSelect) return;
-
-    let html = '<option value="">-- Selecteer relatie --</option>';
-
-    if (savedClients.length > 0) {
-        savedClients.forEach((c, idx) => {
-            html += `<option value="saved-${idx}">${c.name}</option>`;
-        });
-    }
-
-    html += '<option value="custom">Nieuw / Aangepast...</option>';
-    clientSelect.innerHTML = html;
-}
-
-function handleClientSelectChange(e) {
-    const val = e.target.value;
-    
-    const clientName = document.getElementById('manual-client-name');
-    const clientAttention = document.getElementById('manual-client-attention');
-    const clientAddress = document.getElementById('manual-client-address');
-    const clientCity = document.getElementById('manual-client-city');
-
-    if (!clientName || !clientAttention || !clientAddress || !clientCity) return;
-
-    if (val.startsWith('saved-')) {
-        const idx = parseInt(val.split('-')[1]);
-        const client = savedClients[idx];
-        clientName.value = client.name;
-        clientAttention.value = client.attention;
-        clientAddress.value = client.address;
-        clientCity.value = client.city;
-    } else {
-        // custom or select
-        clientName.value = '';
-        clientAttention.value = '';
-        clientAddress.value = '';
-        clientCity.value = '';
-    }
-
-    updateDeleteButtonState();
-}
-
-function updateDeleteButtonState() {
-    const clientSelect = document.getElementById('manual-client-select');
-    const btnDeleteClient = document.getElementById('btn-manual-client-delete');
-    if (!clientSelect || !btnDeleteClient) return;
-
-    const val = clientSelect.value;
-    if (val.startsWith('saved-')) {
-        btnDeleteClient.disabled = false;
-        btnDeleteClient.classList.replace('opacity-40', 'opacity-100');
-        btnDeleteClient.classList.replace('cursor-not-allowed', 'cursor-pointer');
-    } else {
-        btnDeleteClient.disabled = true;
-        btnDeleteClient.classList.add('opacity-40', 'cursor-not-allowed');
-        btnDeleteClient.classList.remove('opacity-100', 'cursor-pointer');
     }
 }
 
@@ -161,23 +104,19 @@ async function handleSaveClient() {
     setSaving(true);
 
     try {
+        const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
+        if (existing) {
+            if (!confirm(`Klant '${clientName}' bestaat al in de sheet. Wil je de adresgegevens bijwerken?`)) {
+                return;
+            }
+            await deleteClientFromSheetApi(clientName);
+        }
+
         const newClient = { name: clientName, attention: clientAttention, address: clientAddress, city: clientCity };
-        
-        // Save to sheet
         await saveClientToSheetApi(newClient);
         
-        // Reload list
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
-        
-        // Select the newly added client (find it in savedClients list)
-        const newIdx = savedClients.findIndex(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
-        const clientSelect = document.getElementById('manual-client-select');
-        if (clientSelect && newIdx !== -1) {
-            clientSelect.value = `saved-${newIdx}`;
-        }
-        
-        updateDeleteButtonState();
+        clientAutocomplete?.refreshDeleteState();
         alert("Klant succesvol opgeslagen in Google Sheet 'Klanten'!");
     } catch (e) {
         console.error("Fout bij opslaan klant:", e);
@@ -188,16 +127,16 @@ async function handleSaveClient() {
 }
 
 async function handleDeleteClient() {
-    const clientSelect = document.getElementById('manual-client-select');
-    if (!clientSelect) return;
+    const clientName = document.getElementById('manual-client-name')?.value.trim();
+    if (!clientName) return;
 
-    const val = clientSelect.value;
-    if (!val.startsWith('saved-')) return;
+    const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
+    if (!existing) {
+        alert(`Klant '${clientName}' staat niet als opgeslagen relatie in de sheet.`);
+        return;
+    }
 
-    const idx = parseInt(val.split('-')[1]);
-    const client = savedClients[idx];
-
-    if (!confirm(`Weet je zeker dat je '${client.name}' wilt verwijderen uit de Google Sheet?`)) {
+    if (!confirm(`Weet je zeker dat je '${existing.name}' wilt verwijderen uit de Google Sheet?`)) {
         return;
     }
 
@@ -212,7 +151,7 @@ async function handleDeleteClient() {
     setDeleting(true);
 
     try {
-        await deleteClientFromSheetApi(client.name);
+        await deleteClientFromSheetApi(existing.name);
         
         // Clear fields
         document.getElementById('manual-client-name').value = '';
@@ -222,10 +161,7 @@ async function handleDeleteClient() {
         
         // Reload list
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
-        
-        clientSelect.value = '';
-        updateDeleteButtonState();
+        clientAutocomplete?.refreshDeleteState();
         alert("Klant verwijderd!");
     } catch (e) {
         console.error("Fout bij verwijderen klant:", e);
@@ -546,12 +482,12 @@ async function handleGenerateManualInvoice() {
             document.getElementById('manual-booking-desc').value = '';
         }
         
-        // Reset client selection to custom
-        const clientSelect = document.getElementById('manual-client-select');
-        if (clientSelect) {
-            clientSelect.value = '';
-            handleClientSelectChange({ target: { value: '' } });
-        }
+        // Reset client fields
+        if (document.getElementById('manual-client-name')) document.getElementById('manual-client-name').value = '';
+        if (document.getElementById('manual-client-attention')) document.getElementById('manual-client-attention').value = '';
+        if (document.getElementById('manual-client-address')) document.getElementById('manual-client-address').value = '';
+        if (document.getElementById('manual-client-city')) document.getElementById('manual-client-city').value = '';
+        clientAutocomplete?.refreshDeleteState();
         
         renderItemsTable();
     } catch (err) {

@@ -83,7 +83,48 @@ Retourneer UITSLUITEND een valide JSON-object (zonder markdown code blocks of ex
   }
 }`;
 
+function isOriginAllowed(event) {
+    const headers = event.headers || {};
+    let sourceUrl = '';
+    for (const [key, val] of Object.entries(headers)) {
+        const k = key.toLowerCase();
+        if (k === 'origin' && val) { sourceUrl = val; break; }
+        if (k === 'referer' && val && !sourceUrl) { sourceUrl = val; }
+    }
+    if (!sourceUrl) return false;
+    try {
+        const hostname = new URL(sourceUrl).hostname.toLowerCase();
+        if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+        if (hostname === 'bfe-admin.netlify.app' || hostname.endsWith('--bfe-admin.netlify.app')) return true;
+        if (process.env.SITE_NAME && (hostname === `${process.env.SITE_NAME}.netlify.app` || hostname.endsWith(`--${process.env.SITE_NAME}.netlify.app`))) return true;
+        const custom = process.env.ALLOWED_DOMAIN ? process.env.ALLOWED_DOMAIN.trim().toLowerCase() : '';
+        return Boolean(custom && (hostname === custom || hostname.endsWith('.' + custom)));
+    } catch (_) {
+        return false;
+    }
+}
+
 export const handler = async (event) => {
+    if (!isOriginAllowed(event)) {
+        return {
+            statusCode: 403,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: true, message: 'Verboden: ongeldige herkomst (invalid origin or referer)' })
+        };
+    }
+
+    if (event.httpMethod === 'OPTIONS') {
+        return {
+            statusCode: 200,
+            headers: {
+                'Access-Control-Allow-Origin': event.headers?.origin || event.headers?.Origin || '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            body: ''
+        };
+    }
+
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
