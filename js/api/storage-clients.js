@@ -84,6 +84,7 @@ export async function fetchSavedClientsFromSheet() {
             address: r[2] || '',
             city: r[3] || ''
         })).filter(c => c.name.trim() !== '');
+        clients.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
     }
 
     _cachedClients = clients;
@@ -112,6 +113,7 @@ export async function saveClientToSheetApi(client) {
     });
     if (_cachedClients) {
         _cachedClients.push(client);
+        _cachedClients.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
     }
 }
 

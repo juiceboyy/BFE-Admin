@@ -400,21 +400,21 @@
                 
                 <!-- Client Details Section -->
                 <div class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Relatie selecteren</label>
-                            <select id="manual-client-select" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                                <option value="">-- Selecteer relatie --</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Klantnaam</label>
-                            <input type="text" id="manual-client-name" placeholder="Naam bedrijf of persoon" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Klantnaam / Relatie</label>
+                            <div class="relative">
+                                <input type="text" id="manual-client-name" placeholder="Zoek relatie (A-Z) of typ nieuwe klant..." 
+                                    autocomplete="off"
+                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-4 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                <button type="button" id="manual-client-toggle" title="Toon alle relaties"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 focus:outline-none">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div id="manual-client-dropdown" 
+                                class="hidden absolute z-50 left-0 right-0 mt-1.5 max-h-64 overflow-y-auto bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl py-1 text-sm">
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">T.a.v. (Optioneel)</label>
@@ -526,21 +526,21 @@
                 
                 <!-- Client Details Section -->
                 <div class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-medium text-gray-500 mb-1.5">Relatie selecteren</label>
-                            <select id="offerte-client-select" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
-                                <option value="">-- Selecteer relatie --</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Klantnaam</label>
-                            <input type="text" id="offerte-client-name" placeholder="Naam bedrijf of persoon" 
-                                class="w-full bg-white/60 border border-gray-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Klantnaam / Relatie</label>
+                            <div class="relative">
+                                <input type="text" id="offerte-client-name" placeholder="Zoek relatie (A-Z) of typ nieuwe klant..." 
+                                    autocomplete="off"
+                                    class="w-full bg-white/60 border border-gray-200 rounded-xl pl-4 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                <button type="button" id="offerte-client-toggle" title="Toon alle relaties"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 focus:outline-none">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div id="offerte-client-dropdown" 
+                                class="hidden absolute z-50 left-0 right-0 mt-1.5 max-h-64 overflow-y-auto bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl py-1 text-sm">
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">T.a.v. (Optioneel)</label>

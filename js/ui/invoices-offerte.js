@@ -4,14 +4,15 @@ import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheet
 import { findNextOfferteNumber, saveOfferteToSheet } from '../api/storage-queries-offertes.js';
 import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { setupClientAutocomplete } from './client-autocomplete.js';
 
 let savedClients = [];
+let clientAutocomplete = null;
 let offerteItems = [
     { desc: 'Optreden Reau (12 november 2026)', amount: 0, btwRate: 9 }
 ];
 
 export function initOfferteInvoices() {
-    const clientSelect = document.getElementById('offerte-client-select');
     const btnSaveClient = document.getElementById('btn-offerte-client-save');
     const btnDeleteClient = document.getElementById('btn-offerte-client-delete');
     const btnAddRow = document.getElementById('btn-offerte-add-row');
@@ -20,13 +21,30 @@ export function initOfferteInvoices() {
     const projectInput = document.getElementById('offerte-project');
     const perfDateInput = document.getElementById('offerte-performance-date');
 
+    const nameInput = document.getElementById('offerte-client-name');
+    const toggleBtn = document.getElementById('offerte-client-toggle');
+    const dropdownEl = document.getElementById('offerte-client-dropdown');
+    const attentionInput = document.getElementById('offerte-client-attention');
+    const addressInput = document.getElementById('offerte-client-address');
+    const cityInput = document.getElementById('offerte-client-city');
+
+    clientAutocomplete = setupClientAutocomplete({
+        nameInput,
+        toggleBtn,
+        dropdownEl,
+        attentionInput,
+        addressInput,
+        cityInput,
+        btnDelete: btnDeleteClient,
+        getClients: () => savedClients
+    });
+
     // Default dates
     if (offerteDateInput && !offerteDateInput.value) {
         offerteDateInput.valueAsDate = new Date();
     }
 
     // Event Bindings
-    clientSelect?.addEventListener('change', handleClientSelectChange);
     btnSaveClient?.addEventListener('click', handleSaveClient);
     btnDeleteClient?.addEventListener('click', handleDeleteClient);
     btnAddRow?.addEventListener('click', handleAddRow);
@@ -44,9 +62,7 @@ export function initOfferteInvoices() {
 
     // Initial render
     savedClients = getCachedClients();
-    renderSavedClientsDropdown();
     renderItemsTable();
-    updateDeleteButtonState();
     refreshNextOfferteNumber();
 }
 
@@ -58,7 +74,7 @@ export async function loadOfferteDataAfterAuth() {
 
     try {
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
+        clientAutocomplete?.refreshDeleteState();
         await refreshNextOfferteNumber();
     } catch (e) {
         console.error("Fout bij laden offerte-gegevens na inloggen:", e);
@@ -95,65 +111,6 @@ function updateFirstItemSuggestion() {
     }
 }
 
-function renderSavedClientsDropdown() {
-    const clientSelect = document.getElementById('offerte-client-select');
-    if (!clientSelect) return;
-
-    let html = '<option value="">-- Selecteer relatie --</option>';
-    if (savedClients.length > 0) {
-        savedClients.forEach((c, idx) => {
-            html += `<option value="saved-${idx}">${c.name}</option>`;
-        });
-    }
-    html += '<option value="custom">Nieuw / Aangepast...</option>';
-    clientSelect.innerHTML = html;
-}
-
-function handleClientSelectChange(e) {
-    const val = e.target.value;
-    const clientName = document.getElementById('offerte-client-name');
-    const clientAttention = document.getElementById('offerte-client-attention');
-    const clientAddress = document.getElementById('offerte-client-address');
-    const clientCity = document.getElementById('offerte-client-city');
-
-    if (!clientName || !clientAttention || !clientAddress || !clientCity) return;
-
-    if (val.startsWith('saved-')) {
-        const idx = parseInt(val.split('-')[1], 10);
-        const client = savedClients[idx];
-        if (client) {
-            clientName.value = client.name || '';
-            clientAttention.value = client.attention || '';
-            clientAddress.value = client.address || '';
-            clientCity.value = client.city || '';
-        }
-    } else {
-        clientName.value = '';
-        clientAttention.value = '';
-        clientAddress.value = '';
-        clientCity.value = '';
-    }
-
-    updateDeleteButtonState();
-}
-
-function updateDeleteButtonState() {
-    const clientSelect = document.getElementById('offerte-client-select');
-    const btnDeleteClient = document.getElementById('btn-offerte-client-delete');
-    if (!clientSelect || !btnDeleteClient) return;
-
-    const val = clientSelect.value;
-    if (val.startsWith('saved-')) {
-        btnDeleteClient.disabled = false;
-        btnDeleteClient.classList.replace('opacity-40', 'opacity-100');
-        btnDeleteClient.classList.replace('cursor-not-allowed', 'cursor-pointer');
-    } else {
-        btnDeleteClient.disabled = true;
-        btnDeleteClient.classList.add('opacity-40', 'cursor-not-allowed');
-        btnDeleteClient.classList.remove('opacity-100', 'cursor-pointer');
-    }
-}
-
 async function handleSaveClient() {
     const clientName = document.getElementById('offerte-client-name')?.value.trim();
     const clientAttention = document.getElementById('offerte-client-attention')?.value.trim();
@@ -181,17 +138,18 @@ async function handleSaveClient() {
     setSaving(true);
 
     try {
+        const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
+        if (existing) {
+            if (!confirm(`Klant '${clientName}' bestaat al in de sheet. Wil je de adresgegevens bijwerken?`)) {
+                return;
+            }
+            await deleteClientFromSheetApi(clientName);
+        }
+
         const newClient = { name: clientName, attention: clientAttention, address: clientAddress, city: clientCity };
         await saveClientToSheetApi(newClient);
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
-
-        const newIdx = savedClients.findIndex(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
-        const clientSelect = document.getElementById('offerte-client-select');
-        if (clientSelect && newIdx !== -1) {
-            clientSelect.value = `saved-${newIdx}`;
-        }
-        updateDeleteButtonState();
+        clientAutocomplete?.refreshDeleteState();
         alert("Klant succesvol opgeslagen in Google Sheet 'Klanten'!");
     } catch (e) {
         console.error("Fout bij opslaan klant:", e);
@@ -202,17 +160,16 @@ async function handleSaveClient() {
 }
 
 async function handleDeleteClient() {
-    const clientSelect = document.getElementById('offerte-client-select');
-    if (!clientSelect) return;
+    const clientName = document.getElementById('offerte-client-name')?.value.trim();
+    if (!clientName) return;
 
-    const val = clientSelect.value;
-    if (!val.startsWith('saved-')) return;
+    const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
+    if (!existing) {
+        alert(`Klant '${clientName}' staat niet als opgeslagen relatie in de sheet.`);
+        return;
+    }
 
-    const idx = parseInt(val.split('-')[1], 10);
-    const client = savedClients[idx];
-    if (!client) return;
-
-    if (!confirm(`Weet je zeker dat je '${client.name}' wilt verwijderen uit de Google Sheet?`)) {
+    if (!confirm(`Weet je zeker dat je '${existing.name}' wilt verwijderen uit de Google Sheet?`)) {
         return;
     }
 
@@ -227,16 +184,14 @@ async function handleDeleteClient() {
     setDeleting(true);
 
     try {
-        await deleteClientFromSheetApi(client.name);
+        await deleteClientFromSheetApi(existing.name);
         document.getElementById('offerte-client-name').value = '';
         document.getElementById('offerte-client-attention').value = '';
         document.getElementById('offerte-client-address').value = '';
         document.getElementById('offerte-client-city').value = '';
 
         savedClients = await fetchSavedClientsFromSheet();
-        renderSavedClientsDropdown();
-        clientSelect.value = '';
-        updateDeleteButtonState();
+        clientAutocomplete?.refreshDeleteState();
         alert("Klant verwijderd!");
     } catch (e) {
         console.error("Fout bij verwijderen klant:", e);
