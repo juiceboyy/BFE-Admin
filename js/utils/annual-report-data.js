@@ -9,7 +9,7 @@ export const BFE_COMPANY_INFO = {
     legalName: 'Ronald van Holst',
     bsn: '1359 33 729',
     kvk: '34393338',
-    btwId: 'NL1359.33.729.B.01',
+    btwId: 'NL001638587B88',
     address: 'Kortlandpad 62',
     postalCodeCity: '2729DN Zoetermeer',
     phone: '06 2888 4143',

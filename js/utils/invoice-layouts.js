@@ -147,7 +147,7 @@ export function buildInvoiceDOM(config) {
                 <p style="margin: 2px 0 0 0; font-size: 13px; color: #333;">Kortlandpad 62</p>
                 <p style="margin: 2px 0 15px 0; font-size: 13px; color: #333;">2729DN Zoetermeer</p>
                 <p style="margin: 0; font-size: 12px; color: #555;">tel.: 06 2888 4143</p>
-                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">BTW nr. NL1359.33.729.B.01</p>
+                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">BTW-id: NL001638587B88</p>
                 <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">KvK nr: 34393338</p>
             </div>
             
