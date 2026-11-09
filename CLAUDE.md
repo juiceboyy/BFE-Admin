@@ -38,6 +38,9 @@ find js netlify -name "*.js" -exec node -c {} +
 ```
 Never commit or push code without this command passing cleanly with return code 0.
 
+### Git Branching & Push Policy
+Always commit and push changes to the `dev` (or `test`) branch rather than pushing directly to `master`, unless explicitly instructed otherwise. Always verify the active branch before committing and switch to `dev` if the workspace defaulted to `master`.
+
 ### Required Environment Variables (.env)
 - `GEMINI_API_KEY` - Loaded by all backend AI functions (`netlify/functions/scanReceipt.js`, `scanBankStatement.js`, `fiscalAdvisor.js`, `classifyInventaris.js`, and `scanAangifte.js`).
 

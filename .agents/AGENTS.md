@@ -46,6 +46,10 @@ Because this codebase runs pure vanilla ES modules without a bundler or compiler
   ```
   Never commit or push code without this command passing cleanly with return code 0.
 
+## 5. Git Branching & Push Policy
+* **Never push directly to `master`**: Always commit and push changes to the `dev` (or `test`) branch unless explicitly instructed to merge/push to `master`.
+* **Branch Verification**: Before committing or pushing, always verify that the active branch is `dev` (or `test`). If the workspace was cloned on `master`, fetch and switch to `dev` (`git fetch origin dev:refs/remotes/origin/dev && git checkout -B dev origin/dev`) before making commits.
+
 # CLAUDE.md
 
 ## What This Is
