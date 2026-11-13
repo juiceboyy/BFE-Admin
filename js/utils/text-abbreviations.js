@@ -27,7 +27,7 @@ export function stripDatesFromDescription(text) {
 
     result = result.replace(/\(\s*\)|\[\s*\]/g, '');
 
-    const prefixMatch = result.match(/^([a-zA-Z]+:\s*)(.*)$/);
+    const prefixMatch = result.match(/^([a-zA-Z]+:\s*)([\s\S]*)$/);
     const prefix = prefixMatch ? prefixMatch[1] : '';
     const body = prefixMatch ? prefixMatch[2] : result;
 

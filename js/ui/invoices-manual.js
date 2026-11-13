@@ -1,14 +1,17 @@
-import { fetchWithRetry } from '../utils/network.js';
 import { accessToken } from '../api/auth.js';
-import { SPREADSHEET_ID, clearSheetCaches } from '../api/storage.js';
-import { MONTH_NAMES } from '../utils/date.js';
-import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
-import { constructSheetRow, processItemSave } from './scanner-helpers.js';
-import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
-import { generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { isAmareInvoice } from '../utils/invoice-layouts.js';
 import { abbreviateDescription } from '../utils/text-abbreviations.js';
-import { fetchSavedClientsFromSheet, saveClientToSheetApi, deleteClientFromSheetApi, getCachedClients } from '../api/storage-clients.js';
+import { fetchSavedClientsFromSheet, getCachedClients } from '../api/storage-clients.js';
 import { setupClientAutocomplete } from './client-autocomplete.js';
+import {
+    buildAmareOpenMicDescription,
+    isAmareOpenMicDescription,
+    getCurrentManualClientInfo,
+    recalculateManualTotals,
+    saveManualClientFlow,
+    deleteManualClientFlow
+} from './invoices-manual-helpers.js';
+import { submitManualInvoice } from './invoices-manual-submit.js';
 
 let savedClients = [];
 let clientAutocomplete = null;
@@ -42,7 +45,9 @@ export function initManualInvoices() {
         addressInput,
         cityInput,
         btnDelete: btnDeleteClient,
-        getClients: () => savedClients
+        getClients: () => savedClients,
+        onSelect: () => syncAmareDefaultDescription(),
+        onReset: () => syncAmareDefaultDescription()
     });
 
     // Default the date to today
@@ -51,10 +56,26 @@ export function initManualInvoices() {
     }
 
     // Event Bindings
-    btnSaveClient?.addEventListener('click', handleSaveClient);
-    btnDeleteClient?.addEventListener('click', handleDeleteClient);
+    btnSaveClient?.addEventListener('click', () =>
+        saveManualClientFlow(() => savedClients, (c) => { savedClients = c; }, () => clientAutocomplete)
+    );
+    btnDeleteClient?.addEventListener('click', () =>
+        deleteManualClientFlow(
+            () => savedClients,
+            (c) => { savedClients = c; },
+            () => clientAutocomplete,
+            () => syncAmareDefaultDescription()
+        )
+    );
     btnAddRow?.addEventListener('click', handleAddRow);
     btnGenerate?.addEventListener('click', handleGenerateManualInvoice);
+
+    [nameInput, attentionInput, addressInput, cityInput].forEach(el => {
+        el?.addEventListener('input', () => syncAmareDefaultDescription());
+    });
+
+    invoiceDateInput?.addEventListener('change', () => syncAmareDefaultDescription());
+    invoiceDateInput?.addEventListener('input', () => syncAmareDefaultDescription());
 
     bookingDescInput?.addEventListener('input', () => {
         isOmschrijvingManuallyEdited = (bookingDescInput.value.trim() !== '');
@@ -77,98 +98,41 @@ export async function loadManualClientsAfterAuth() {
     }
 }
 
-async function handleSaveClient() {
-    const clientName = document.getElementById('manual-client-name')?.value.trim();
-    const clientAttention = document.getElementById('manual-client-attention')?.value.trim();
-    const clientAddress = document.getElementById('manual-client-address')?.value.trim();
-    const clientCity = document.getElementById('manual-client-city')?.value.trim();
+function syncAmareDefaultDescription() {
+    if (manualItems.length === 0) return;
 
-    if (!clientName) {
-        alert("Vul ten minste de klantnaam in om op te slaan.");
-        return;
-    }
+    const amareActive = isAmareInvoice(getCurrentManualClientInfo());
+    const invoiceDateVal = document.getElementById('manual-invoice-date')?.value || '';
+    const firstDesc = manualItems[0].desc || '';
+    const descEl = document.getElementById('manual-desc-0');
 
-    if (!accessToken) {
-        alert("Niet ingelogd met Google. Klik eerst op \"Sync Drive\" bovenaan.");
-        return;
-    }
-
-    const btn = document.getElementById('btn-manual-client-save');
-    const setSaving = (saving) => {
-        if (!btn) return;
-        btn.disabled = saving;
-        btn.innerHTML = saving ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Opslaan...' : 'Klant Opslaan in Sheet';
-        if (window.lucide) window.lucide.createIcons();
-    };
-
-    setSaving(true);
-
-    try {
-        const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
-        if (existing) {
-            if (!confirm(`Klant '${clientName}' bestaat al in de sheet. Wil je de adresgegevens bijwerken?`)) {
-                return;
+    if (amareActive) {
+        if (firstDesc.trim() === '' || isAmareOpenMicDescription(firstDesc)) {
+            const nextDesc = buildAmareOpenMicDescription(invoiceDateVal);
+            if (firstDesc !== nextDesc) {
+                manualItems[0].desc = nextDesc;
+                if (descEl) {
+                    descEl.value = nextDesc;
+                    descEl.rows = Math.max(2, nextDesc.split('\n').length);
+                }
+                suggestBookingDescription();
             }
-            await deleteClientFromSheetApi(clientName);
         }
-
-        const newClient = { name: clientName, attention: clientAttention, address: clientAddress, city: clientCity };
-        await saveClientToSheetApi(newClient);
-        
-        savedClients = await fetchSavedClientsFromSheet();
-        clientAutocomplete?.refreshDeleteState();
-        alert("Klant succesvol opgeslagen in Google Sheet 'Klanten'!");
-    } catch (e) {
-        console.error("Fout bij opslaan klant:", e);
-        alert(`Fout bij opslaan klant: ${e.message}`);
-    } finally {
-        setSaving(false);
+    } else if (isAmareOpenMicDescription(firstDesc)) {
+        manualItems[0].desc = '';
+        if (descEl) {
+            descEl.value = '';
+            descEl.rows = 1;
+        }
+        suggestBookingDescription();
     }
 }
 
-async function handleDeleteClient() {
-    const clientName = document.getElementById('manual-client-name')?.value.trim();
-    if (!clientName) return;
-
-    const existing = savedClients.find(c => c.name.toLowerCase().trim() === clientName.toLowerCase().trim());
-    if (!existing) {
-        alert(`Klant '${clientName}' staat niet als opgeslagen relatie in de sheet.`);
-        return;
-    }
-
-    if (!confirm(`Weet je zeker dat je '${existing.name}' wilt verwijderen uit de Google Sheet?`)) {
-        return;
-    }
-
-    const btn = document.getElementById('btn-manual-client-delete');
-    const setDeleting = (deleting) => {
-        if (!btn) return;
-        btn.disabled = deleting;
-        btn.innerHTML = deleting ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>' : '<i data-lucide="trash-2" class="w-4 h-4"></i>';
-        if (window.lucide) window.lucide.createIcons();
-    };
-
-    setDeleting(true);
-
-    try {
-        await deleteClientFromSheetApi(existing.name);
-        
-        // Clear fields
-        document.getElementById('manual-client-name').value = '';
-        document.getElementById('manual-client-attention').value = '';
-        document.getElementById('manual-client-address').value = '';
-        document.getElementById('manual-client-city').value = '';
-        
-        // Reload list
-        savedClients = await fetchSavedClientsFromSheet();
-        clientAutocomplete?.refreshDeleteState();
-        alert("Klant verwijderd!");
-    } catch (e) {
-        console.error("Fout bij verwijderen klant:", e);
-        alert(`Fout bij verwijderen klant: ${e.message}`);
-    } finally {
-        setDeleting(false);
-    }
+function escapeTextareaHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 function handleAddRow() {
@@ -186,11 +150,12 @@ function renderItemsTable() {
 
     tbody.innerHTML = manualItems.map((item, index) => {
         const rowId = `manual-row-${index}`;
+        const rows = (item.desc || '').includes('\n') ? Math.max(2, item.desc.split('\n').length) : 1;
         return `
             <tr id="${rowId}" class="hover:bg-white/40 transition-colors">
                 <td class="px-4 py-3">
-                    <input type="text" id="manual-desc-${index}" value="${item.desc}" placeholder="Bijv. Optreden Ronald" 
-                        class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 manual-item-desc" data-index="${index}">
+                    <textarea id="manual-desc-${index}" rows="${rows}" placeholder="Bijv. Optreden Ronald"
+                        class="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 outline-none text-sm py-0.5 resize-none leading-snug manual-item-desc" data-index="${index}">${escapeTextareaHtml(item.desc)}</textarea>
                 </td>
                 <td class="px-4 py-3 text-right">
                     <input type="text" inputmode="decimal" id="manual-amount-${index}" value="${item.amount > 0 ? item.amount.toFixed(2) : ''}" placeholder="0,00" 
@@ -215,52 +180,52 @@ function renderItemsTable() {
 
     if (window.lucide) window.lucide.createIcons();
 
-    // Bind event listeners to table inputs
-    tbody.querySelectorAll('.manual-item-desc').forEach(input => {
-        input.addEventListener('input', (e) => {
-            const idx = parseInt(e.target.getAttribute('data-index'));
+    tbody.querySelectorAll('.manual-item-desc').forEach(textarea => {
+        textarea.addEventListener('input', (e) => {
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
             manualItems[idx].desc = e.target.value;
+            e.target.rows = e.target.value.includes('\n') ? Math.max(2, e.target.value.split('\n').length) : 1;
             suggestBookingDescription();
         });
     });
 
     tbody.querySelectorAll('.manual-item-amount').forEach(input => {
         input.addEventListener('input', (e) => {
-            const idx = parseInt(e.target.getAttribute('data-index'));
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
             const clean = String(e.target.value).replace(',', '.').trim();
             const val = parseFloat(clean);
             manualItems[idx].amount = isNaN(val) ? 0 : val;
-            recalculateTotals();
+            recalculateManualTotals(manualItems);
         });
     });
 
     tbody.querySelectorAll('.manual-item-btw').forEach(select => {
         select.addEventListener('change', (e) => {
-            const idx = parseInt(e.target.getAttribute('data-index'));
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
             const val = e.target.value;
-            manualItems[idx].btwRate = (val === 'Vrijgesteld') ? 'Vrijgesteld' : parseInt(val);
-            recalculateTotals();
+            manualItems[idx].btwRate = (val === 'Vrijgesteld') ? 'Vrijgesteld' : parseInt(val, 10);
+            recalculateManualTotals(manualItems);
         });
     });
 
     tbody.querySelectorAll('.delete-manual-row-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+            const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
             manualItems.splice(idx, 1);
             renderItemsTable();
-            recalculateTotals();
+            recalculateManualTotals(manualItems);
             suggestBookingDescription();
         });
     });
 
-    recalculateTotals();
+    recalculateManualTotals(manualItems);
 }
 
 function suggestBookingDescription() {
     if (isOmschrijvingManuallyEdited) return;
 
     const descriptions = manualItems
-        .map(item => item.desc.trim())
+        .map(item => item.desc.replace(/\r?\n?\s*Event\s+ID\s+\d+/gi, '').trim())
         .filter(desc => desc !== '');
 
     const bookingDescInput = document.getElementById('manual-booking-desc');
@@ -274,226 +239,22 @@ function suggestBookingDescription() {
     }
 }
 
-function recalculateTotals() {
-    let subtotal = 0;
-    let btw21 = 0;
-    let btw9 = 0;
-
-    manualItems.forEach(item => {
-        if (item.amount) {
-            subtotal += item.amount;
-            if (item.btwRate === 21) {
-                btw21 += item.amount * 0.21;
-            } else if (item.btwRate === 9) {
-                btw9 += item.amount * 0.09;
-            }
-        }
-    });
-
-    const total = subtotal + btw21 + btw9;
-    const formatEur = (num) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(num);
-
-    const subtotalEl = document.getElementById('manual-summary-subtotal');
-    if (subtotalEl) subtotalEl.innerText = formatEur(subtotal);
-
-    // VAT 21% Display
-    const vat21Row = document.getElementById('manual-vat21-row');
-    const vat21El = document.getElementById('manual-summary-vat21');
-    if (vat21Row && vat21El) {
-        if (btw21 > 0) {
-            vat21Row.classList.remove('hidden');
-            vat21El.innerText = formatEur(btw21);
-        } else {
-            vat21Row.classList.add('hidden');
-            vat21El.innerText = formatEur(0);
-        }
+function resetManualInvoiceForm() {
+    manualItems = [{ desc: '', amount: 0, btwRate: 21 }];
+    isOmschrijvingManuallyEdited = false;
+    if (document.getElementById('manual-booking-desc')) {
+        document.getElementById('manual-booking-desc').value = '';
     }
 
-    // VAT 9% Display
-    const vat9Row = document.getElementById('manual-vat9-row');
-    const vat9El = document.getElementById('manual-summary-vat9');
-    if (vat9Row && vat9El) {
-        if (btw9 > 0) {
-            vat9Row.classList.remove('hidden');
-            vat9El.innerText = formatEur(btw9);
-        } else {
-            vat9Row.classList.add('hidden');
-            vat9El.innerText = formatEur(0);
-        }
-    }
+    if (document.getElementById('manual-client-name')) document.getElementById('manual-client-name').value = '';
+    if (document.getElementById('manual-client-attention')) document.getElementById('manual-client-attention').value = '';
+    if (document.getElementById('manual-client-address')) document.getElementById('manual-client-address').value = '';
+    if (document.getElementById('manual-client-city')) document.getElementById('manual-client-city').value = '';
+    clientAutocomplete?.refreshDeleteState();
 
-    // VAT 0% or Exempt Display
-    const hasZeroOrExempt = manualItems.some(item => item.btwRate === 0 || item.btwRate === 'Vrijgesteld');
-    const vatNulRow = document.getElementById('manual-vatnul-row');
-    if (vatNulRow) {
-        if (hasZeroOrExempt) {
-            vatNulRow.classList.remove('hidden');
-        } else {
-            vatNulRow.classList.add('hidden');
-        }
-    }
-
-    const totalEl = document.getElementById('manual-summary-total');
-    if (totalEl) totalEl.innerText = formatEur(total);
+    renderItemsTable();
 }
 
 async function handleGenerateManualInvoice() {
-    const clientName = document.getElementById('manual-client-name')?.value.trim();
-    const clientAttention = document.getElementById('manual-client-attention')?.value.trim();
-    const clientAddress = document.getElementById('manual-client-address')?.value.trim();
-    const clientCity = document.getElementById('manual-client-city')?.value.trim();
-    const invoiceDateVal = document.getElementById('manual-invoice-date')?.value;
-    const bookingDesc = document.getElementById('manual-booking-desc')?.value.trim();
-
-    if (!accessToken) {
-        alert("Niet ingelogd met Google. Klik eerst op \"Sync Drive\" bovenaan.");
-        return;
-    }
-
-    if (!clientName || !clientAddress || !clientCity) {
-        alert("Vul de klantnaam, adres en woonplaats in.");
-        return;
-    }
-
-    if (!invoiceDateVal) {
-        alert("Selecteer een factuurdatum.");
-        return;
-    }
-
-    if (!bookingDesc) {
-        alert("Vul een omschrijving voor de boekhouding in.");
-        return;
-    }
-
-    // Filter out items without descriptions/amounts
-    const validItems = manualItems.filter(item => item.desc.trim() !== '' && item.amount > 0);
-    if (validItems.length === 0) {
-        alert("Voeg minimaal één geldige factuurregel toe met omschrijving en bedrag.");
-        return;
-    }
-
-    const btn = document.getElementById('btn-generate-manual-invoice');
-    const setLoading = (loading) => {
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.innerHTML = loading
-            ? '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig met genereren & boeken...'
-            : '<i data-lucide="printer" class="w-4 h-4"></i> Factuur Genereren & Boeken';
-        if (window.lucide) window.lucide.createIcons();
-    };
-
-    setLoading(true);
-
-    try {
-        clearSheetCaches();
-
-        const invoiceD = new Date(invoiceDateVal);
-        const targetMonthIndex = invoiceD.getMonth();
-        const currentYear = invoiceD.getFullYear();
-        const targetSheet = `${MONTH_NAMES[targetMonthIndex]} Verkoop`;
-        
-        const prevMonthIndex = targetMonthIndex === 0 ? 11 : targetMonthIndex - 1;
-        const prevSheet = `${MONTH_NAMES[prevMonthIndex]} Verkoop`;
-
-        const { targetRowIndex, factuurNummer } = await findInvoiceTargetRowAndNumber(targetSheet, prevSheet, currentYear);
-
-        // Calculations
-        let subtotal = 0;
-        let btw21 = 0;
-        let btw9 = 0;
-        let omzetHoog = 0;
-        let omzetLaag = 0;
-        let omzetNul = 0;
-
-        validItems.forEach(item => {
-            subtotal += item.amount;
-            if (item.btwRate === 21) {
-                btw21 += item.amount * 0.21;
-                omzetHoog += item.amount;
-            } else if (item.btwRate === 9) {
-                btw9 += item.amount * 0.09;
-                omzetLaag += item.amount;
-            } else {
-                // 0 or Vrijgesteld
-                omzetNul += item.amount;
-            }
-        });
-
-        const invoiceTotal = subtotal + btw21 + btw9;
-
-        // Build config for layout
-        const invoiceDOMConfig = {
-            type: 'manual',
-            factuurNummer,
-            invoiceDate: invoiceDateVal,
-            clientInfo: {
-                name: clientName,
-                attention: clientAttention,
-                address: clientAddress,
-                city: clientCity
-            },
-            items: validItems,
-            totals: {
-                subtotal,
-                btwBreakdown: {
-                    '21': btw21,
-                    '9': btw9
-                },
-                total: invoiceTotal
-            }
-        };
-
-        const invoiceElement = buildInvoiceDOM(invoiceDOMConfig);
-
-        // Filename format: BFE26FR 2026-054 <omschrijving voor spreadsheet>
-        const invoiceYear2 = String(invoiceD.getFullYear()).slice(-2);
-        const factuurNummerFilename = factuurNummer.replace('.', '-');
-        const sheetOmschrijving = bookingDesc.trim();
-        const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
-
-        const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
-        const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
-
-        // Book row in Google Sheets
-        const formData = {
-            datum: invoiceDateVal,
-            leverancier: clientName,
-            omschrijving: sheetOmschrijving,
-            factuurBedrag: invoiceTotal,
-        };
-
-        const itemData = {
-            btwLaag: btw9,
-            btwHoog: btw21,
-            omzetLaag: omzetLaag,
-            omzetHoog: omzetHoog,
-            omzetNul: omzetNul,
-        };
-
-        const dateInfo = { targetSheet };
-        await processItemSave(pdfFile, formData, itemData, 'verkoop', factuurNummer, dateInfo);
-
-        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}`);
-        
-        // Reset form
-        manualItems = [{ desc: '', amount: 0, btwRate: 21 }];
-        isOmschrijvingManuallyEdited = false;
-        if (document.getElementById('manual-booking-desc')) {
-            document.getElementById('manual-booking-desc').value = '';
-        }
-        
-        // Reset client fields
-        if (document.getElementById('manual-client-name')) document.getElementById('manual-client-name').value = '';
-        if (document.getElementById('manual-client-attention')) document.getElementById('manual-client-attention').value = '';
-        if (document.getElementById('manual-client-address')) document.getElementById('manual-client-address').value = '';
-        if (document.getElementById('manual-client-city')) document.getElementById('manual-client-city').value = '';
-        clientAutocomplete?.refreshDeleteState();
-        
-        renderItemsTable();
-    } catch (err) {
-        console.error('Fout bij genereren handmatige factuur:', err);
-        alert(`Er ging iets mis bij het genereren of opslaan van de factuur: ${err.message}`);
-    } finally {
-        setLoading(false);
-    }
+    await submitManualInvoice(manualItems, resetManualInvoiceForm);
 }
