@@ -1,7 +1,7 @@
 /**
  * netlify/functions/scanAangifte.js
  * AI Scanner voor Aangifte Inkomstenbelasting (IB) van Big Fish Entertainment.
- * Gebruikt Gemini 3.8 Flash met greedy decoding (temperature: 0.0) voor sub-3s verwerking.
+ * Gebruikt Gemini 4 Hydrogen met greedy decoding (temperature: 0.0) voor sub-3s verwerking.
  * Werkt volledig jaaronafhankelijk voor 2025, 2026 en toekomstige belastingjaren.
  */
 
@@ -163,7 +163,7 @@ export const handler = async (event) => {
 
     const prompt = `Hier is de tekst van de Aangifte Inkomstenbelasting van Ronald van Holst / Big Fish Entertainment:\n\n${truncatedText}\n\nExtraheer alle zakelijke cijfers volgens het gevraagde JSON-schema. Zorg dat de balans exact sluit (Activa == Passiva).`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent?key=${apiKey}`;
 
     try {
         const response = await fetch(url, {

@@ -54,7 +54,7 @@ Because this codebase runs pure vanilla ES modules without a bundler or compiler
 
 ## What This Is
 
-**BFE Admin** - accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Persists data in Google Sheets and stores incoming receipts and generated invoices in Google Drive. All serverless AI endpoints are unified under Google's **Gemini 3.8 Flash** model (`gemini-3.8-flash:generateContent`) with greedy decoding (`temperature: 0.0`) for fast sub-3s processing.
+**BFE Admin** - accounting and tax dashboard for Big Fish Entertainment (Ronald van Holst). Persists data in Google Sheets and stores incoming receipts and generated invoices in Google Drive. All serverless AI endpoints are unified under Google's **Gemini 4 Hydrogen** model (`gemini-4-hydrogen:generateContent`) with greedy decoding (`temperature: 0.0`) for fast sub-3s processing.
 
 The application is structured into four main workflows:
 1. **🧾 Bonnen & Facturen (Receipt & Invoice Scanner)**: Inkoop and Verkoop OCR extraction using Gemini, foreign currency conversion via European Central Bank (ECB) daily reference rates, automated duplicate verification against existing Sheet records, historical cloud memory vendor matching, and sequential batch insertion into Google Sheets with Drive file renaming.
@@ -162,12 +162,12 @@ js/
       ├── tax-calculator.js         # Tax math, linear asset depreciation, and Dutch tax rate sheets (2023-2026)
       └── text-abbreviations.js     # Strips dates from descriptions, enforces podiumkleding, abbreviates words
 netlify/functions/
-  ├── classifyInventaris.js         # Serverless function to classify durable assets using Gemini 3.8 Flash
+  ├── classifyInventaris.js         # Serverless function to classify durable assets using Gemini 4 Hydrogen
   ├── fetchIcal.js                  # Serverless CORS proxy for retrieving external calendar iCal feeds
-  ├── fiscalAdvisor.js              # Serverless function injecting tax context to Gemini 3.8 Flash for Dutch tax advice
-  ├── scanAangifte.js               # Serverless function extracting official Aangifte IB data using Gemini 3.8 Flash
-  ├── scanBankStatement.js          # Serverless function extracting begin/end bank balance from PDF using Gemini 3.8 Flash
-  └── scanReceipt.js                # Serverless function extracting metadata from receipts using Gemini 3.8 Flash
+  ├── fiscalAdvisor.js              # Serverless function injecting tax context to Gemini 4 Hydrogen for Dutch tax advice
+  ├── scanAangifte.js               # Serverless function extracting official Aangifte IB data using Gemini 4 Hydrogen
+  ├── scanBankStatement.js          # Serverless function extracting begin/end bank balance from PDF using Gemini 4 Hydrogen
+  └── scanReceipt.js                # Serverless function extracting metadata from receipts using Gemini 4 Hydrogen
 ```
 
 ---
