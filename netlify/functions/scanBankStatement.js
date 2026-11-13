@@ -96,7 +96,7 @@ export const handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'Geen documentdata of tekst ontvangen.' }) };
         }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent?key=${apiKey}`;
 
         const payload = {
             contents: [{ parts }],
