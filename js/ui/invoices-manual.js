@@ -12,6 +12,11 @@ import {
     deleteManualClientFlow
 } from './invoices-manual-helpers.js';
 import { submitManualInvoice } from './invoices-manual-submit.js';
+import {
+    initPeppolManualUI,
+    syncPeppolFromSelectedClient,
+    resetPeppolManualUI
+} from './invoices-peppol.js';
 
 let savedClients = [];
 let clientAutocomplete = null;
@@ -36,6 +41,7 @@ export function initManualInvoices() {
     const attentionInput = document.getElementById('manual-client-attention');
     const addressInput = document.getElementById('manual-client-address');
     const cityInput = document.getElementById('manual-client-city');
+    const peppolInput = document.getElementById('manual-client-peppol-id');
 
     clientAutocomplete = setupClientAutocomplete({
         nameInput,
@@ -44,10 +50,17 @@ export function initManualInvoices() {
         attentionInput,
         addressInput,
         cityInput,
+        peppolInput,
         btnDelete: btnDeleteClient,
         getClients: () => savedClients,
-        onSelect: () => syncAmareDefaultDescription(),
-        onReset: () => syncAmareDefaultDescription()
+        onSelect: (client) => {
+            syncPeppolFromSelectedClient(client);
+            syncAmareDefaultDescription();
+        },
+        onReset: () => {
+            syncPeppolFromSelectedClient(null);
+            syncAmareDefaultDescription();
+        }
     });
 
     // Default the date to today
@@ -64,7 +77,10 @@ export function initManualInvoices() {
             () => savedClients,
             (c) => { savedClients = c; },
             () => clientAutocomplete,
-            () => syncAmareDefaultDescription()
+            () => {
+                resetPeppolManualUI();
+                syncAmareDefaultDescription();
+            }
         )
     );
     btnAddRow?.addEventListener('click', handleAddRow);
@@ -81,6 +97,7 @@ export function initManualInvoices() {
         isOmschrijvingManuallyEdited = (bookingDescInput.value.trim() !== '');
     });
 
+    initPeppolManualUI();
     renderItemsTable();
 }
 
@@ -250,6 +267,7 @@ function resetManualInvoiceForm() {
     if (document.getElementById('manual-client-attention')) document.getElementById('manual-client-attention').value = '';
     if (document.getElementById('manual-client-address')) document.getElementById('manual-client-address').value = '';
     if (document.getElementById('manual-client-city')) document.getElementById('manual-client-city').value = '';
+    resetPeppolManualUI();
     clientAutocomplete?.refreshDeleteState();
 
     renderItemsTable();
