@@ -31,6 +31,7 @@ function highlightMatch(text, query) {
  * @param {HTMLInputElement} [options.attentionInput]
  * @param {HTMLInputElement} [options.addressInput]
  * @param {HTMLInputElement} [options.cityInput]
+ * @param {HTMLInputElement} [options.peppolInput]
  * @param {HTMLButtonElement} [options.btnDelete]
  * @param {Function} options.getClients - Returns array of client objects
  * @param {Function} [options.onSelect] - Callback when client is chosen
@@ -44,6 +45,7 @@ export function setupClientAutocomplete({
     attentionInput,
     addressInput,
     cityInput,
+    peppolInput,
     btnDelete,
     getClients,
     onSelect,
@@ -98,6 +100,7 @@ export function setupClientAutocomplete({
         if (attentionInput) attentionInput.value = client.attention || '';
         if (addressInput) addressInput.value = client.address || '';
         if (cityInput) cityInput.value = client.city || '';
+        if (peppolInput) peppolInput.value = client.peppolId || '';
 
         closeDropdown();
         refreshDeleteState();
@@ -111,6 +114,7 @@ export function setupClientAutocomplete({
         if (attentionInput) attentionInput.value = '';
         if (addressInput) addressInput.value = '';
         if (cityInput) cityInput.value = '';
+        if (peppolInput) peppolInput.value = '';
 
         refreshDeleteState();
 
@@ -160,7 +164,11 @@ export function setupClientAutocomplete({
 
         dropdownEl.innerHTML = currentMatches.map((client, idx) => {
             const highlightedName = highlightMatch(client.name || '', query);
-            const subDetails = [client.address, client.city].filter(Boolean).join(' • ');
+            const subDetails = [
+                client.address,
+                client.city,
+                client.peppolId ? `OIN: ${client.peppolId}` : ''
+            ].filter(Boolean).join(' • ');
 
             return `
                 <div class="client-autocomplete-item px-4 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/80 flex flex-col border-b border-gray-100/60 last:border-b-0"

@@ -1,11 +1,14 @@
 import { accessToken } from '../api/auth.js';
 import { clearSheetCaches } from '../api/storage.js';
+import { sendPeppolUblInvoice } from '../api/peppol.js';
 import { MONTH_NAMES } from '../utils/date.js';
 import { findInvoiceTargetRowAndNumber } from '../api/storage-queries-invoices.js';
 import { processItemSave } from './scanner-helpers.js';
-import { buildInvoiceDOM } from '../utils/invoice-layouts.js';
+import { buildInvoiceDOM, isAmareInvoice, AMARE_DECLARATION_TEXT } from '../utils/invoice-layouts.js';
 import { generateAndUploadPDF } from '../utils/pdf-generator.js';
+import { blobToBase64, buildPeppolUblXml, downloadUblXml } from '../utils/ubl-generator.js';
 import { getCurrentManualClientInfo } from './invoices-manual-helpers.js';
+import { getValidatedPeppolConfig } from './invoices-peppol.js';
 
 /**
  * Validates, generates PDF, uploads to Drive, and books a manual invoice into Google Sheets.
@@ -13,12 +16,13 @@ import { getCurrentManualClientInfo } from './invoices-manual-helpers.js';
  * @param {Function} onSuccess
  */
 export async function submitManualInvoice(manualItems, onSuccess) {
+    const clientInfo = getCurrentManualClientInfo();
     const {
         name: clientName,
         attention: clientAttention,
         address: clientAddress,
         city: clientCity
-    } = getCurrentManualClientInfo();
+    } = clientInfo;
     const invoiceDateVal = document.getElementById('manual-invoice-date')?.value;
     const bookingDesc = document.getElementById('manual-booking-desc')?.value.trim();
 
@@ -45,6 +49,14 @@ export async function submitManualInvoice(manualItems, onSuccess) {
     const validItems = manualItems.filter(item => item.desc.trim() !== '' && item.amount > 0);
     if (validItems.length === 0) {
         alert("Voeg minimaal één geldige factuurregel toe met omschrijving en bedrag.");
+        return;
+    }
+
+    let peppolConfig;
+    try {
+        peppolConfig = getValidatedPeppolConfig();
+    } catch (validationErr) {
+        alert(validationErr.message);
         return;
     }
 
@@ -143,7 +155,47 @@ export async function submitManualInvoice(manualItems, onSuccess) {
 
         await processItemSave(pdfFile, formData, itemData, 'verkoop', factuurNummer, { targetSheet });
 
-        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}`);
+        let peppolSummaryLine = '';
+        if (peppolConfig.enabled) {
+            const pdfBase64 = await blobToBase64(pdfBlob);
+            const ublXml = buildPeppolUblXml({
+                factuurNummer,
+                invoiceDate: invoiceDateVal,
+                buyerReference: peppolConfig.buyerReference,
+                orderReference: peppolConfig.buyerReference,
+                clientInfo: {
+                    ...clientInfo,
+                    peppolId: peppolConfig.participant.fullId
+                },
+                items: validItems,
+                pdfBase64,
+                pdfFileName: `${pdfFileName}.pdf`,
+                note: isAmareInvoice(clientInfo) ? AMARE_DECLARATION_TEXT : ''
+            });
+
+            downloadUblXml(ublXml, pdfFileName);
+
+            if (peppolConfig.mode === 'api') {
+                try {
+                    const sendRes = await sendPeppolUblInvoice({
+                        recipient: peppolConfig.participant.fullId,
+                        factuurNummer,
+                        ublXml
+                    });
+                    if (sendRes.sent) {
+                        peppolSummaryLine = `\n- UBL 2.1 XML gedownload\n- Verzonden via Peppol-netwerk naar ${peppolConfig.participant.fullId}`;
+                    } else {
+                        peppolSummaryLine = `\n- UBL 2.1 XML gedownload\n- Peppol API: ${sendRes.message || 'API niet geconfigureerd'}`;
+                    }
+                } catch (peppolErr) {
+                    peppolSummaryLine = `\n- UBL 2.1 XML lokaal gedownload\n- LET OP: Peppol API-verzending mislukt (${peppolErr.message})`;
+                }
+            } else {
+                peppolSummaryLine = '\n- UBL 2.1 XML gedownload (gereed voor handmatige upload)';
+            }
+        }
+
+        alert(`Factuur ${factuurNummer} succesvol gegenereerd, gedownload en opgeslagen!\n\n- Opgeslagen in Drive\n- Geboekt in Sheet: ${targetSheet}${peppolSummaryLine}`);
 
         if (typeof onSuccess === 'function') {
             onSuccess();

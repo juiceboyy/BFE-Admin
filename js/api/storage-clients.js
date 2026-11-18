@@ -30,7 +30,7 @@ let _cachedClients = loadStoredClients();
 /**
  * Fetches saved clients from the 'Klanten' tab in Google Sheets.
  * Creates the tab with default headers if it does not exist yet.
- * @returns {Promise<Array<{name: string, attention: string, address: string, city: string}>>}
+ * @returns {Promise<Array<{name: string, attention: string, address: string, city: string, peppolId: string}>>}
  */
 export async function fetchSavedClientsFromSheet() {
     if (!accessToken) return getCachedClients();
@@ -70,14 +70,14 @@ export async function fetchSavedClientsFromSheet() {
         }
 
         // Add headers
-        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D1?valueInputOption=USER_ENTERED`, {
+        const seedRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:E1?valueInputOption=USER_ENTERED`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                values: [["Klantnaam", "T.a.v.", "Adres", "Woonplaats"]]
+                values: [["Klantnaam", "T.a.v.", "Adres", "Woonplaats", "OIN / Peppol-ID"]]
             })
         });
         if (!seedRes.ok) {
@@ -88,7 +88,7 @@ export async function fetchSavedClientsFromSheet() {
         return _cachedClients;
     }
 
-    const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:D`, {
+    const dataRes = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A1:E`, {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!dataRes.ok) {
@@ -105,7 +105,8 @@ export async function fetchSavedClientsFromSheet() {
             name: r[0] || '',
             attention: r[1] || '',
             address: r[2] || '',
-            city: r[3] || ''
+            city: r[3] || '',
+            peppolId: r[4] || ''
         })).filter(c => c.name.trim() !== '');
         clients.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
     }
@@ -124,22 +125,29 @@ export function getCachedClients() {
 
 /**
  * Saves a new client to the 'Klanten' tab in Google Sheets.
- * @param {{name: string, attention: string, address: string, city: string}} client 
+ * @param {{name: string, attention: string, address: string, city: string, peppolId?: string}} client 
  */
 export async function saveClientToSheetApi(client) {
     if (!accessToken) throw new Error("Geen Google access token.");
-    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D:append?valueInputOption=USER_ENTERED`, {
+    const clientRecord = {
+        name: client.name || '',
+        attention: client.attention || '',
+        address: client.address || '',
+        city: client.city || '',
+        peppolId: client.peppolId || ''
+    };
+    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:E:append?valueInputOption=USER_ENTERED`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            values: [[client.name, client.attention, client.address, client.city]]
+            values: [[clientRecord.name, clientRecord.attention, clientRecord.address, clientRecord.city, clientRecord.peppolId]]
         })
     });
     if (_cachedClients) {
-        _cachedClients.push(client);
+        _cachedClients.push(clientRecord);
         _cachedClients.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
         persistClients(_cachedClients);
     }
@@ -152,7 +160,7 @@ export async function saveClientToSheetApi(client) {
 export async function deleteClientFromSheetApi(clientName) {
     if (!accessToken) throw new Error("Geen Google access token.");
 
-    const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:D`, {
+    const res = await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A:E`, {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!res.ok) return;
@@ -163,7 +171,7 @@ export async function deleteClientFromSheetApi(clientName) {
     const remainingRows = rows.slice(1).filter(r => (r[0] || '').toLowerCase().trim() !== clientName.toLowerCase().trim());
 
     // Clear and rewrite
-    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:D:clear`, {
+    await fetchWithRetry(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/'Klanten'!A2:E:clear`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` }
     });

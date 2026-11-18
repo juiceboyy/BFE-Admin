@@ -51,14 +51,15 @@ export function isAmareOpenMicDescription(desc) {
 
 /**
  * Reads current client fields from the manual invoicing form.
- * @returns {{ name: string, attention: string, address: string, city: string }}
+ * @returns {{ name: string, attention: string, address: string, city: string, peppolId: string }}
  */
 export function getCurrentManualClientInfo() {
     return {
         name: document.getElementById('manual-client-name')?.value.trim() || '',
         attention: document.getElementById('manual-client-attention')?.value.trim() || '',
         address: document.getElementById('manual-client-address')?.value.trim() || '',
-        city: document.getElementById('manual-client-city')?.value.trim() || ''
+        city: document.getElementById('manual-client-city')?.value.trim() || '',
+        peppolId: document.getElementById('manual-client-peppol-id')?.value.trim() || ''
     };
 }
 
@@ -207,6 +208,8 @@ export async function deleteManualClientFlow(getSavedClients, setSavedClients, g
         document.getElementById('manual-client-attention').value = '';
         document.getElementById('manual-client-address').value = '';
         document.getElementById('manual-client-city').value = '';
+        const peppolEl = document.getElementById('manual-client-peppol-id');
+        if (peppolEl) peppolEl.value = '';
 
         setSavedClients(await fetchSavedClientsFromSheet());
         getClientAutocomplete()?.refreshDeleteState();

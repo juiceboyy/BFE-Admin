@@ -443,6 +443,55 @@
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Klant Verwijderen
                         </button>
                     </div>
+
+                    <!-- Peppol E-Factuur (Rijksoverheid / Overheid) -->
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <label class="inline-flex items-center gap-2.5 cursor-pointer select-none">
+                            <input type="checkbox" id="manual-peppol-enabled"
+                                class="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-blue-500">
+                            <span class="text-sm font-medium text-gray-800">Peppol e-factuur (Rijksoverheid / Ministerie)</span>
+                        </label>
+
+                        <div id="manual-peppol-panel" class="hidden mt-4 p-4 rounded-2xl bg-white/70 border border-gray-200/80 space-y-4">
+                            <div class="relative">
+                                <label class="block text-xs font-medium text-gray-500 mb-1">OIN / Peppol-ID (20 cijfers)</label>
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <input type="text" id="manual-client-peppol-id"
+                                        placeholder="0190:<20-cijferig OIN> of gebruik Zoek OIN"
+                                        class="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm font-mono">
+                                    <button type="button" id="btn-peppol-lookup"
+                                        class="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                        <i data-lucide="search" class="w-3.5 h-3.5"></i> Zoek OIN in Peppol
+                                    </button>
+                                    <button type="button" id="btn-peppol-verify"
+                                        class="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Controleer OIN
+                                    </button>
+                                </div>
+                                <p id="manual-peppol-status" class="text-xs mt-1.5 hidden"></p>
+                                <div id="manual-peppol-search-results"
+                                    class="hidden absolute z-50 left-0 right-0 mt-1.5 max-h-64 overflow-y-auto bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl py-1 text-sm">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Inkoopordernummer / Referentie (Verplicht bij Rijksoverheid)</label>
+                                    <input type="text" id="manual-peppol-order-ref"
+                                        placeholder="Ordernummer of kostenplaats van het ministerie"
+                                        class="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Peppol Verwerking</label>
+                                    <select id="manual-peppol-mode"
+                                        class="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm">
+                                        <option value="api">Direct versturen via Peppol API + UBL XML downloaden</option>
+                                        <option value="xml_only">Alleen UBL XML downloaden (handmatige upload)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Invoice Meta Settings Section -->

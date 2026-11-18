@@ -1,0 +1,140 @@
+/**
+ * Client-side API wrapper for Peppol Directory lookup, recipient verification,
+ * and sending NLCIUS / Peppol BIS 3.0 UBL XML invoices via Netlify Functions.
+ */
+
+const PEPPOL_ENDPOINT = '/.netlify/functions/sendPeppolInvoice';
+const PUBLIC_DIRECTORY_URL = 'https://directory.peppol.eu/search/1.0/json';
+
+function mapDirectoryMatches(rawMatches = []) {
+    if (!Array.isArray(rawMatches)) return [];
+    return rawMatches
+        .map(m => {
+            const fullParticipant = m?.participantID?.value || '';
+            const [schemeId = '', endpointId = ''] = fullParticipant.split(':');
+            const firstEntity = Array.isArray(m?.entities) ? m.entities[0] : null;
+            const nameEntry = Array.isArray(firstEntity?.name) ? firstEntity.name[0] : null;
+            const docTypes = Array.isArray(m?.docTypes) ? m.docTypes : [];
+            return {
+                peppolId: fullParticipant,
+                schemeId,
+                endpointId,
+                name: nameEntry?.name || '',
+                countryCode: firstEntity?.countryCode || '',
+                additionalInfo: firstEntity?.additionalInfo || '',
+                supportsBilling3: docTypes.some(d => String(d?.value || '').includes('poacc:billing:3.0'))
+            };
+        })
+        .filter(item => item.peppolId);
+}
+
+async function postPeppolAction(payload) {
+    const response = await fetch(PEPPOL_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    if (response.status === 404) {
+        return { notFound: true, data: null };
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data?.error || `Peppol verzoek mislukt (status ${response.status})`);
+    }
+    return { notFound: false, data };
+}
+
+/**
+ * Searches the OpenPeppol Directory for Dutch participants (e.g. Ministries / OIN).
+ * Falls back to direct directory query if Netlify Functions are unavailable.
+ * @param {string} query
+ * @returns {Promise<Array<{ peppolId: string, schemeId: string, endpointId: string, name: string, additionalInfo: string, supportsBilling3: boolean }>>}
+ */
+export async function searchPeppolDirectory(query) {
+    const cleanQuery = String(query || '').trim();
+    if (cleanQuery.length < 2) {
+        throw new Error('Typ minimaal 2 tekens om in de Peppol Directory te zoeken.');
+    }
+
+    try {
+        const res = await postPeppolAction({ action: 'search', query: cleanQuery });
+        if (!res.notFound) {
+            return res.data?.matches || [];
+        }
+    } catch (err) {
+        if (!String(err?.message || '').includes('Failed to fetch')) {
+            throw err;
+        }
+    }
+
+    const fallbackUrl = `${PUBLIC_DIRECTORY_URL}?country=NL&q=${encodeURIComponent(cleanQuery)}`;
+    const directRes = await fetch(fallbackUrl, { headers: { Accept: 'application/json' } });
+    if (!directRes.ok) {
+        throw new Error('Peppol Directory kon niet worden bereikt.');
+    }
+    const json = await directRes.json();
+    return mapDirectoryMatches(json?.matches || []);
+}
+
+/**
+ * Verifies whether a Peppol participant ID (0190:... or 0106:...) is registered.
+ * @param {string} peppolAddress
+ * @returns {Promise<{ verified: boolean, participantName: string|null, apiConfigured: boolean, matches: Array }>}
+ */
+export async function verifyPeppolRecipient(peppolAddress) {
+    const clean = String(peppolAddress || '').trim().replace(/^iso6523-actorid-upis::/i, '');
+    if (!clean) {
+        throw new Error('Geef een Peppol-ID of OIN op om te controleren.');
+    }
+
+    try {
+        const res = await postPeppolAction({ action: 'verify', peppolAddress: clean });
+        if (!res.notFound) {
+            return res.data;
+        }
+    } catch (err) {
+        if (!String(err?.message || '').includes('Failed to fetch')) {
+            throw err;
+        }
+    }
+
+    const fallbackUrl = `${PUBLIC_DIRECTORY_URL}?participant=${encodeURIComponent(`iso6523-actorid-upis::${clean}`)}`;
+    const directRes = await fetch(fallbackUrl, { headers: { Accept: 'application/json' } });
+    if (!directRes.ok) {
+        throw new Error('Kon OIN niet controleren in de Peppol Directory.');
+    }
+    const json = await directRes.json();
+    const matches = mapDirectoryMatches(json?.matches || []);
+    return {
+        verified: matches.length > 0,
+        participantName: matches[0]?.name || null,
+        apiConfigured: false,
+        matches
+    };
+}
+
+/**
+ * Sends a UBL 2.1 XML invoice over the Peppol network via Recommand Netlify Function.
+ * @param {{ recipient: string, factuurNummer: string, ublXml: string }} params
+ * @returns {Promise<{ configured: boolean, sent: boolean, message?: string, result?: Object }>}
+ */
+export async function sendPeppolUblInvoice({ recipient, factuurNummer, ublXml }) {
+    const res = await postPeppolAction({
+        action: 'send',
+        recipient,
+        factuurNummer,
+        ublXml
+    });
+
+    if (res.notFound) {
+        return {
+            configured: false,
+            sent: false,
+            message: 'Netlify Functions zijn lokaal niet actief; het UBL XML-bestand is lokaal gedownload voor handmatige upload.'
+        };
+    }
+
+    return res.data;
+}
