@@ -7,6 +7,24 @@ const PEPPOL_DIRECTORY_URL = 'https://directory.peppol.eu/search/1.0/json';
 const RECOMMAND_API_BASE = 'https://app.recommand.eu/api/v1';
 const PEPPOL_BIS_BILLING_DOCTYPE =
     'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1';
+const DUTCH_STOP_WORDS = new Set(['van', 'en', 'het', 'de', 'der', 'voor', 'op', 'te', 'aan', 'bij']);
+
+function buildSearchCandidateQueries(rawQuery) {
+    const trimmed = String(rawQuery || '').trim();
+    if (!trimmed) return [];
+    const candidates = [trimmed];
+    const meaningful = trimmed.split(/\s+/).filter(Boolean)
+        .filter(tok => !(/[\/\\]|\d/.test(tok)))
+        .map(tok => tok.replace(/^[^a-zA-Z0-9À-ÿ]+|[^a-zA-Z0-9À-ÿ]+$/g, ''))
+        .filter(tok => tok.length >= 2 && !DUTCH_STOP_WORDS.has(tok.toLowerCase()));
+    if (meaningful.length >= 1) {
+        const simplified = meaningful.join(' ');
+        if (simplified.toLowerCase() !== trimmed.toLowerCase()) candidates.push(simplified);
+        const longest = [...meaningful].sort((a, b) => b.length - a.length)[0];
+        if (longest && longest.length >= 4 && longest.toLowerCase() !== simplified.toLowerCase()) candidates.push(longest);
+    }
+    return candidates.slice(0, 3);
+}
 
 function isOriginAllowed(event) {
     const headers = event.headers || {};
@@ -49,29 +67,26 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 8000) {
 
 function mapDirectoryMatches(rawMatches = []) {
     if (!Array.isArray(rawMatches)) return [];
+    const rank = (scheme) => (scheme === '0190' ? 0 : scheme === '0106' ? 1 : 2);
     return rawMatches
         .map(m => {
             const fullParticipant = m?.participantID?.value || '';
             const [schemeId = '', endpointId = ''] = fullParticipant.split(':');
             const firstEntity = Array.isArray(m?.entities) ? m.entities[0] : null;
             const nameEntry = Array.isArray(firstEntity?.name) ? firstEntity.name[0] : null;
-            const name = nameEntry?.name || '';
-            const additionalInfo = firstEntity?.additionalInfo || '';
-            const countryCode = firstEntity?.countryCode || '';
             const docTypes = Array.isArray(m?.docTypes) ? m.docTypes : [];
-            const supportsBilling3 = docTypes.some(d => String(d?.value || '').includes('poacc:billing:3.0'));
-
             return {
                 peppolId: fullParticipant,
                 schemeId,
                 endpointId,
-                name,
-                countryCode,
-                additionalInfo,
-                supportsBilling3
+                name: nameEntry?.name || '',
+                countryCode: firstEntity?.countryCode || '',
+                additionalInfo: firstEntity?.additionalInfo || '',
+                supportsBilling3: docTypes.some(d => String(d?.value || '').includes('poacc:billing:3.0'))
             };
         })
-        .filter(item => item.peppolId);
+        .filter(item => item.peppolId)
+        .sort((a, b) => rank(a.schemeId) - rank(b.schemeId));
 }
 
 function getRecommandCredentials() {
@@ -91,14 +106,20 @@ async function handleSearch(body) {
         return { statusCode: 400, payload: { error: 'Geef minimaal 2 tekens op om te zoeken in Peppol.' } };
     }
 
-    const url = `${PEPPOL_DIRECTORY_URL}?country=NL&q=${encodeURIComponent(query)}`;
-    const res = await fetchJsonWithTimeout(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) {
-        return { statusCode: res.status || 502, payload: { error: 'Peppol Directory is tijdelijk niet bereikbaar.' } };
+    const candidates = buildSearchCandidateQueries(query);
+    for (const candidate of candidates) {
+        const url = `${PEPPOL_DIRECTORY_URL}?country=NL&q=${encodeURIComponent(candidate)}`;
+        const res = await fetchJsonWithTimeout(url, { headers: { Accept: 'application/json' } });
+        if (!res.ok) {
+            return { statusCode: res.status || 502, payload: { error: 'Peppol Directory is tijdelijk niet bereikbaar.' } };
+        }
+        const matches = mapDirectoryMatches(res.data?.matches || []);
+        if (matches.length > 0) {
+            return { statusCode: 200, payload: { matches, matchedQuery: candidate } };
+        }
     }
 
-    const matches = mapDirectoryMatches(res.data?.matches || []);
-    return { statusCode: 200, payload: { matches } };
+    return { statusCode: 200, payload: { matches: [] } };
 }
 
 async function handleVerify(body) {

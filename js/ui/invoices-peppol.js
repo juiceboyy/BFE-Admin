@@ -55,7 +55,7 @@ function renderSearchResults(matches) {
         return;
     }
 
-    const limited = matches.slice(0, 15);
+    const limited = matches.slice(0, 25);
     container.innerHTML = limited.map((m, idx) => `
         <button type="button" data-peppol-idx="${idx}"
             class="peppol-search-match w-full text-left px-4 py-2.5 hover:bg-blue-50/80 transition-colors border-b border-gray-100 last:border-b-0">
@@ -91,11 +91,17 @@ function renderSearchResults(matches) {
 }
 
 async function handleDirectoryLookup() {
-    const nameInput = document.getElementById('manual-client-name');
+    const peppolInputVal = document.getElementById('manual-client-peppol-id')?.value.trim() || '';
+    const nameInputVal = document.getElementById('manual-client-name')?.value.trim() || '';
     const lookupBtn = document.getElementById('btn-peppol-lookup');
-    let query = nameInput?.value.trim() || '';
 
-    if (query.length < 2) {
+    const peppolAlreadyValid = normalizePeppolParticipant(peppolInputVal).isValid;
+    let query = '';
+    if (peppolInputVal.length >= 2 && !peppolAlreadyValid) {
+        query = peppolInputVal;
+    } else if (nameInputVal.length >= 2) {
+        query = nameInputVal;
+    } else {
         const prompted = window.prompt('Zoek op naam van het ministerie of overheidsonderdeel:', '');
         if (!prompted || prompted.trim().length < 2) return;
         query = prompted.trim();

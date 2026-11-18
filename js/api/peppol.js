@@ -5,10 +5,41 @@
 
 const PEPPOL_ENDPOINT = '/.netlify/functions/sendPeppolInvoice';
 const PUBLIC_DIRECTORY_URL = 'https://directory.peppol.eu/search/1.0/json';
+const DUTCH_STOP_WORDS = new Set(['van', 'en', 'het', 'de', 'der', 'voor', 'op', 'te', 'aan', 'bij']);
+
+export function buildSearchCandidateQueries(rawQuery) {
+    const trimmed = String(rawQuery || '').trim();
+    if (!trimmed) return [];
+
+    const candidates = [trimmed];
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    const meaningful = tokens
+        .filter(tok => !(/[\/\\]|\d/.test(tok)))
+        .map(tok => tok.replace(/^[^a-zA-Z0-9À-ÿ]+|[^a-zA-Z0-9À-ÿ]+$/g, ''))
+        .filter(tok => tok.length >= 2 && !DUTCH_STOP_WORDS.has(tok.toLowerCase()));
+
+    if (meaningful.length >= 1) {
+        const simplified = meaningful.join(' ');
+        if (simplified.toLowerCase() !== trimmed.toLowerCase()) {
+            candidates.push(simplified);
+        }
+        const longest = [...meaningful].sort((a, b) => b.length - a.length)[0];
+        if (longest && longest.length >= 4 && longest.toLowerCase() !== simplified.toLowerCase()) {
+            candidates.push(longest);
+        }
+    }
+
+    return candidates.slice(0, 3);
+}
+
+function sortPeppolMatches(matches) {
+    const rank = (scheme) => (scheme === '0190' ? 0 : scheme === '0106' ? 1 : 2);
+    return [...matches].sort((a, b) => rank(a.schemeId) - rank(b.schemeId));
+}
 
 function mapDirectoryMatches(rawMatches = []) {
     if (!Array.isArray(rawMatches)) return [];
-    return rawMatches
+    const mapped = rawMatches
         .map(m => {
             const fullParticipant = m?.participantID?.value || '';
             const [schemeId = '', endpointId = ''] = fullParticipant.split(':');
@@ -26,6 +57,7 @@ function mapDirectoryMatches(rawMatches = []) {
             };
         })
         .filter(item => item.peppolId);
+    return sortPeppolMatches(mapped);
 }
 
 async function postPeppolAction(payload) {
@@ -69,13 +101,20 @@ export async function searchPeppolDirectory(query) {
         }
     }
 
-    const fallbackUrl = `${PUBLIC_DIRECTORY_URL}?country=NL&q=${encodeURIComponent(cleanQuery)}`;
-    const directRes = await fetch(fallbackUrl, { headers: { Accept: 'application/json' } });
-    if (!directRes.ok) {
-        throw new Error('Peppol Directory kon niet worden bereikt.');
+    const candidates = buildSearchCandidateQueries(cleanQuery);
+    for (const candidate of candidates) {
+        const fallbackUrl = `${PUBLIC_DIRECTORY_URL}?country=NL&q=${encodeURIComponent(candidate)}`;
+        const directRes = await fetch(fallbackUrl, { headers: { Accept: 'application/json' } });
+        if (!directRes.ok) {
+            throw new Error('Peppol Directory kon niet worden bereikt.');
+        }
+        const json = await directRes.json();
+        const matches = mapDirectoryMatches(json?.matches || []);
+        if (matches.length > 0) {
+            return matches;
+        }
     }
-    const json = await directRes.json();
-    return mapDirectoryMatches(json?.matches || []);
+    return [];
 }
 
 /**
