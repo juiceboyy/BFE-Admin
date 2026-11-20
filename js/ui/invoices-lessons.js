@@ -326,6 +326,7 @@ async function handleGenerateInvoice() {
         const pdfFileName = `BFE${invoiceYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
         const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
+        if (!pdfBlob) return;
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
         const formData = {

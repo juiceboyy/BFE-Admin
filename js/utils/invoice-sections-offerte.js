@@ -11,15 +11,15 @@ export function renderOfferteSection(items, totals, meta = {}) {
         return `
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px 0; text-align: left; vertical-align: top; line-height: 1.5;">${item.desc}</td>
-                <td style="padding: 10px 0; text-align: center; vertical-align: top; color: #555; font-size: 12px;">${rateText}</td>
-                <td style="padding: 10px 0; text-align: right; vertical-align: top; font-weight: 500;">€ ${formatDutchBedrag(item.amount)}</td>
+                <td style="padding: 10px 0; text-align: center; vertical-align: top; color: #555; font-size: 12px; white-space: nowrap;">${rateText}</td>
+                <td style="padding: 10px 0; text-align: right; vertical-align: top; font-weight: 500; white-space: nowrap;">€ ${formatDutchBedrag(item.amount)}</td>
             </tr>
         `;
     }).join('');
 
     const itemsHTML = `
-        <div style="margin-bottom: 35px; border-bottom: 1px solid #000; padding-bottom: 10px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <div data-pdf-part="items-wrap" style="margin-bottom: 35px; border-bottom: 1px solid #000; padding-bottom: 10px;">
+            <table data-pdf-part="items-table" data-table-type="offerte" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <thead>
                     <tr style="border-bottom: 1.5px solid #000; font-weight: bold; text-transform: uppercase; font-size: 11px; color: #444;">
                         <th style="padding-bottom: 8px; text-align: left; width: 65%;">Omschrijving</th>
@@ -41,7 +41,7 @@ export function renderOfferteSection(items, totals, meta = {}) {
                 btwRowsHTML += `
                     <tr>
                         <td style="padding-bottom: 5px; color: #333;">Totaal btw (${rate}%)</td>
-                        <td style="text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(amount)}</td>
+                        <td style="text-align: right; font-weight: bold; padding-bottom: 5px; white-space: nowrap;">€ ${formatDutchBedrag(amount)}</td>
                     </tr>
                 `;
             }
@@ -55,7 +55,7 @@ export function renderOfferteSection(items, totals, meta = {}) {
         btwRowsHTML += `
             <tr>
                 <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (vrijgesteld: € ${formatDutchBedrag(exemptSum)} ex btw)</td>
-                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555; white-space: nowrap;">€ nihil</td>
             </tr>
         `;
     }
@@ -67,21 +67,21 @@ export function renderOfferteSection(items, totals, meta = {}) {
         btwRowsHTML += `
             <tr>
                 <td style="padding-bottom: 5px; color: #555; font-style: italic;">BTW (0% btw-tarief: € ${formatDutchBedrag(zeroSum)} ex btw)</td>
-                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555;">€ nihil</td>
+                <td style="text-align: right; font-weight: bold; padding-bottom: 5px; color: #555; white-space: nowrap;">€ nihil</td>
             </tr>
         `;
     }
 
     const totalsHTML = `
-        <table style="width: 100%; border-collapse: collapse;">
+        <table data-pdf-part="totals-table" style="width: 100%; border-collapse: collapse;">
             <tr>
-                <td style="width: 60%; padding-bottom: 5px; color: #333;">Totaal ex BTW</td>
-                <td style="width: 40%; text-align: right; font-weight: bold; padding-bottom: 5px;">€ ${formatDutchBedrag(totals.subtotal)}</td>
+                <td style="width: 78%; padding-bottom: 5px; color: #333;">Totaal ex BTW</td>
+                <td style="width: 22%; text-align: right; font-weight: bold; padding-bottom: 5px; white-space: nowrap;">€ ${formatDutchBedrag(totals.subtotal)}</td>
             </tr>
             ${btwRowsHTML}
-            <tr style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
+            <tr data-pdf-part="totals-grand" style="font-size: 15px; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">
                 <td style="padding: 8px 0;">Totaal incl. BTW</td>
-                <td style="text-align: right; padding: 8px 0;">€ ${formatDutchBedrag(totals.total)}</td>
+                <td style="text-align: right; padding: 8px 0; white-space: nowrap;">€ ${formatDutchBedrag(totals.total)}</td>
             </tr>
         </table>
     `;
@@ -90,7 +90,7 @@ export function renderOfferteSection(items, totals, meta = {}) {
     if (meta.notes && meta.notes.trim()) {
         const cleanNotes = meta.notes.trim();
         notesHTML = `
-            <div style="margin-top: 18px; margin-bottom: 14px; font-size: 11.5px; line-height: 1.55; color: #222;">
+            <div data-pdf-part="notes" style="margin-top: 18px; margin-bottom: 14px; font-size: 11.5px; line-height: 1.55; color: #222;">
                 <strong style="display: block; margin-bottom: 3px;">N.B.:</strong>
                 <div style="white-space: pre-line;">${cleanNotes}</div>
             </div>
@@ -98,9 +98,9 @@ export function renderOfferteSection(items, totals, meta = {}) {
     }
 
     const signatureHTML = `
-        <div style="margin-top: 18px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid #111; border-radius: 4px; font-size: 11.5px; line-height: 1.45;">
-            <p style="margin: 0 0 8px 0; font-weight: bold; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; color: #111;">Voor akkoord opdrachtgever:</p>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+        <div data-pdf-part="signature" style="margin-top: 18px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid #111; border-radius: 4px; font-size: 11.5px; line-height: 1.45;">
+            <p data-pdf-part="signature-title" style="margin: 0 0 8px 0; font-weight: bold; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; color: #111;">Voor akkoord opdrachtgever:</p>
+            <table data-pdf-part="signature-table" style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
                 <tr>
                     <td style="width: 50%; padding-bottom: 6px;">Naam: ....................................................</td>
                     <td style="width: 50%; padding-bottom: 6px;">Datum: ....................................................</td>

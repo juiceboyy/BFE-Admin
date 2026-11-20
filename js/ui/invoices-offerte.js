@@ -454,6 +454,7 @@ async function handleGenerateOfferte() {
 
         // 1. Generate PDF & trigger browser download
         const pdfBlob = await generateAndUploadPDF(offerteElement, pdfFileName);
+        if (!pdfBlob) return;
         const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
         // 2. Upload to Drive (Facturen folder)

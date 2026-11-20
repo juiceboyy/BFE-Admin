@@ -39,6 +39,8 @@ export function buildInvoiceDOM(config) {
     } = config;
 
     const el = document.createElement('div');
+    el.dataset.pdfPart = 'page';
+    el.dataset.docType = type;
     el.style.width = '794px';
     el.style.minHeight = '1122px';
     el.style.boxSizing = 'border-box';
@@ -58,7 +60,7 @@ export function buildInvoiceDOM(config) {
 
     // Recipient Address
     let recipientHTML = `
-        <strong style="font-size: 14px; color: #000;">${clientInfo.name}</strong><br>
+        <strong data-pdf-part="recipient-name" style="font-size: 14px; color: #000;">${clientInfo.name}</strong><br>
     `;
     if (clientInfo.attention) recipientHTML += `${clientInfo.attention}<br>`;
     recipientHTML += `${clientInfo.address}<br>${clientInfo.city}`;
@@ -85,7 +87,7 @@ export function buildInvoiceDOM(config) {
 
     const artistDeclarationHTML = (hasAmareDeclaration && type !== 'offerte') ? `
         <!-- Artist Declaration (Amare) -->
-        <div style="margin-top: 25px; margin-bottom: 25px; padding: 10px 14px; border: 1px solid #d1d5db; background-color: #f9fafb; border-radius: 4px; font-size: 11.5px; line-height: 1.5; color: #1f2937;">
+        <div data-pdf-part="amare" style="margin-top: 25px; margin-bottom: 25px; padding: 10px 14px; border: 1px solid #d1d5db; background-color: #f9fafb; border-radius: 4px; font-size: 11.5px; line-height: 1.5; color: #1f2937;">
             <p style="margin: 0; font-style: italic;">
                 ${AMARE_DECLARATION_TEXT}
             </p>
@@ -106,13 +108,13 @@ export function buildInvoiceDOM(config) {
         const validityDays = meta.validityDays || 30;
         const cleanOfferteNummer = String(factuurNummer || '').replace(/^BFE\d+OF\s*/i, '').trim();
         titleBlockHTML = `
-            <div style="margin-bottom: 30px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
-                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${cleanOfferteNummer}</h2>
+            <div data-pdf-part="title" style="margin-bottom: 30px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+                <h2 data-pdf-part="title-heading" style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Offerte ${cleanOfferteNummer}</h2>
             </div>
         `;
 
         footerHTML = `
-            <div style="margin-top: 20px; font-size: 11.5px; line-height: 1.45; border-top: 1px solid #eee; padding-top: 10px;">
+            <div data-pdf-part="footer" style="margin-top: 20px; font-size: 11.5px; line-height: 1.45; border-top: 1px solid #eee; padding-top: 10px;">
                 <p style="margin: 0; color: #555;">
                     Deze offerte is ${validityDays} dagen geldig na dagtekening. Na schriftelijk akkoord of ondertekening geldt de offerte als opdrachtbevestiging.
                 </p>
@@ -120,14 +122,14 @@ export function buildInvoiceDOM(config) {
         `;
     } else {
         titleBlockHTML = `
-            <div style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
-                <h2 style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
-                <p style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
+            <div data-pdf-part="title" style="margin-bottom: 45px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 12px 0;">
+                <h2 data-pdf-part="title-heading" style="font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 0.5px;">Factuur ${factuurNummer}</h2>
+                <p data-pdf-part="title-sub" style="margin: 4px 0 0 0; font-size: 12px; color: #333;">Gelieve bij betaling dit nummer te vermelden</p>
             </div>
         `;
 
         footerHTML = `
-            <div style="margin-top: ${footerMarginTop}; font-size: 12.5px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 15px;">
+            <div data-pdf-part="footer" style="margin-top: ${footerMarginTop}; font-size: 12.5px; line-height: 1.5; border-top: 1px solid #eee; padding-top: 15px;">
                 <p style="margin: 0; color: #111;">
                     Betalingswijze: per bank IBAN <strong>NL47INGB0005023386</strong> tnv <strong>Ronald van Holst te Zoetermeer</strong>, ovv factuurnummer.
                 </p>
@@ -139,55 +141,57 @@ export function buildInvoiceDOM(config) {
     }
 
     el.innerHTML = `
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: ${headerMarginBottom};">
-            <div>
-                <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0; color: #000; letter-spacing: -0.5px;">Big Fish Entertainment</h1>
-                <p style="margin: 0; font-weight: 500; font-size: 14px;">Ronald van Holst</p>
-                <p style="margin: 2px 0 0 0; font-size: 13px; color: #333;">Kortlandpad 62</p>
-                <p style="margin: 2px 0 15px 0; font-size: 13px; color: #333;">2729DN Zoetermeer</p>
-                <p style="margin: 0; font-size: 12px; color: #555;">tel.: 06 2888 4143</p>
-                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">BTW-id: NL001638587B88</p>
-                <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">KvK nr: 34393338</p>
+        <div data-pdf-part="content-root">
+            <!-- Header -->
+            <div data-pdf-part="header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: ${headerMarginBottom};">
+                <div>
+                    <h1 data-pdf-part="brand-title" style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0; color: #000; letter-spacing: -0.5px;">Big Fish Entertainment</h1>
+                    <p data-pdf-part="brand-name" style="margin: 0; font-weight: 500; font-size: 14px;">Ronald van Holst</p>
+                    <p data-pdf-part="brand-line" style="margin: 2px 0 0 0; font-size: 13px; color: #333;">Kortlandpad 62</p>
+                    <p data-pdf-part="brand-gap" style="margin: 2px 0 15px 0; font-size: 13px; color: #333;">2729DN Zoetermeer</p>
+                    <p data-pdf-part="brand-meta" style="margin: 0; font-size: 12px; color: #555;">tel.: 06 2888 4143</p>
+                    <p data-pdf-part="brand-meta" style="margin: 2px 0 0 0; font-size: 12px; color: #555;">BTW-id: NL001638587B88</p>
+                    <p data-pdf-part="brand-meta" style="margin: 2px 0 0 0; font-size: 12px; color: #555;">KvK nr: 34393338</p>
+                </div>
+                
+                <div data-pdf-part="logo-wrap" style="margin-top: 5px;">
+                    <img data-pdf-part="logo" src="images/logo.png" alt="Logo" style="width: 140px; height: auto; display: block;" />
+                </div>
             </div>
-            
-            <div style="margin-top: 5px;">
-                <img src="images/logo.png" alt="Logo" style="width: 140px; height: auto; display: block;" />
+
+            <!-- Address details -->
+            <div data-pdf-part="address" style="margin-bottom: ${addressMarginBottom}; font-size: 13px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">${recipientLabel}</td>
+                        <td style="width: 47%; vertical-align: top; line-height: 1.45;">
+                            ${recipientHTML}
+                        </td>
+                        <td data-pdf-part="invoice-date" style="width: 35%; vertical-align: bottom; text-align: right; font-weight: 500; font-size: 13px;">
+                            ${dateFormatted}
+                        </td>
+                    </tr>
+                </table>
             </div>
+
+            <!-- Title Block -->
+            ${titleBlockHTML}
+
+            <!-- Items list/table -->
+            ${itemsHTML}
+
+            <!-- Summary & Totals -->
+            <div data-pdf-part="summary-wrap" style="margin-top: ${summaryMarginY}; margin-bottom: ${summaryMarginY}; font-size: 13px; line-height: 1.6;">
+                ${totalsHTML}
+            </div>
+
+            ${notesHTML}
+            ${signatureHTML}
+            ${artistDeclarationHTML}
+
+            <!-- Payment Terms Footer -->
+            ${footerHTML}
         </div>
-
-        <!-- Address details -->
-        <div style="margin-bottom: ${addressMarginBottom}; font-size: 13px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="width: 18%; vertical-align: top; font-weight: bold; color: #333;">${recipientLabel}</td>
-                    <td style="width: 47%; vertical-align: top; line-height: 1.45;">
-                        ${recipientHTML}
-                    </td>
-                    <td style="width: 35%; vertical-align: bottom; text-align: right; font-weight: 500; font-size: 13px;">
-                        ${dateFormatted}
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-        <!-- Title Block -->
-        ${titleBlockHTML}
-
-        <!-- Items list/table -->
-        ${itemsHTML}
-
-        <!-- Summary & Totals -->
-        <div style="margin-top: ${summaryMarginY}; margin-bottom: ${summaryMarginY}; font-size: 13px; line-height: 1.6;">
-            ${totalsHTML}
-        </div>
-
-        ${notesHTML}
-        ${signatureHTML}
-        ${artistDeclarationHTML}
-
-        <!-- Payment Terms Footer -->
-        ${footerHTML}
     `;
 
     return el;
