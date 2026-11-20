@@ -237,6 +237,7 @@ async function handleGenerateRentInvoices() {
             const pdfFileName = `BFE${calendarYear2}FR ${factuurNummerFilename} ${sheetOmschrijving}`;
 
             const pdfBlob = await generateAndUploadPDF(invoiceElement, pdfFileName);
+            if (!pdfBlob) continue;
             const pdfFile = new File([pdfBlob], `${pdfFileName}.pdf`, { type: 'application/pdf' });
 
             // Book row in Google Sheets
@@ -260,6 +261,8 @@ async function handleGenerateRentInvoices() {
 
             generatedList.push(`Factuur ${factuurNummer} (${group.clientName})`);
         }
+
+        if (generatedList.length === 0) return;
 
         alert(`Huurfacturen succesvol gegenereerd, gedownload en opgeslagen!\n\n${generatedList.map(item => `- ${item}`).join('\n')}\n\n- Opgeslagen in Drive\n- Geboekt in Sheet.`);
     } catch (err) {
