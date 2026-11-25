@@ -7,6 +7,7 @@ import { isDateValidForPeriod } from '../utils/date.js';
 import { getFormDataFromDOM, processItemSave } from './scanner-helpers.js';
 import { invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
 import { checkForDuplicate, clearDuplicateCheckerCache } from '../utils/duplicate-checker.js';
+import { clearDriveMd5IndexCache } from '../utils/drive-duplicates.js';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -74,6 +75,7 @@ export async function saveBatchItem(id, batchQueue, currentMode, dateInfo, onUpd
         item.status = 'saved';
         item.isDuplicate = false;
         clearDuplicateCheckerCache();
+        clearDriveMd5IndexCache();
         invalidateDashboardCache();
         if (onUpdateTable) onUpdateTable();
 

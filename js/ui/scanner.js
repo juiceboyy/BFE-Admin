@@ -6,8 +6,14 @@ import { fetchDailyExchangeRate, normalizeCurrency, getCurrencySymbol } from '..
 import { getBatchRowHTML } from './scanner-row.js';
 import { prepareItemData } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
-import { scanUnprocessedReceipts, downloadDriveFileAsBlob, DRIVE_FOLDER_ID, clearSheetCaches } from '../api/storage.js';
+import { clearSheetCaches } from '../api/storage.js';
 import { checkForDuplicate, clearDuplicateCheckerCache } from '../utils/duplicate-checker.js';
+import { clearDriveMd5IndexCache } from '../utils/drive-duplicates.js';
+import {
+    enqueueDriveReceiptsWithMd5Check,
+    enqueueLocalFilesWithMd5Check,
+    handleBatchTableClick
+} from './scanner-duplicates.js';
 import { saveBatchItem as executeSaveBatchItem, saveAllBatchItems } from './scanner-save.js';
 import { setupPeriodSelector } from './scanner-period.js';
 
@@ -28,14 +34,7 @@ export function initScanner() {
 
     const tbody = document.getElementById('batch-table-body');
 
-    tbody?.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.delete-item-btn');
-        if (!deleteBtn) return;
-        const indexToDelete = parseInt(deleteBtn.getAttribute('data-index'), 10);
-        if (isNaN(indexToDelete)) return;
-        batchQueue.splice(indexToDelete, 1);
-        renderBatchTable();
-    });
+    tbody?.addEventListener('click', (e) => handleBatchTableClick(e, batchQueue, renderBatchTable, processQueue));
 
     tbody?.addEventListener('change', async (e) => {
         const checkbox = e.target.closest('.queue-item-select');
@@ -86,6 +85,7 @@ export function initScanner() {
         clearSheetCaches();
         clearQueryCaches();
         clearDuplicateCheckerCache();
+        clearDriveMd5IndexCache();
         invalidateDashboardCache();
         setMode(currentMode);
     });
@@ -106,20 +106,11 @@ async function handleScanDriveFolder() {
 
     setLoading(true);
     try {
-        const unprocessed = await scanUnprocessedReceipts(DRIVE_FOLDER_ID);
+        const result = await enqueueDriveReceiptsWithMd5Check(batchQueue);
 
-        if (unprocessed.length === 0) {
+        if (result.unprocessedCount === 0) {
             alert('Geen nieuwe bonnen gevonden.');
             return;
-        }
-
-        for (const driveFile of unprocessed) {
-            try {
-                const file = await downloadDriveFileAsBlob(driveFile.id, driveFile.name, driveFile.mimeType);
-                batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, driveFileId: driveFile.id, selected: true });
-            } catch (err) {
-                console.error(`Fout bij downloaden ${driveFile.name}:`, err);
-            }
         }
 
         renderBatchTable();
@@ -132,14 +123,10 @@ async function handleScanDriveFolder() {
     }
 }
 
-function handleFiles(files) {
+async function handleFiles(files) {
     if (!files || !files.length) return;
 
-    Array.from(files).forEach(file => {
-        if (!file.name.startsWith('.') && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-            batchQueue.push({ id: Date.now() + Math.random(), file, status: 'pending', data: null, selected: true });
-        }
-    });
+    await enqueueLocalFilesWithMd5Check(files, batchQueue, currentMode);
 
     ['receipt-upload', 'folder-upload'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     renderBatchTable();
@@ -263,7 +250,7 @@ export async function saveAllSuccessItems() {
         currentMode, 
         dateInfo, 
         renderBatchTable, 
-        () => { batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved'); }
+        () => { batchQueue = batchQueue.filter(i => i.selected !== false || i.status === 'saved' || (i.isDuplicate && Boolean(i.driveFileId))); }
     );
 }
 window.saveAllSuccessItems = saveAllSuccessItems;
