@@ -10,6 +10,7 @@ import {
     trashDriveFile
 } from '../api/storage-drive.js';
 
+const DRIVE_MD5_CACHE_TTL_MS = 60_000;
 let _driveMd5IndexCache = null; // { fetchedAt: number, files: Array, byMd5: Map<string, Array> }
 
 /**
@@ -134,7 +135,8 @@ export async function scanDriveDuplicates(folderId = DRIVE_FOLDER_ID) {
  */
 export async function getDriveMd5Index(folderId = DRIVE_FOLDER_ID, forceRefresh = false) {
     if (!accessToken) return new Map();
-    if (!forceRefresh && _driveMd5IndexCache) {
+    const isFresh = _driveMd5IndexCache && (Date.now() - _driveMd5IndexCache.fetchedAt) < DRIVE_MD5_CACHE_TTL_MS;
+    if (!forceRefresh && isFresh) {
         return _driveMd5IndexCache.byMd5;
     }
     const files = await listAllReceiptFiles(folderId);

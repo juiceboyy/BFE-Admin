@@ -3,20 +3,9 @@
  * Scanner MD5 pre-check helpers, direct Drive Trash action, and override rescan.
  */
 import { accessToken } from '../api/auth.js';
-import {
-    DRIVE_FOLDER_ID,
-    downloadDriveFileAsBlob,
-    isProcessedReceiptName,
-    listAllReceiptFiles,
-    trashDriveFile
-} from '../api/storage-drive.js';
+import { DRIVE_FOLDER_ID, downloadDriveFileAsBlob, isProcessedReceiptName, listAllReceiptFiles, trashDriveFile } from '../api/storage-drive.js';
 import { computeFileMd5 } from '../utils/md5.js';
-import {
-    clearDriveMd5IndexCache,
-    findDriveMd5Match,
-    getDriveMd5Index,
-    seedDriveMd5IndexCache
-} from '../utils/drive-duplicates.js';
+import { clearDriveMd5IndexCache, findDriveMd5Match, getDriveMd5Index, groupDriveDuplicatesByMd5, seedDriveMd5IndexCache, trashDriveFilesBatch } from '../utils/drive-duplicates.js';
 
 export function findQueueMd5Match(md5, batchQueue, excludeId = null) {
     if (!md5) return null;
@@ -52,10 +41,11 @@ export function createSkippedMd5Item({ file, md5, reason, driveFileId = null, dr
 export async function enqueueDriveReceiptsWithMd5Check(batchQueue) {
     const allFiles = await listAllReceiptFiles(DRIVE_FOLDER_ID);
     const byMd5 = seedDriveMd5IndexCache(allFiles);
+    const driveDuplicates = groupDriveDuplicatesByMd5(allFiles);
     const unprocessed = allFiles.filter(f => !isProcessedReceiptName(f.name));
 
     if (unprocessed.length === 0) {
-        return { unprocessedCount: 0, addedCount: 0, duplicateCount: 0 };
+        return { unprocessedCount: 0, addedCount: 0, duplicateCount: 0, driveDuplicates };
     }
 
     const seenUnprocessedMd5 = new Map();
@@ -114,7 +104,7 @@ export async function enqueueDriveReceiptsWithMd5Check(batchQueue) {
         }
     }
 
-    return { unprocessedCount: unprocessed.length, addedCount, duplicateCount };
+    return { unprocessedCount: unprocessed.length, addedCount, duplicateCount, driveDuplicates };
 }
 
 /**
@@ -213,13 +203,66 @@ export async function forceRescanSkippedItem(itemId, batchQueue, renderBatchTabl
 /**
  * Handles delegated click events for trash, rescan, and queue-delete buttons on the scanner table.
  */
-export async function handleBatchTableClick(e, batchQueue, renderBatchTable, processQueue) {
+export async function trashAllDriveDuplicatesInQueue(batchQueue, renderBatchTable) {
+    const ids = batchQueue.filter(i => i.isDuplicate && i.driveFileId).map(i => i.driveFileId);
+    if (ids.length === 0) return { trashedCount: 0, errorCount: 0 };
+
+    const res = await trashDriveFilesBatch(ids);
+    const trashedSet = new Set(res.trashedIds);
+    for (let i = batchQueue.length - 1; i >= 0; i--) {
+        if (batchQueue[i].driveFileId && trashedSet.has(batchQueue[i].driveFileId)) {
+            batchQueue.splice(i, 1);
+        }
+    }
+    renderBatchTable();
+    return { trashedCount: res.trashedIds.length, errorCount: res.errors.length };
+}
+
+export function updateDuplicateBanner(batchQueue, driveDuplicates, { onTrashAll, onOpenDriveModal } = {}) {
+    const banner = document.getElementById('scanner-duplicate-banner');
+    if (!banner) return;
+
+    const queueDups = batchQueue.filter(i => i.isDuplicate);
+    const queueDriveDups = queueDups.filter(i => Boolean(i.driveFileId));
+    const driveGroups = driveDuplicates?.duplicateGroupCount || 0;
+    const driveCopies = driveDuplicates?.redundantFileCount || 0;
+
+    if (queueDups.length === 0 && driveGroups === 0) {
+        banner.classList.add('hidden');
+        banner.innerHTML = '';
+        return;
+    }
+
+    const parts = [];
+    if (queueDups.length > 0) parts.push(`${queueDups.length} duplicaat${queueDups.length === 1 ? '' : 'en'} in wachtrij overgeslagen/gemarkeerd`);
+    if (driveGroups > 0) parts.push(`${driveGroups} duplicaatgroep${driveGroups === 1 ? '' : 'en'} (${driveCopies} extra kopieen) in Drive-map`);
+
+    banner.classList.remove('hidden');
+    banner.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+            <div class="flex items-center gap-2 font-medium">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0"></i>
+                <span>Automatische duplicaatcheck: ${parts.join(' - ')}.</span>
+            </div>
+            <div class="flex items-center gap-2">
+                ${driveGroups > 0 ? `<button type="button" id="btn-open-drive-dups" class="px-3 py-1.5 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg font-medium transition-colors">Bekijk Drive-duplicaten</button>` : ''}
+                ${queueDriveDups.length > 0 ? `<button type="button" id="btn-trash-all-queue-dups" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Verplaats ${queueDriveDups.length} naar Prullenbak</button>` : ''}
+            </div>
+        </div>`;
+
+    document.getElementById('btn-open-drive-dups')?.addEventListener('click', () => onOpenDriveModal?.());
+    document.getElementById('btn-trash-all-queue-dups')?.addEventListener('click', () => onTrashAll?.());
+    if (window.lucide) window.lucide.createIcons();
+}
+
+export async function handleBatchTableClick(e, batchQueue, renderBatchTable, processQueue, onDriveMutated = null) {
     const trashBtn = e.target.closest('.trash-drive-btn');
     if (trashBtn) {
         const itemId = trashBtn.getAttribute('data-item-id');
         trashBtn.disabled = true;
         try {
             await trashDriveItemFromQueue(itemId, batchQueue, renderBatchTable);
+            onDriveMutated?.();
         } catch (err) {
             trashBtn.disabled = false;
             alert(`Kon bestand niet naar Prullenbak verplaatsen: ${err.message}`);

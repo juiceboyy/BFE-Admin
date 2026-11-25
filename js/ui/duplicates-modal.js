@@ -9,12 +9,7 @@ let _isScanning = false;
 let _isTrashing = false;
 
 function escapeHtml(str) {
-    return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function formatBytes(bytes) {
@@ -35,29 +30,28 @@ export function initDuplicatesModal() {
     const modal = document.getElementById('duplicates-modal');
     if (!modal) return;
 
-    document.getElementById('btn-check-duplicates')?.addEventListener('click', openDuplicatesModal);
+    document.getElementById('btn-check-duplicates')?.addEventListener('click', () => openDuplicatesModal());
     document.querySelectorAll('.close-duplicates-modal').forEach(btn => {
         btn.addEventListener('click', closeDuplicatesModal);
     });
     document.getElementById('btn-rescan-duplicates')?.addEventListener('click', runDuplicateScan);
     document.getElementById('btn-trash-duplicates')?.addEventListener('click', handleTrashSelected);
 
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeDuplicatesModal();
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-            closeDuplicatesModal();
-        }
-    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeDuplicatesModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeDuplicatesModal(); });
 }
 
-export function openDuplicatesModal() {
+export function openDuplicatesModal(preloadedResult = null) {
     const modal = document.getElementById('duplicates-modal');
     if (!modal) return;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    if (preloadedResult && Array.isArray(preloadedResult.groups)) {
+        _scanResult = preloadedResult;
+        renderScanResults();
+        updateFooterButton();
+        return;
+    }
     runDuplicateScan();
 }
 

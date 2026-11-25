@@ -2,9 +2,9 @@ import { analyzeReceipt } from '../api/gemini.js';
 import { loadCloudMemory, clearQueryCaches } from '../api/storage-queries-invoices.js';
 import { getMonthlyTotals } from '../api/storage-queries-fiscal.js';
 import { getTargetDateInfo, isDateValidForPeriod } from '../utils/date.js';
-import { fetchDailyExchangeRate, normalizeCurrency, getCurrencySymbol } from '../utils/currency.js';
+import { fetchDailyExchangeRate, normalizeCurrency } from '../utils/currency.js';
 import { getBatchRowHTML } from './scanner-row.js';
-import { prepareItemData } from './scanner-helpers.js';
+import { prepareItemData, recalculateCurrencyOnDateChange } from './scanner-helpers.js';
 import { updateDashboard, invalidateDashboardCache, updateRealBtwBalans } from './dashboard.js';
 import { clearSheetCaches } from '../api/storage.js';
 import { checkForDuplicate, clearDuplicateCheckerCache } from '../utils/duplicate-checker.js';
@@ -12,14 +12,18 @@ import { clearDriveMd5IndexCache } from '../utils/drive-duplicates.js';
 import {
     enqueueDriveReceiptsWithMd5Check,
     enqueueLocalFilesWithMd5Check,
-    handleBatchTableClick
+    handleBatchTableClick,
+    trashAllDriveDuplicatesInQueue,
+    updateDuplicateBanner
 } from './scanner-duplicates.js';
+import { openDuplicatesModal } from './duplicates-modal.js';
 import { saveBatchItem as executeSaveBatchItem, saveAllBatchItems } from './scanner-save.js';
 import { setupPeriodSelector } from './scanner-period.js';
 
 let batchQueue = [];
 let isProcessingQueue = false;
 let currentMode = 'inkoop';
+let lastDriveDuplicates = null;
 
 // --- Initialization ---
 
@@ -34,7 +38,13 @@ export function initScanner() {
 
     const tbody = document.getElementById('batch-table-body');
 
-    tbody?.addEventListener('click', (e) => handleBatchTableClick(e, batchQueue, renderBatchTable, processQueue));
+    tbody?.addEventListener('click', (e) => handleBatchTableClick(
+        e,
+        batchQueue,
+        renderBatchTable,
+        processQueue,
+        () => { lastDriveDuplicates = null; updateDuplicateBanner(batchQueue, lastDriveDuplicates, getBannerHandlers()); }
+    ));
 
     tbody?.addEventListener('change', async (e) => {
         const checkbox = e.target.closest('.queue-item-select');
@@ -51,33 +61,10 @@ export function initScanner() {
         }
 
         // Automatische wisselkoers herberekening bij datumwijziging
-        if (e.target && e.target.id && e.target.id.startsWith('datum-')) {
+        if (e.target?.id?.startsWith('datum-')) {
             const itemId = parseFloat(e.target.id.replace('datum-', ''));
             const item = batchQueue.find(i => i.id === itemId);
-            if (item && item.data && item.data.omgerekend && item.data.origineelBedrag) {
-                const newDate = e.target.value;
-                if (/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
-                    const currency = item.data.origineelValuta || 'USD';
-                    const rateInfo = await fetchDailyExchangeRate(currency, newDate);
-                    if (rateInfo && rateInfo.rate) {
-                        const newBedrag = Math.round(item.data.origineelBedrag * rateInfo.rate * 100) / 100;
-                        item.data.factuurBedrag = newBedrag;
-                        item.data.wisselkoers = rateInfo.rate;
-                        item.data.koersDatum = rateInfo.date;
-                        item.data.datum = newDate;
-
-                        const bedragInput = document.getElementById(`factuurbedrag-${itemId}`);
-                        if (bedragInput) bedragInput.value = newBedrag.toFixed(2);
-
-                        const currencyInfo = document.getElementById(`currency-info-${itemId}`);
-                        if (currencyInfo) {
-                            const symbol = getCurrencySymbol(currency);
-                            currencyInfo.innerText = `${symbol} ${Number(item.data.origineelBedrag).toFixed(2)} (@ ${rateInfo.rate})`;
-                            currencyInfo.title = `Omgerekend van ${currency} ${Number(item.data.origineelBedrag).toFixed(2)} met dagkoers €${rateInfo.rate} op ${rateInfo.date}`;
-                        }
-                    }
-                }
-            }
+            await recalculateCurrencyOnDateChange(item, itemId, e.target.value);
         }
     });
 
@@ -86,9 +73,24 @@ export function initScanner() {
         clearQueryCaches();
         clearDuplicateCheckerCache();
         clearDriveMd5IndexCache();
+        lastDriveDuplicates = null;
         invalidateDashboardCache();
         setMode(currentMode);
     });
+}
+
+function getBannerHandlers() {
+    return {
+        onTrashAll: async () => {
+            const res = await trashAllDriveDuplicatesInQueue(batchQueue, renderBatchTable);
+            lastDriveDuplicates = null;
+            renderBatchTable();
+            if (res.errorCount > 0) {
+                alert(`${res.trashedCount} bestanden naar de Prullenbak verplaatst, ${res.errorCount} mislukt.`);
+            }
+        },
+        onOpenDriveModal: () => openDuplicatesModal(lastDriveDuplicates)
+    };
 }
 
 // --- Event Handlers ---
@@ -107,9 +109,13 @@ async function handleScanDriveFolder() {
     setLoading(true);
     try {
         const result = await enqueueDriveReceiptsWithMd5Check(batchQueue);
+        lastDriveDuplicates = result.driveDuplicates || null;
 
         if (result.unprocessedCount === 0) {
-            alert('Geen nieuwe bonnen gevonden.');
+            renderBatchTable();
+            if (!(lastDriveDuplicates?.duplicateGroupCount > 0)) {
+                alert('Geen nieuwe bonnen gevonden.');
+            }
             return;
         }
 
@@ -264,6 +270,7 @@ function renderBatchTable() {
     
     if (currentMode === 'verkoop') {
         dashboard.classList.add('hidden');
+        document.getElementById('scanner-duplicate-banner')?.classList.add('hidden');
         return;
     }
         
@@ -282,4 +289,5 @@ function renderBatchTable() {
     tbody.innerHTML = batchQueue.map((item, index) => getBatchRowHTML(item, dateInfo, currentMode, index)).join('');
     if (window.lucide) window.lucide.createIcons();
     updateDashboard(batchQueue, currentMode);
+    updateDuplicateBanner(batchQueue, lastDriveDuplicates, getBannerHandlers());
 }
