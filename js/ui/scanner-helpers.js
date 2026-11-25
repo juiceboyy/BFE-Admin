@@ -1,6 +1,27 @@
 import { uploadToDrive, insertRowInSheet, getSheetHeaders, renameDriveFile, getFacturenFolderId, DRIVE_FOLDER_ID } from '../api/storage.js';
 import { loadCloudMemory, saveCloudMemory } from '../api/storage-queries-invoices.js';
 import { abbreviateDescription, isPodiumkleding } from '../utils/text-abbreviations.js';
+import { fetchDailyExchangeRate, getCurrencySymbol } from '../utils/currency.js';
+
+export async function recalculateCurrencyOnDateChange(item, itemId, newDate) {
+    if (!item?.data?.omgerekend || !item.data.origineelBedrag || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
+    const currency = item.data.origineelValuta || 'USD';
+    const rateInfo = await fetchDailyExchangeRate(currency, newDate);
+    if (!rateInfo?.rate) return;
+
+    const newBedrag = Math.round(item.data.origineelBedrag * rateInfo.rate * 100) / 100;
+    Object.assign(item.data, { factuurBedrag: newBedrag, wisselkoers: rateInfo.rate, koersDatum: rateInfo.date, datum: newDate });
+
+    const bedragInput = document.getElementById(`factuurbedrag-${itemId}`);
+    if (bedragInput) bedragInput.value = newBedrag.toFixed(2);
+
+    const currencyInfo = document.getElementById(`currency-info-${itemId}`);
+    if (currencyInfo) {
+        const symbol = getCurrencySymbol(currency);
+        currencyInfo.innerText = `${symbol} ${Number(item.data.origineelBedrag).toFixed(2)} (@ ${rateInfo.rate})`;
+        currencyInfo.title = `Omgerekend van ${currency} ${Number(item.data.origineelBedrag).toFixed(2)} met dagkoers €${rateInfo.rate} op ${rateInfo.date}`;
+    }
+}
 
 export function prepareItemData(mode, aiData, memory) {
     if (mode === 'verkoop') {

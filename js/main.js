@@ -7,6 +7,7 @@ import { loadManualClientsAfterAuth } from './ui/invoices-manual.js';
 import { loadOfferteDataAfterAuth } from './ui/invoices-offerte.js';
 import { invalidateDashboardCache } from './ui/dashboard.js';
 import { initReconcileModal } from './ui/reconcile-modal.js';
+import { initDuplicatesModal } from './ui/duplicates-modal.js';
 import { initAnnualReport } from './ui/annual-report.js';
 
 function init() {
@@ -18,6 +19,7 @@ function init() {
     try { initInvoicesModule(); } catch (e) { console.error('initInvoicesModule error:', e); }
     try { initAnnualReport(); } catch (e) { console.error('initAnnualReport error:', e); }
     try { initReconcileModal(); } catch (e) { console.error('initReconcileModal error:', e); }
+    try { initDuplicatesModal(); } catch (e) { console.error('initDuplicatesModal error:', e); }
 }
 
 if (document.readyState === 'loading') {

@@ -8,6 +8,15 @@ export const DRIVE_FACTUREN_FOLDER_ID = '145y8NI0LhwytJ-i22xwxRkKxTMGyy5pR';
 const PROCESSED_NAME_RE = /^(\d{4}[.-]\d{3}|BFE\d{2}FR)/;
 
 /**
+ * Checks whether a Drive filename matches the processed receipt naming convention.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isProcessedReceiptName(name) {
+    return PROCESSED_NAME_RE.test(String(name || ''));
+}
+
+/**
  * Retourneert de 'Factuur' map ID in Google Drive voor uitgaande verkoopfacturen.
  * @returns {Promise<string>}
  */
@@ -16,15 +25,15 @@ export async function getFacturenFolderId() {
 }
 
 /**
- * Lists PDFs in the Drive folder that have not yet been processed by this app.
- * @param {string} folderId
- * @returns {Promise<Array<{id, name, mimeType}>>}
+ * Lists all receipt files (PDFs and images) in the specified Drive folder.
+ * @param {string} [folderId]
+ * @returns {Promise<Array<{id: string, name: string, mimeType: string, md5Checksum?: string, size?: string, createdTime?: string, webViewLink?: string}>>}
  */
-export async function scanUnprocessedReceipts(folderId) {
+export async function listAllReceiptFiles(folderId = DRIVE_FOLDER_ID) {
     if (!accessToken) throw new Error('Niet ingelogd bij Google.');
 
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false and (mimeType = 'application/pdf' or mimeType contains 'image/')`);
-    const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType)');
+    const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,md5Checksum,size,createdTime,webViewLink)');
 
     let allFiles = [];
     let pageToken = '';
@@ -49,7 +58,17 @@ export async function scanUnprocessedReceipts(folderId) {
         pageToken = data.nextPageToken || '';
     } while (pageToken);
 
-    return allFiles.filter(f => !PROCESSED_NAME_RE.test(f.name));
+    return allFiles;
+}
+
+/**
+ * Lists PDFs and images in the Drive folder that have not yet been processed by this app.
+ * @param {string} [folderId]
+ * @returns {Promise<Array<{id, name, mimeType, md5Checksum?, size?, createdTime?, webViewLink?}>>}
+ */
+export async function scanUnprocessedReceipts(folderId = DRIVE_FOLDER_ID) {
+    const allFiles = await listAllReceiptFiles(folderId);
+    return allFiles.filter(f => !isProcessedReceiptName(f.name));
 }
 
 /**
@@ -101,6 +120,35 @@ export async function renameDriveFile(fileId, newFileName) {
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(`Fout bij hernoemen bestand: ${err?.error?.message || response.status}`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Moves a Google Drive file to the Trash (recoverable for 30 days).
+ * @param {string} fileId
+ * @returns {Promise<Object>}
+ */
+export async function trashDriveFile(fileId) {
+    if (!accessToken) throw new Error('Niet ingelogd bij Google.');
+
+    const response = await fetchWithRetry(
+        `https://www.googleapis.com/drive/v3/files/${fileId}`,
+        {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ trashed: true })
+        }
+    );
+
+    if (response.status === 401) throw new Error('TOKEN_EXPIRED');
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(`Fout bij verplaatsen naar Prullenbak: ${err?.error?.message || response.status}`);
     }
 
     return await response.json();
